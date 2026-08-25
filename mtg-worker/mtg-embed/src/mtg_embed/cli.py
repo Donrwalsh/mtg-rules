@@ -46,10 +46,12 @@ def run(
 
     from mtg_embed.embedder import load_sentence_transformer_embedder
     from mtg_embed.qdrant_store import QdrantStore
+    from mtg_embed.sparse_embedder import load_bm25_sparse_embedder
 
     client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
     store = QdrantStore(client, settings.collection_name)
     embedder = load_sentence_transformer_embedder(settings.model_name, settings.embed_batch_size)
+    sparse_embedder = load_bm25_sparse_embedder(settings.sparse_model_name)
     store.ensure_collection(embedder.vector_size)
 
     summaries = []
@@ -58,18 +60,24 @@ def run(
     if "rules" in sources:
         rules_path = _latest(settings.parsed_dir, "rules_*.jsonl")
         chunks = load_rule_chunks(rules_path, limit=limit)
-        summaries.append(("rules", embed_and_store(chunks, store, embedder, settings.retrieve_batch_size)))
+        summaries.append(
+            ("rules", embed_and_store(chunks, store, embedder, sparse_embedder, settings.retrieve_batch_size))
+        )
 
     if "cards" in sources:
         cards_path = _latest(settings.parsed_dir, "cards_*.jsonl")
         chunks = load_card_chunks(cards_path, limit=limit)
-        summaries.append(("cards", embed_and_store(chunks, store, embedder, settings.retrieve_batch_size)))
+        summaries.append(
+            ("cards", embed_and_store(chunks, store, embedder, sparse_embedder, settings.retrieve_batch_size))
+        )
 
     if "rulings" in sources:
         rulings_path = _latest(settings.parsed_dir, "rulings_*.jsonl")
         cards_path = _latest(settings.parsed_dir, "cards_*.jsonl")
         chunks, skipped_no_card = load_ruling_chunks(rulings_path, cards_path, limit=limit)
-        summaries.append(("rulings", embed_and_store(chunks, store, embedder, settings.retrieve_batch_size)))
+        summaries.append(
+            ("rulings", embed_and_store(chunks, store, embedder, sparse_embedder, settings.retrieve_batch_size))
+        )
 
     typer.echo("")
     typer.echo("Embedding summary:")

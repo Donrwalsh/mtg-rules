@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     collection_name: str = "mtg_rules"
     parsed_dir: Path = Path("../mtg-ingestion/data/parsed")
     model_name: str = "BAAI/bge-base-en-v1.5"
+    sparse_model_name: str = "Qdrant/bm25"
     embed_batch_size: int = 32
     retrieve_batch_size: int = 256
 
