@@ -71,3 +71,50 @@ def test_limit_caps_number_of_chunks(tmp_path):
 
     chunks, _ = load_ruling_chunks(rulings_path, cards_path, limit=1)
     assert len(chunks) == 1
+
+
+def test_ruling_index_is_per_oracle_id_not_global(tmp_path):
+    """Verify ruling indices are tracked per-oracle_id, not globally.
+
+    This test would fail if the implementation incorrectly used a single global
+    counter instead of defaultdict(int) keyed by oracle_id. With interleaved
+    oracle_ids, a global counter bug would produce (0, 1, 2) instead of the
+    correct (0, 0, 1).
+    """
+    # Two cards with different oracle_ids
+    card_rows = [
+        {
+            "oracle_id": "oid-1",
+            "name": "Lightning Bolt",
+            "oracle_text": "Lightning Bolt deals 3 damage to any target.",
+            "type_line": "Instant",
+            "mana_cost": "{R}",
+            "content_hash": "hcard1",
+        },
+        {
+            "oracle_id": "oid-2",
+            "name": "Counterspell",
+            "oracle_text": "Counter target spell.",
+            "type_line": "Instant",
+            "mana_cost": "{UU}",
+            "content_hash": "hcard2",
+        },
+    ]
+
+    # Interleaved rulings: oid-1, oid-2, oid-1
+    ruling_rows = [
+        {"oracle_id": "oid-1", "published_at": "2020-01-01", "comment": "First oid-1 ruling.", "content_hash": "hr1"},
+        {"oracle_id": "oid-2", "published_at": "2020-01-01", "comment": "First oid-2 ruling.", "content_hash": "hr2"},
+        {"oracle_id": "oid-1", "published_at": "2020-01-02", "comment": "Second oid-1 ruling.", "content_hash": "hr3"},
+    ]
+
+    rulings_path = _write(tmp_path, "rulings.jsonl", ruling_rows)
+    cards_path = _write(tmp_path, "cards.jsonl", card_rows)
+
+    chunks, _ = load_ruling_chunks(rulings_path, cards_path)
+
+    # With a global counter bug, indices would be (0, 1, 2).
+    # With correct per-oracle_id tracking, they should be (0, 0, 1).
+    assert chunks[0].point_id == ruling_point_id("oid-1", 0)
+    assert chunks[1].point_id == ruling_point_id("oid-2", 0)
+    assert chunks[2].point_id == ruling_point_id("oid-1", 1)
