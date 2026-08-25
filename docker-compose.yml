@@ -32,6 +32,9 @@ services:
       MTG_API_CORS_ORIGINS: '["http://localhost:3000"]'
       MTG_API_BROKER_URL: redis://redis:6379/0
       MTG_API_RESULT_BACKEND: redis://redis:6379/0
+      MTG_API_PARSED_DIR: /app/data/parsed
+    volumes:
+      - ./mtg-worker/mtg-ingestion/data/parsed:/app/data/parsed:ro
     ports:
       - "8000:8000"
     depends_on:
