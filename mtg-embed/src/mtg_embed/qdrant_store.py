@@ -28,7 +28,11 @@ class QdrantStore:
             ids=point_ids,
             with_payload=["content_hash"],
         )
-        return {str(p.id): p.payload["content_hash"] for p in points if p.payload}
+        return {
+            str(p.id): p.payload["content_hash"]
+            for p in points
+            if p.payload and "content_hash" in p.payload
+        }
 
     def upsert(self, chunks: list[EmbeddableChunk], vectors: list[list[float]]) -> None:
         if not chunks:
