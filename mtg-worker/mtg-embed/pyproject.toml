@@ -5,9 +5,10 @@ description = "Embeds the parsed MTG rules/cards/rulings corpus into a self-host
 requires-python = ">=3.12"
 dependencies = [
     "pydantic-settings>=2.3",
-    "qdrant-client>=1.9",
+    "qdrant-client>=1.10",
     "sentence-transformers>=3.0",
     "typer>=0.12",
+    "fastembed>=0.3",
 ]
 
 [project.optional-dependencies]
