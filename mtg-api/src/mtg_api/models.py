@@ -17,3 +17,7 @@ class QueryResult(BaseModel):
 class QueryResponse(BaseModel):
     query: str
     results: list[QueryResult]
+
+
+class EmbedRequest(BaseModel):
+    limit: str = "all"
