@@ -16,7 +16,9 @@ services:
       MTG_EMBED_PARSED_DIR: /app/data
     volumes:
       - ./mtg-ingestion/data/parsed:/app/data:ro
-    command: ["run", "--source", "all"]
+    # mtg-embed's CLI collapses the "run" subcommand name away (Typer's
+    # single-command flattening) — invoke it without "run".
+    command: ["--source", "all"]
 
   backend:
     build: ./mtg-api
