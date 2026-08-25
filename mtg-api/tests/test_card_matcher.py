@@ -40,6 +40,11 @@ def test_empty_query_returns_no_matches():
     assert matcher.find_matches("") == []
 
 
+def test_empty_card_list_returns_no_matches_without_raising():
+    matcher = CardMatcher([])
+    assert matcher.find_matches("does Counterspell work") == []
+
+
 def test_no_matches_returns_empty_list():
     matcher = CardMatcher(CARDS)
     assert matcher.find_matches("just a generic rules question") == []

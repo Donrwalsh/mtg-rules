@@ -17,6 +17,8 @@ class CardMatcher:
         self._automaton.make_automaton()
 
     def find_matches(self, query: str) -> list[dict]:
+        if not self._cards_by_key:
+            return []
         query_lower = query.lower()
         matched_keys: set[str] = set()
         for end_index, key in self._automaton.iter(query_lower):
