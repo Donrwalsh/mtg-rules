@@ -1,0 +1,43 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+  embed:
+    build: ./mtg-embed
+    depends_on:
+      - qdrant
+    environment:
+      MTG_EMBED_QDRANT_HOST: qdrant
+      MTG_EMBED_QDRANT_PORT: "6333"
+      MTG_EMBED_PARSED_DIR: /app/data
+    volumes:
+      - ./mtg-ingestion/data/parsed:/app/data:ro
+    command: ["run", "--source", "all"]
+
+  backend:
+    build: ./mtg-api
+    environment:
+      MTG_API_QDRANT_HOST: qdrant
+      MTG_API_QDRANT_PORT: "6333"
+      MTG_API_CORS_ORIGINS: '["http://localhost:3000"]'
+    ports:
+      - "8000:8000"
+    depends_on:
+      - qdrant
+
+  frontend:
+    build:
+      context: ./mtg-web
+      args:
+        PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  qdrant_storage:
