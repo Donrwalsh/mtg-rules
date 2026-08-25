@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from celery import Celery
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from qdrant_client import QdrantClient
 
+from mtg_api.celery_client import get_celery_client
 from mtg_api.config import settings
 from mtg_api.models import QueryRequest, QueryResponse, QueryResult
 from mtg_api.qdrant_check import check_qdrant
@@ -47,3 +49,9 @@ _DUMMY_RESULTS = [
 @app.post("/api/v1/query", response_model=QueryResponse)
 def query(request: QueryRequest) -> QueryResponse:
     return QueryResponse(query=request.query, results=_DUMMY_RESULTS)
+
+
+@app.post("/api/v1/ingest")
+def trigger_ingest(client: Celery = Depends(get_celery_client)) -> dict:
+    result = client.send_task("mtg_worker.ingest")
+    return {"task_id": result.id}
