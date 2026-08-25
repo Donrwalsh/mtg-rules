@@ -42,6 +42,7 @@ def test_ruling_prefix_includes_card_name_and_oracle_text_snippet(tmp_path):
     )
     assert first.payload["card_name"] == "Lightning Bolt"
     assert first.payload["text"] == "First ruling."
+    assert first.payload["oracle_id"] == "oid-1"
     assert first.content_hash == "hr1"
 
 

@@ -34,6 +34,7 @@ def load_card_chunks(path: Path, limit: int | None = None) -> list[EmbeddableChu
                     "content_hash": row["content_hash"],
                     "text": oracle_text,
                     "card_name": row["name"],
+                    "oracle_id": row["oracle_id"],
                 },
             )
         )

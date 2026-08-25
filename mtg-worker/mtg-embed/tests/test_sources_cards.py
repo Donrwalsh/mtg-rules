@@ -45,6 +45,7 @@ def test_card_chunk_has_no_prefix_and_joins_fields(tmp_path):
     assert bolt.content_hash == "hcard1"
     assert bolt.payload["source_type"] == "oracle"
     assert bolt.payload["text"] == "Lightning Bolt deals 3 damage to any target."
+    assert bolt.payload["oracle_id"] == "oid-1"
 
 
 def test_limit_caps_number_of_chunks(tmp_path):
