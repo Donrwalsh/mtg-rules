@@ -1,9 +1,0 @@
-services:
-  ingestion:
-    build: .
-    volumes:
-      - ./data:/app/data
-    # Override this per-run, e.g.:
-    #   docker compose run --rm ingestion fetch-rules
-    #   docker compose run --rm ingestion parse-cards
-    command: ["run-all"]
