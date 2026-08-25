@@ -70,3 +70,13 @@ def trigger_embed(request: EmbedRequest, client: Celery = Depends(get_celery_cli
             raise HTTPException(status_code=400, detail='limit must be "all" or a positive integer')
     result = client.send_task("mtg_worker.embed", kwargs={"limit": limit})
     return {"task_id": result.id}
+
+
+@app.get("/api/v1/tasks/{task_id}")
+def get_task_status(task_id: str, client: Celery = Depends(get_celery_client)) -> dict:
+    result = client.AsyncResult(task_id)
+    return {
+        "task_id": task_id,
+        "status": result.status,
+        "result": result.result if result.ready() else None,
+    }
