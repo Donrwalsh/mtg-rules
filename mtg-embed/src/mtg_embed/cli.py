@@ -5,7 +5,7 @@ from pathlib import Path
 import typer
 
 from mtg_embed.config import settings
-from mtg_embed.pipeline import embed_and_store
+from mtg_embed.pipeline import RunSummary, embed_and_store
 from mtg_embed.sources.cards import load_card_chunks
 from mtg_embed.sources.rules import load_rule_chunks
 from mtg_embed.sources.rulings import load_ruling_chunks
@@ -20,6 +20,14 @@ def _latest(directory: Path, pattern: str) -> Path:
     if not matches:
         raise FileNotFoundError(f"No files matching {pattern!r} in {directory}")
     return matches[-1]
+
+
+def _format_summary_line(source_name: str, summary: RunSummary) -> str:
+    """Format a summary line for display, using source_name even when summary.source_type is empty."""
+    return (
+        f"  {source_name}: embedded={summary.embedded} skipped_unchanged={summary.skipped_unchanged} "
+        f"total_seen={summary.total_seen}"
+    )
 
 
 @app.command("run")
@@ -50,27 +58,24 @@ def run(
     if "rules" in sources:
         rules_path = _latest(settings.parsed_dir, "rules_*.jsonl")
         chunks = load_rule_chunks(rules_path, limit=limit)
-        summaries.append(embed_and_store(chunks, store, embedder, settings.retrieve_batch_size))
+        summaries.append(("rules", embed_and_store(chunks, store, embedder, settings.retrieve_batch_size)))
 
     if "cards" in sources:
         cards_path = _latest(settings.parsed_dir, "cards_*.jsonl")
         chunks = load_card_chunks(cards_path, limit=limit)
-        summaries.append(embed_and_store(chunks, store, embedder, settings.retrieve_batch_size))
+        summaries.append(("cards", embed_and_store(chunks, store, embedder, settings.retrieve_batch_size)))
 
     if "rulings" in sources:
         rulings_path = _latest(settings.parsed_dir, "rulings_*.jsonl")
         cards_path = _latest(settings.parsed_dir, "cards_*.jsonl")
         chunks, skipped_no_card = load_ruling_chunks(rulings_path, cards_path, limit=limit)
-        summaries.append(embed_and_store(chunks, store, embedder, settings.retrieve_batch_size))
+        summaries.append(("rulings", embed_and_store(chunks, store, embedder, settings.retrieve_batch_size)))
 
     typer.echo("")
     typer.echo("Embedding summary:")
     grand_total = grand_embedded = grand_skipped = 0
-    for s in summaries:
-        typer.echo(
-            f"  {s.source_type}: embedded={s.embedded} skipped_unchanged={s.skipped_unchanged} "
-            f"total_seen={s.total_seen}"
-        )
+    for source_name, s in summaries:
+        typer.echo(_format_summary_line(source_name, s))
         grand_total += s.total_seen
         grand_embedded += s.embedded
         grand_skipped += s.skipped_unchanged
