@@ -6,19 +6,23 @@ services:
     volumes:
       - qdrant_storage:/qdrant/storage
 
-  embed:
-    build: ./mtg-embed
+  redis:
+    image: redis:7-alpine
+
+  worker:
+    build: ./mtg-worker
     depends_on:
+      - redis
       - qdrant
     environment:
+      MTG_WORKER_BROKER_URL: redis://redis:6379/0
+      MTG_WORKER_RESULT_BACKEND: redis://redis:6379/0
+      MTG_INGEST_DATA_DIR: /app/data
+      MTG_EMBED_PARSED_DIR: /app/data/parsed
       MTG_EMBED_QDRANT_HOST: qdrant
       MTG_EMBED_QDRANT_PORT: "6333"
-      MTG_EMBED_PARSED_DIR: /app/data
     volumes:
-      - ./mtg-ingestion/data/parsed:/app/data:ro
-    # mtg-embed's CLI collapses the "run" subcommand name away (Typer's
-    # single-command flattening) — invoke it without "run".
-    command: ["--source", "all"]
+      - ./mtg-worker/mtg-ingestion/data:/app/data
 
   backend:
     build: ./mtg-api
@@ -26,10 +30,13 @@ services:
       MTG_API_QDRANT_HOST: qdrant
       MTG_API_QDRANT_PORT: "6333"
       MTG_API_CORS_ORIGINS: '["http://localhost:3000"]'
+      MTG_API_BROKER_URL: redis://redis:6379/0
+      MTG_API_RESULT_BACKEND: redis://redis:6379/0
     ports:
       - "8000:8000"
     depends_on:
       - qdrant
+      - redis
 
   frontend:
     build:
