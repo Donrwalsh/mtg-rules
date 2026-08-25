@@ -8,6 +8,8 @@ dependencies = [
     "uvicorn[standard]>=0.29",
     "pydantic-settings>=2.3",
     "qdrant-client>=1.9",
+    "celery>=5.3",
+    "redis>=5.0",
 ]
 
 [project.optional-dependencies]
