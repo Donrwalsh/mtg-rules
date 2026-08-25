@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from mtg_embed.embedder import Embedder
 from mtg_embed.models import EmbeddableChunk
 from mtg_embed.qdrant_store import QdrantStore
+from mtg_embed.sparse_embedder import SparseEmbedder
 
 
 @dataclass
@@ -23,6 +24,7 @@ def embed_and_store(
     chunks: list[EmbeddableChunk],
     store: QdrantStore,
     embedder: Embedder,
+    sparse_embedder: SparseEmbedder,
     retrieve_batch_size: int = 256,
 ) -> RunSummary:
     if not chunks:
@@ -38,8 +40,10 @@ def embed_and_store(
         skipped += len(batch) - len(to_embed)
 
         if to_embed:
-            vectors = embedder.encode([c.text_to_embed for c in to_embed])
-            store.upsert(to_embed, vectors)
+            texts = [c.text_to_embed for c in to_embed]
+            dense_vectors = embedder.encode(texts)
+            sparse_vectors = sparse_embedder.encode(texts)
+            store.upsert(to_embed, dense_vectors, sparse_vectors)
             embedded += len(to_embed)
 
     return RunSummary(
