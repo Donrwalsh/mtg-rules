@@ -115,7 +115,16 @@ def test_query_dedupes_vector_hit_matching_a_card_match():
 
 
 def test_query_rejects_missing_query_field():
-    resp = TestClient(app).post("/api/v1/query", json={})
+    # FastAPI resolves Depends() sub-dependencies before request-body
+    # validation runs, so this still needs the same overrides as every
+    # other test here -- without them it silently falls through to the
+    # real, un-cached get_dense_embedder()/get_sparse_embedder(), which
+    # downloads and loads the actual models over the network.
+    _override()
+    try:
+        resp = TestClient(app).post("/api/v1/query", json={})
+    finally:
+        app.dependency_overrides.clear()
     assert resp.status_code == 422
 
 

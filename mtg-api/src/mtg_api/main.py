@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 
@@ -16,15 +17,6 @@ from mtg_api.models import EmbedRequest, QueryRequest, QueryResponse, QueryResul
 from mtg_api.qdrant_check import check_qdrant
 from mtg_api.retrieval import hybrid_search
 from mtg_api.sparse_embedder import SparseEmbedder, load_bm25_sparse_embedder
-
-app = FastAPI(title="mtg-api")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_methods=["GET", "POST"],
-    allow_headers=["*"],
-)
 
 
 def get_qdrant_client() -> QdrantClient:
@@ -52,6 +44,27 @@ def get_dense_embedder() -> Embedder:
 @lru_cache(maxsize=1)
 def get_sparse_embedder() -> SparseEmbedder:
     return load_bm25_sparse_embedder(settings.sparse_model_name)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Warm the card automaton and both models at container startup, not on
+    # the first request -- moves the ~20s cold-load cost from the first
+    # query to `docker compose up` instead.
+    get_card_matcher()
+    get_dense_embedder()
+    get_sparse_embedder()
+    yield
+
+
+app = FastAPI(title="mtg-api", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
