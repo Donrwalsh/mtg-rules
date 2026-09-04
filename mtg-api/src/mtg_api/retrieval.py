@@ -63,3 +63,32 @@ def hybrid_search(
 
     combined.sort(key=lambda item: item[1], reverse=True)
     return combined[:top_k]
+
+
+def fetch_card_rulings(
+    client: QdrantClient,
+    collection_name: str,
+    oracle_ids: list[str],
+    limit: int,
+) -> list[tuple[str, dict]]:
+    """Directly fetch the rulings belonging to the given oracle_ids -- an
+    exact filter, not a similarity search. Hybrid vector search alone has no
+    way to guarantee a named card's own rulings surface: the query text's
+    embedding can easily be closer to unrelated cards that share words with
+    the matched card's name."""
+    if not oracle_ids:
+        return []
+
+    scroll_filter = qmodels.Filter(
+        must=[
+            qmodels.FieldCondition(key="source_type", match=qmodels.MatchValue(value="ruling")),
+            qmodels.FieldCondition(key="oracle_id", match=qmodels.MatchAny(any=oracle_ids)),
+        ]
+    )
+    points, _ = client.scroll(
+        collection_name=collection_name,
+        scroll_filter=scroll_filter,
+        limit=limit,
+        with_payload=True,
+    )
+    return [(str(p.id), p.payload) for p in points]

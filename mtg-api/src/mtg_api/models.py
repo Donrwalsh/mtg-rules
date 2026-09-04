@@ -19,6 +19,7 @@ class QueryResult(BaseModel):
 class QueryResponse(BaseModel):
     query: str
     results: list[QueryResult]
+    answer: str | None = None
 
 
 class EmbedRequest(BaseModel):

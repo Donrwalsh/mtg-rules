@@ -10,6 +10,7 @@ export interface QueryResult {
 export interface QueryResponse {
   query: string;
   results: QueryResult[];
+  answer: string | null;
 }
 
 export async function submitQuery(query: string): Promise<QueryResponse> {
@@ -20,6 +21,24 @@ export async function submitQuery(query: string): Promise<QueryResponse> {
   });
   if (!resp.ok) {
     throw new Error(`query failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
+export interface QueryHistoryRow {
+  id: number;
+  query: string;
+  answer: string | null;
+  results: QueryResult[];
+  model: string;
+  error: string | null;
+  created_at: string;
+}
+
+export async function fetchHistory(limit: number, offset: number): Promise<QueryHistoryRow[]> {
+  const resp = await fetch(`${API_URL}/api/v1/queries?limit=${limit}&offset=${offset}`);
+  if (!resp.ok) {
+    throw new Error(`history fetch failed: ${resp.status}`);
   }
   return resp.json();
 }

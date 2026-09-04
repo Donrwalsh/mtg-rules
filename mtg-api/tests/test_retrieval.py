@@ -1,4 +1,4 @@
-from mtg_api.retrieval import _normalize, hybrid_search
+from mtg_api.retrieval import _normalize, fetch_card_rulings, hybrid_search
 from mtg_api.sparse_embedder import SparseVector
 
 
@@ -15,15 +15,23 @@ class _FakeQueryResult:
 
 
 class _FakeClient:
-    def __init__(self, dense_points, sparse_points):
+    def __init__(self, dense_points, sparse_points, scroll_points=None):
         self._dense_points = dense_points
         self._sparse_points = sparse_points
+        self._scroll_points = scroll_points or []
         self.calls: list[tuple[str, int]] = []
+        self.scroll_calls: list[dict] = []
 
     def query_points(self, collection_name, using, query, limit, with_payload):
         self.calls.append((using, limit))
         points = self._dense_points if using == "dense" else self._sparse_points
         return _FakeQueryResult(points[:limit])
+
+    def scroll(self, collection_name, scroll_filter, limit, with_payload):
+        self.scroll_calls.append(
+            {"collection_name": collection_name, "scroll_filter": scroll_filter, "limit": limit}
+        )
+        return self._scroll_points[:limit], None
 
 
 def test_normalize_empty_returns_empty():
@@ -120,3 +128,33 @@ def test_hybrid_search_uses_per_branch_limit():
     )
 
     assert client.calls == [("dense", 2), ("sparse", 2)]
+
+
+def test_fetch_card_rulings_returns_empty_for_no_oracle_ids():
+    client = _FakeClient([], [], scroll_points=[_FakeHit("r1", None, {"text": "a ruling"})])
+    results = fetch_card_rulings(client, "test_collection", [], limit=20)
+    assert results == []
+    assert client.scroll_calls == []
+
+
+def test_fetch_card_rulings_returns_points_from_scroll():
+    scroll_points = [
+        _FakeHit("r1", None, {"source_type": "ruling", "oracle_id": "oid-1", "text": "ruling one"}),
+        _FakeHit("r2", None, {"source_type": "ruling", "oracle_id": "oid-1", "text": "ruling two"}),
+    ]
+    client = _FakeClient([], [], scroll_points=scroll_points)
+    results = fetch_card_rulings(client, "test_collection", ["oid-1"], limit=20)
+    assert [r[0] for r in results] == ["r1", "r2"]
+    assert results[0][1]["text"] == "ruling one"
+
+
+def test_fetch_card_rulings_passes_limit_and_filter_to_scroll():
+    client = _FakeClient([], [], scroll_points=[])
+    fetch_card_rulings(client, "test_collection", ["oid-1", "oid-2"], limit=5)
+    assert len(client.scroll_calls) == 1
+    call = client.scroll_calls[0]
+    assert call["collection_name"] == "test_collection"
+    assert call["limit"] == 5
+    conditions = call["scroll_filter"].must
+    assert any(c.key == "source_type" for c in conditions)
+    assert any(c.key == "oracle_id" for c in conditions)

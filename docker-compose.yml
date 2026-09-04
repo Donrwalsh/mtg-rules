@@ -9,6 +9,17 @@ services:
   redis:
     image: redis:7-alpine
 
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: mtg
+      POSTGRES_PASSWORD: mtg
+      POSTGRES_DB: mtg
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   worker:
     build: ./mtg-worker
     depends_on:
@@ -34,6 +45,9 @@ services:
       MTG_API_BROKER_URL: redis://redis:6379/0
       MTG_API_RESULT_BACKEND: redis://redis:6379/0
       MTG_API_PARSED_DIR: /app/data/parsed
+      MTG_API_GROQ_API_KEY: ${MTG_API_GROQ_API_KEY:?Set MTG_API_GROQ_API_KEY in your .env file}
+      MTG_API_GROQ_MODEL: openai/gpt-oss-120b
+      MTG_API_POSTGRES_DSN: postgresql+psycopg://mtg:mtg@postgres:5432/mtg
     volumes:
       - ./mtg-worker/mtg-ingestion/data/parsed:/app/data/parsed:ro
       - hf_cache:/root/.cache/huggingface
@@ -42,6 +56,7 @@ services:
     depends_on:
       - qdrant
       - redis
+      - postgres
 
   frontend:
     build:
@@ -56,3 +71,4 @@ services:
 volumes:
   qdrant_storage:
   hf_cache:
+  postgres_data:
