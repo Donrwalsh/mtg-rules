@@ -1,0 +1,10 @@
+.git/
+mtg-ingestion/data/
+tests/
+mtg-embed/tests/
+mtg-ingestion/tests/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/

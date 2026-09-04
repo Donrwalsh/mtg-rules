@@ -1,6 +1,6 @@
 services:
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.19.1
     ports:
       - "6333:6333"
     volumes:
@@ -23,6 +23,7 @@ services:
       MTG_EMBED_QDRANT_PORT: "6333"
     volumes:
       - ./mtg-worker/mtg-ingestion/data:/app/data
+      - hf_cache:/root/.cache/huggingface
 
   backend:
     build: ./mtg-api
@@ -35,6 +36,7 @@ services:
       MTG_API_PARSED_DIR: /app/data/parsed
     volumes:
       - ./mtg-worker/mtg-ingestion/data/parsed:/app/data/parsed:ro
+      - hf_cache:/root/.cache/huggingface
     ports:
       - "8000:8000"
     depends_on:
@@ -53,3 +55,4 @@ services:
 
 volumes:
   qdrant_storage:
+  hf_cache:
