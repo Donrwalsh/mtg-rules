@@ -13,6 +13,7 @@ dependencies = [
     "pyahocorasick>=2.0",
     "sentence-transformers>=3.0",
     "fastembed>=0.3",
+    "sqlalchemy>=2.0",
 ]
 
 [project.optional-dependencies]
