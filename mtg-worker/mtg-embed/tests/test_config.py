@@ -29,3 +29,10 @@ def test_settings_env_override(monkeypatch):
     assert s.qdrant_host == "qdrant"
     assert s.qdrant_port == 7000
     assert s.collection_name == "custom_collection"
+
+
+def test_settings_sparse_model_default():
+    from mtg_embed.config import Settings
+
+    s = Settings()
+    assert s.sparse_model_name == "Qdrant/bm25"

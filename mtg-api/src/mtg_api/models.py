@@ -12,6 +12,8 @@ class QueryResult(BaseModel):
     title: str
     text: str
     score: float
+    match_type: str
+    oracle_id: str | None = None
 
 
 class QueryResponse(BaseModel):

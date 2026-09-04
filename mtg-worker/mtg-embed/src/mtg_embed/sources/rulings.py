@@ -54,6 +54,7 @@ def load_ruling_chunks(
                     "content_hash": row["content_hash"],
                     "text": row["comment"],
                     "card_name": card["name"],
+                    "oracle_id": oracle_id,
                 },
             )
         )

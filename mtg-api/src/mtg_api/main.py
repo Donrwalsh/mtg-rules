@@ -1,16 +1,63 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+from functools import lru_cache
+from pathlib import Path
+
 from celery import Celery
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from qdrant_client import QdrantClient
 
+from mtg_api.card_matcher import CardMatcher, load_card_matcher
 from mtg_api.celery_client import get_celery_client
 from mtg_api.config import settings
+from mtg_api.embedder import Embedder, load_sentence_transformer_embedder
 from mtg_api.models import EmbedRequest, QueryRequest, QueryResponse, QueryResult
 from mtg_api.qdrant_check import check_qdrant
+from mtg_api.retrieval import hybrid_search
+from mtg_api.sparse_embedder import SparseEmbedder, load_bm25_sparse_embedder
 
-app = FastAPI(title="mtg-api")
+
+def get_qdrant_client() -> QdrantClient:
+    return QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+
+
+def _latest(directory: Path, pattern: str) -> Path:
+    matches = sorted(directory.glob(pattern))
+    if not matches:
+        raise FileNotFoundError(f"No files matching {pattern!r} in {directory}")
+    return matches[-1]
+
+
+@lru_cache(maxsize=1)
+def get_card_matcher() -> CardMatcher:
+    cards_path = _latest(settings.parsed_dir, "cards_*.jsonl")
+    return load_card_matcher(cards_path)
+
+
+@lru_cache(maxsize=1)
+def get_dense_embedder() -> Embedder:
+    return load_sentence_transformer_embedder(settings.dense_model_name, batch_size=1)
+
+
+@lru_cache(maxsize=1)
+def get_sparse_embedder() -> SparseEmbedder:
+    return load_bm25_sparse_embedder(settings.sparse_model_name)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Warm the card automaton and both models at container startup, not on
+    # the first request -- moves the ~20s cold-load cost from the first
+    # query to `docker compose up` instead.
+    get_card_matcher()
+    get_dense_embedder()
+    get_sparse_embedder()
+    yield
+
+
+app = FastAPI(title="mtg-api", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,35 +67,64 @@ app.add_middleware(
 )
 
 
-def get_qdrant_client() -> QdrantClient:
-    return QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
-
-
 @app.get("/health")
 def health(client: QdrantClient = Depends(get_qdrant_client)) -> dict:
     qdrant_status = "ok" if check_qdrant(client) else "unreachable"
     return {"status": "ok", "qdrant": qdrant_status}
 
 
-_DUMMY_RESULTS = [
-    QueryResult(
-        source="rule",
-        title="702.19. Trample",
-        text="702.19a Trample is a static ability...",
-        score=0.91,
-    ),
-    QueryResult(
-        source="ruling",
-        title="Craterhoof Behemoth",
-        text="If the creature with trample is blocked, you may assign...",
-        score=0.87,
-    ),
-]
-
-
 @app.post("/api/v1/query", response_model=QueryResponse)
-def query(request: QueryRequest) -> QueryResponse:
-    return QueryResponse(query=request.query, results=_DUMMY_RESULTS)
+def query(
+    request: QueryRequest,
+    matcher: CardMatcher = Depends(get_card_matcher),
+    dense_embedder: Embedder = Depends(get_dense_embedder),
+    sparse_embedder: SparseEmbedder = Depends(get_sparse_embedder),
+    client: QdrantClient = Depends(get_qdrant_client),
+) -> QueryResponse:
+    card_results = [
+        QueryResult(
+            source="card",
+            title=card["name"],
+            text=card.get("oracle_text", ""),
+            score=1.0,
+            match_type="card_name_match",
+            oracle_id=card.get("oracle_id"),
+        )
+        for card in matcher.find_matches(request.query)
+    ]
+    matched_oracle_ids = {r.oracle_id for r in card_results if r.oracle_id}
+
+    dense_vector = dense_embedder.encode([request.query])[0]
+    sparse_vector = sparse_embedder.encode([request.query])[0]
+    hits = hybrid_search(
+        client,
+        settings.collection_name,
+        dense_vector,
+        sparse_vector,
+        settings.hybrid_per_branch_limit,
+        settings.hybrid_dense_weight,
+        settings.hybrid_sparse_weight,
+        settings.hybrid_score_threshold,
+        settings.hybrid_top_k,
+    )
+
+    vector_results = []
+    for point_id, score, payload in hits:
+        oracle_id = payload.get("oracle_id")
+        if oracle_id and oracle_id in matched_oracle_ids:
+            continue
+        vector_results.append(
+            QueryResult(
+                source=payload.get("source_type", "unknown"),
+                title=payload.get("card_name") or payload.get("rule_id", ""),
+                text=payload.get("text", ""),
+                score=score,
+                match_type="vector_hit",
+                oracle_id=oracle_id,
+            )
+        )
+
+    return QueryResponse(query=request.query, results=card_results + vector_results)
 
 
 @app.post("/api/v1/ingest")

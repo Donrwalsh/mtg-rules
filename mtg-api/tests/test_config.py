@@ -24,3 +24,21 @@ def test_broker_env_override(monkeypatch):
     monkeypatch.setenv("MTG_API_BROKER_URL", "redis://localhost:6379/0")
     s = Settings(_env_file=None)
     assert s.broker_url == "redis://localhost:6379/0"
+
+
+def test_hybrid_defaults():
+    s = Settings(_env_file=None)
+    assert s.collection_name == "mtg_rules"
+    assert s.dense_model_name == "BAAI/bge-base-en-v1.5"
+    assert s.sparse_model_name == "Qdrant/bm25"
+    assert s.hybrid_dense_weight == 0.5
+    assert s.hybrid_sparse_weight == 0.5
+    assert s.hybrid_top_k == 10
+    assert s.hybrid_per_branch_limit == 50
+    assert s.hybrid_score_threshold == 0.0
+
+
+def test_hybrid_env_override(monkeypatch):
+    monkeypatch.setenv("MTG_API_HYBRID_DENSE_WEIGHT", "0.7")
+    s = Settings(_env_file=None)
+    assert s.hybrid_dense_weight == 0.7
