@@ -10,6 +10,7 @@ export interface QueryResult {
 export interface QueryResponse {
   query: string;
   results: QueryResult[];
+  answer: string | null;
 }
 
 export async function submitQuery(query: string): Promise<QueryResponse> {
