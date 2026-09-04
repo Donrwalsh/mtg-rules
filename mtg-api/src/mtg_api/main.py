@@ -20,7 +20,7 @@ from mtg_api.history import list_history, save_history
 from mtg_api.llm import GroqAnswerer, build_context, load_groq_answerer
 from mtg_api.models import EmbedRequest, QueryRequest, QueryResponse, QueryResult
 from mtg_api.qdrant_check import check_qdrant
-from mtg_api.retrieval import hybrid_search
+from mtg_api.retrieval import fetch_card_rulings, hybrid_search
 from mtg_api.sparse_embedder import SparseEmbedder, load_bm25_sparse_embedder
 
 logger = logging.getLogger(__name__)
@@ -114,6 +114,21 @@ def query(
     ]
     matched_oracle_ids = {r.oracle_id for r in card_results if r.oracle_id}
 
+    card_ruling_hits = fetch_card_rulings(
+        client, settings.collection_name, list(matched_oracle_ids), settings.card_ruling_limit
+    )
+    card_ruling_results = [
+        QueryResult(
+            source=payload.get("source_type", "unknown"),
+            title=payload.get("card_name", ""),
+            text=payload.get("text", ""),
+            score=1.0,
+            match_type="card_ruling_match",
+            oracle_id=payload.get("oracle_id"),
+        )
+        for _point_id, payload in card_ruling_hits
+    ]
+
     dense_vector = dense_embedder.encode([request.query])[0]
     sparse_vector = sparse_embedder.encode([request.query])[0]
     hits = hybrid_search(
@@ -144,7 +159,7 @@ def query(
             )
         )
 
-    all_results = card_results + vector_results
+    all_results = card_results + card_ruling_results + vector_results
     context = build_context(all_results)
     try:
         answer = answerer.generate(request.query, context)

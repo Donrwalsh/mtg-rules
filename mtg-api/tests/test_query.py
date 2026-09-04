@@ -47,13 +47,17 @@ class _FakeQueryResult:
 
 
 class _FakeQdrantClient:
-    def __init__(self, dense_points=None, sparse_points=None):
+    def __init__(self, dense_points=None, sparse_points=None, scroll_points=None):
         self._dense_points = dense_points or []
         self._sparse_points = sparse_points or []
+        self._scroll_points = scroll_points or []
 
     def query_points(self, collection_name, using, query, limit, with_payload):
         points = self._dense_points if using == "dense" else self._sparse_points
         return _FakeQueryResult(points[:limit])
+
+    def scroll(self, collection_name, scroll_filter, limit, with_payload):
+        return self._scroll_points[:limit], None
 
 
 class _FakeAnswerer:
@@ -75,11 +79,20 @@ class _FailingEngine:
         raise RuntimeError("db unreachable")
 
 
-def _override(cards=None, dense_points=None, sparse_points=None, answerer=None, engine=None):
+def _override(
+    cards=None,
+    dense_points=None,
+    sparse_points=None,
+    scroll_points=None,
+    answerer=None,
+    engine=None,
+):
     app.dependency_overrides[get_card_matcher] = lambda: CardMatcher(cards or [])
     app.dependency_overrides[get_dense_embedder] = lambda: Embedder(_FakeDenseModel())
     app.dependency_overrides[get_sparse_embedder] = lambda: SparseEmbedder(_FakeSparseModel())
-    app.dependency_overrides[get_qdrant_client] = lambda: _FakeQdrantClient(dense_points, sparse_points)
+    app.dependency_overrides[get_qdrant_client] = lambda: _FakeQdrantClient(
+        dense_points, sparse_points, scroll_points
+    )
     app.dependency_overrides[get_groq_answerer] = lambda: answerer or _FakeAnswerer()
     app.dependency_overrides[get_db_engine] = lambda: engine or memory_engine()
 
@@ -117,6 +130,54 @@ def test_query_returns_vector_hit_when_no_card_named():
     assert len(vector_hits) == 1
     assert vector_hits[0]["title"] == "702.19"
     assert vector_hits[0]["source"] == "rule"
+
+
+def test_query_includes_matched_cards_own_rulings():
+    cards = [{"oracle_id": "oid-1", "name": "Craterhoof Behemoth", "oracle_text": "Trample. When..."}]
+    # An unrelated card's ruling that a naive semantic search might surface
+    # instead of Craterhoof's own -- the bug this test guards against.
+    dense_points = [
+        _FakeHit(
+            "p1",
+            0.9,
+            {
+                "source_type": "ruling",
+                "card_name": "Trench Behemoth",
+                "oracle_id": "oid-2",
+                "text": "An unrelated ruling.",
+            },
+        )
+    ]
+    scroll_points = [
+        _FakeHit(
+            "r1",
+            None,
+            {
+                "source_type": "ruling",
+                "card_name": "Craterhoof Behemoth",
+                "oracle_id": "oid-1",
+                "text": "Craterhoof's own ruling.",
+            },
+        )
+    ]
+    _override(cards=cards, dense_points=dense_points, scroll_points=scroll_points)
+    try:
+        resp = TestClient(app).post(
+            "/api/v1/query", json={"query": "how does Craterhoof Behemoth work"}
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    body = resp.json()
+    card_ruling_hits = [r for r in body["results"] if r["match_type"] == "card_ruling_match"]
+    assert len(card_ruling_hits) == 1
+    assert card_ruling_hits[0]["oracle_id"] == "oid-1"
+    assert card_ruling_hits[0]["text"] == "Craterhoof's own ruling."
+    # The unrelated card's ruling still comes back too, just not miscategorized.
+    vector_hits = [r for r in body["results"] if r["match_type"] == "vector_hit"]
+    assert len(vector_hits) == 1
+    assert vector_hits[0]["oracle_id"] == "oid-2"
 
 
 def test_query_dedupes_vector_hit_matching_a_card_match():
