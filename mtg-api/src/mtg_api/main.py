@@ -198,3 +198,12 @@ def get_task_status(task_id: str, client: Celery = Depends(get_celery_client)) -
         "status": result.status,
         "result": result.result if result.ready() else None,
     }
+
+
+@app.get("/api/v1/queries")
+def get_query_history(
+    limit: int = 50,
+    offset: int = 0,
+    engine: Engine = Depends(get_db_engine),
+) -> list[dict]:
+    return list_history(engine, limit=limit, offset=offset)
