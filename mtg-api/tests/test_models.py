@@ -13,3 +13,13 @@ def test_query_response_holds_results_list():
     resp = QueryResponse(query="trample", results=[result])
     assert resp.results[0].source == "rule"
     assert resp.results[0].score == 0.9
+
+
+def test_query_response_answer_defaults_to_none():
+    resp = QueryResponse(query="trample", results=[])
+    assert resp.answer is None
+
+
+def test_query_response_holds_answer():
+    resp = QueryResponse(query="trample", results=[], answer="Trample lets excess damage through.")
+    assert resp.answer == "Trample lets excess damage through."
