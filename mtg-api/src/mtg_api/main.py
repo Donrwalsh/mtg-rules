@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
@@ -8,15 +9,21 @@ from celery import Celery
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from qdrant_client import QdrantClient
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 
 from mtg_api.card_matcher import CardMatcher, load_card_matcher
 from mtg_api.celery_client import get_celery_client
 from mtg_api.config import settings
 from mtg_api.embedder import Embedder, load_sentence_transformer_embedder
+from mtg_api.history import list_history, save_history
+from mtg_api.llm import GroqAnswerer, build_context, load_groq_answerer
 from mtg_api.models import EmbedRequest, QueryRequest, QueryResponse, QueryResult
 from mtg_api.qdrant_check import check_qdrant
 from mtg_api.retrieval import hybrid_search
 from mtg_api.sparse_embedder import SparseEmbedder, load_bm25_sparse_embedder
+
+logger = logging.getLogger(__name__)
 
 
 def get_qdrant_client() -> QdrantClient:
@@ -46,6 +53,16 @@ def get_sparse_embedder() -> SparseEmbedder:
     return load_bm25_sparse_embedder(settings.sparse_model_name)
 
 
+@lru_cache(maxsize=1)
+def get_db_engine() -> Engine:
+    return create_engine(settings.postgres_dsn)
+
+
+@lru_cache(maxsize=1)
+def get_groq_answerer() -> GroqAnswerer:
+    return load_groq_answerer(settings.groq_api_key, settings.groq_model)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Warm the card automaton and both models at container startup, not on
@@ -54,6 +71,7 @@ async def lifespan(app: FastAPI):
     get_card_matcher()
     get_dense_embedder()
     get_sparse_embedder()
+    get_groq_answerer()
     yield
 
 
@@ -80,6 +98,8 @@ def query(
     dense_embedder: Embedder = Depends(get_dense_embedder),
     sparse_embedder: SparseEmbedder = Depends(get_sparse_embedder),
     client: QdrantClient = Depends(get_qdrant_client),
+    answerer: GroqAnswerer = Depends(get_groq_answerer),
+    engine: Engine = Depends(get_db_engine),
 ) -> QueryResponse:
     card_results = [
         QueryResult(
@@ -124,7 +144,29 @@ def query(
             )
         )
 
-    return QueryResponse(query=request.query, results=card_results + vector_results)
+    all_results = card_results + vector_results
+    context = build_context(all_results)
+    try:
+        answer = answerer.generate(request.query, context)
+        error = None
+    except Exception as exc:
+        logger.exception("Groq answer generation failed")
+        answer = None
+        error = str(exc)
+
+    try:
+        save_history(
+            engine,
+            query=request.query,
+            answer=answer,
+            results=[r.model_dump() for r in all_results],
+            model=settings.groq_model,
+            error=error,
+        )
+    except Exception:
+        logger.exception("Failed to persist query history")
+
+    return QueryResponse(query=request.query, results=all_results, answer=answer)
 
 
 @app.post("/api/v1/ingest")

@@ -1,8 +1,18 @@
 from fastapi.testclient import TestClient
 
+from conftest import memory_engine
 from mtg_api.card_matcher import CardMatcher
 from mtg_api.embedder import Embedder
-from mtg_api.main import app, get_card_matcher, get_dense_embedder, get_qdrant_client, get_sparse_embedder
+from mtg_api.history import list_history
+from mtg_api.main import (
+    app,
+    get_card_matcher,
+    get_db_engine,
+    get_dense_embedder,
+    get_groq_answerer,
+    get_qdrant_client,
+    get_sparse_embedder,
+)
 from mtg_api.sparse_embedder import SparseEmbedder
 
 
@@ -46,11 +56,32 @@ class _FakeQdrantClient:
         return _FakeQueryResult(points[:limit])
 
 
-def _override(cards=None, dense_points=None, sparse_points=None):
+class _FakeAnswerer:
+    def __init__(self, answer="A generated answer.", raises=None):
+        self._answer = answer
+        self._raises = raises
+
+    def generate(self, query, context):
+        if self._raises:
+            raise self._raises
+        return self._answer
+
+
+class _FailingEngine:
+    def begin(self):
+        raise RuntimeError("db unreachable")
+
+    def connect(self):
+        raise RuntimeError("db unreachable")
+
+
+def _override(cards=None, dense_points=None, sparse_points=None, answerer=None, engine=None):
     app.dependency_overrides[get_card_matcher] = lambda: CardMatcher(cards or [])
     app.dependency_overrides[get_dense_embedder] = lambda: Embedder(_FakeDenseModel())
     app.dependency_overrides[get_sparse_embedder] = lambda: SparseEmbedder(_FakeSparseModel())
     app.dependency_overrides[get_qdrant_client] = lambda: _FakeQdrantClient(dense_points, sparse_points)
+    app.dependency_overrides[get_groq_answerer] = lambda: answerer or _FakeAnswerer()
+    app.dependency_overrides[get_db_engine] = lambda: engine or memory_engine()
 
 
 def test_query_returns_card_match_when_name_detected():
@@ -139,3 +170,48 @@ def test_cors_header_present_for_configured_origin():
     finally:
         app.dependency_overrides.clear()
     assert resp.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
+def test_query_returns_generated_answer_on_success():
+    _override(answerer=_FakeAnswerer(answer="Trample carries excess damage over."))
+    try:
+        resp = TestClient(app).post("/api/v1/query", json={"query": "how does trample work"})
+    finally:
+        app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    assert resp.json()["answer"] == "Trample carries excess damage over."
+
+
+def test_query_returns_null_answer_when_groq_fails():
+    _override(answerer=_FakeAnswerer(raises=RuntimeError("rate limited")))
+    try:
+        resp = TestClient(app).post("/api/v1/query", json={"query": "how does trample work"})
+    finally:
+        app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    assert resp.json()["answer"] is None
+    assert resp.json()["results"] == []
+
+
+def test_query_succeeds_even_when_history_write_fails():
+    _override(answerer=_FakeAnswerer(answer="An answer."), engine=_FailingEngine())
+    try:
+        resp = TestClient(app).post("/api/v1/query", json={"query": "how does trample work"})
+    finally:
+        app.dependency_overrides.clear()
+    assert resp.status_code == 200
+    assert resp.json()["answer"] == "An answer."
+
+
+def test_query_persists_a_history_row():
+    engine = memory_engine()
+    _override(answerer=_FakeAnswerer(answer="An answer."), engine=engine)
+    try:
+        TestClient(app).post("/api/v1/query", json={"query": "how does trample work"})
+    finally:
+        app.dependency_overrides.clear()
+    rows = list_history(engine)
+    assert len(rows) == 1
+    assert rows[0]["query"] == "how does trample work"
+    assert rows[0]["answer"] == "An answer."
+    assert rows[0]["error"] is None
