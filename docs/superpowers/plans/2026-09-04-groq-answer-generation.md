@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a Groq (`llama-3.3-70b-versatile`) answer-generation step to `mtg-api`'s existing `POST /api/v1/query`, and persist every query/answer/result-set to a new Postgres `query_history` table, readable back via a new `GET /api/v1/queries`.
+**Goal:** Add a Groq (`openai/gpt-oss-120b`) answer-generation step to `mtg-api`'s existing `POST /api/v1/query`, and persist every query/answer/result-set to a new Postgres `query_history` table, readable back via a new `GET /api/v1/queries`.
 
 **Architecture:** The existing card-match + hybrid-vector retrieval in `main.py` is untouched. After it produces `card_results + vector_results`, a new `llm.py` builds a text context from those results and calls Groq for a synthesized answer; a new `history.py` persists the query/answer/results/error to Postgres via SQLAlchemy Core, with an Alembic migration owning the schema. Both the Groq call and the history write are individually wrapped so a failure in either degrades gracefully (`answer: null`) rather than failing the request.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Groq model: `llama-3.3-70b-versatile`, configurable via `MTG_API_GROQ_MODEL` (default value).
+- Groq model: `openai/gpt-oss-120b`, configurable via `MTG_API_GROQ_MODEL` (default value). Swapped in during execution from the spec's original `llama-3.3-70b-versatile` — Groq had retired that model entirely by implementation time (confirmed 404 from `GET /openai/v1/models` against a real key) — this is the closest available capability tier.
 - Groq call failure -> `answer: null`, `error` recorded, HTTP 200, existing `results` still returned. Never raises past the endpoint.
 - Postgres write failure -> logged, swallowed. Never affects the response, in either direction (success or failure of the Groq call).
 - No auth on either endpoint. No answer streaming. No retry/backoff around the Groq call. No context truncation (relies on Groq's large context window covering the existing `hybrid_top_k`-bounded result set).
@@ -29,7 +29,7 @@
 - Test: `mtg-api/tests/test_config.py`
 
 **Interfaces:**
-- Produces: `settings.groq_api_key: str` (default `""`), `settings.groq_model: str` (default `"llama-3.3-70b-versatile"`), `settings.postgres_dsn: str` (default `"postgresql://mtg:mtg@postgres:5432/mtg"`). Every later task that touches Groq or Postgres reads these off the existing `settings` singleton.
+- Produces: `settings.groq_api_key: str` (default `""`), `settings.groq_model: str` (default `"openai/gpt-oss-120b"`), `settings.postgres_dsn: str` (default `"postgresql+psycopg://mtg:mtg@postgres:5432/mtg"`). Every later task that touches Groq or Postgres reads these off the existing `settings` singleton.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -39,7 +39,7 @@ Append to `mtg-api/tests/test_config.py`:
 def test_groq_defaults():
     s = Settings(_env_file=None)
     assert s.groq_api_key == ""
-    assert s.groq_model == "llama-3.3-70b-versatile"
+    assert s.groq_model == "openai/gpt-oss-120b"
 
 
 def test_groq_env_override(monkeypatch):
@@ -52,7 +52,7 @@ def test_groq_env_override(monkeypatch):
 
 def test_postgres_dsn_default():
     s = Settings(_env_file=None)
-    assert s.postgres_dsn == "postgresql://mtg:mtg@postgres:5432/mtg"
+    assert s.postgres_dsn == "postgresql+psycopg://mtg:mtg@postgres:5432/mtg"
 
 
 def test_postgres_dsn_env_override(monkeypatch):
@@ -73,8 +73,8 @@ In `mtg-api/src/mtg_api/config.py`, add three fields to the `Settings` class, af
 ```python
     hybrid_score_threshold: float = 0.0
     groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
-    postgres_dsn: str = "postgresql://mtg:mtg@postgres:5432/mtg"
+    groq_model: str = "openai/gpt-oss-120b"
+    postgres_dsn: str = "postgresql+psycopg://mtg:mtg@postgres:5432/mtg"
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -170,7 +170,7 @@ def test_save_and_list_round_trips_a_row():
                 "oracle_id": None,
             }
         ],
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         error=None,
     )
     rows = list_history(engine)
@@ -178,7 +178,7 @@ def test_save_and_list_round_trips_a_row():
     assert rows[0]["query"] == "how does trample work"
     assert rows[0]["answer"] == "Trample lets excess damage carry over."
     assert rows[0]["results"][0]["title"] == "702.19"
-    assert rows[0]["model"] == "llama-3.3-70b-versatile"
+    assert rows[0]["model"] == "openai/gpt-oss-120b"
     assert rows[0]["error"] is None
 
 
@@ -189,7 +189,7 @@ def test_save_history_persists_null_answer_and_error():
         query="what does bolt do",
         answer=None,
         results=[],
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         error="rate limited",
     )
     rows = list_history(engine)
@@ -388,17 +388,17 @@ class _FakeGroqClient:
 
 def test_generate_returns_the_completion_text():
     client = _FakeGroqClient("Trample means excess damage carries over.")
-    answerer = GroqAnswerer(client, "llama-3.3-70b-versatile")
+    answerer = GroqAnswerer(client, "openai/gpt-oss-120b")
     answer = answerer.generate("how does trample work", "[rule] 702.19\nTrample text")
     assert answer == "Trample means excess damage carries over."
 
 
 def test_generate_sends_system_and_user_messages_with_model():
     client = _FakeGroqClient("answer")
-    answerer = GroqAnswerer(client, "llama-3.3-70b-versatile")
+    answerer = GroqAnswerer(client, "openai/gpt-oss-120b")
     answerer.generate("q", "ctx")
     call = client.chat.completions.calls[0]
-    assert call["model"] == "llama-3.3-70b-versatile"
+    assert call["model"] == "openai/gpt-oss-120b"
     assert call["messages"][0]["role"] == "system"
     assert call["messages"][1]["role"] == "user"
     assert "ctx" in call["messages"][1]["content"]
@@ -416,7 +416,7 @@ def test_generate_propagates_client_exceptions():
     class _RaisingClient:
         chat = _RaisingChat()
 
-    answerer = GroqAnswerer(_RaisingClient(), "llama-3.3-70b-versatile")
+    answerer = GroqAnswerer(_RaisingClient(), "openai/gpt-oss-120b")
     with pytest.raises(RuntimeError, match="rate limited"):
         answerer.generate("q", "ctx")
 ```
@@ -1179,10 +1179,12 @@ In `docker-compose.yml`, add a new service after `redis:` and before `worker:`:
       POSTGRES_PASSWORD: mtg
       POSTGRES_DB: mtg
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 ```
+
+(Host port `5433`, not `5432` — this dev machine already has an unrelated `postgres_db` container bound to host `5432`. The container-to-container DSN below is unaffected either way; it addresses the service by name on the compose network.)
 
 - [ ] **Step 2: Wire the `backend` service to it**
 
@@ -1190,8 +1192,8 @@ In `docker-compose.yml`'s `backend` service, add to `environment` (after `MTG_AP
 
 ```yaml
       MTG_API_GROQ_API_KEY: ${MTG_API_GROQ_API_KEY:?Set MTG_API_GROQ_API_KEY in your .env file}
-      MTG_API_GROQ_MODEL: llama-3.3-70b-versatile
-      MTG_API_POSTGRES_DSN: postgresql://mtg:mtg@postgres:5432/mtg
+      MTG_API_GROQ_MODEL: openai/gpt-oss-120b
+      MTG_API_POSTGRES_DSN: postgresql+psycopg://mtg:mtg@postgres:5432/mtg
 ```
 
 and add `- postgres` to `backend`'s `depends_on` list.
@@ -1402,7 +1404,7 @@ with:
                                      |      celery tasks:
                                      v      mtg_worker.ingest -> mtg-ingestion
                               Groq API      mtg_worker.embed  -> mtg-embed
-                              (llama-3.3-70b-versatile)
+                              (openai/gpt-oss-120b)
 ```
 
 - [ ] **Step 2: Update the Components table**
@@ -1453,7 +1455,7 @@ with:
    independent dense and sparse Qdrant searches, normalizes and fuses the two
    score lists (weighted sum), builds a text context from the card matches
    plus top vector hits, and sends that context and the query to Groq
-   (`llama-3.3-70b-versatile`) for a synthesized answer. The query, the
+   (`openai/gpt-oss-120b`) for a synthesized answer. The query, the
    generated answer (or `null` if Groq failed), the retrieved results, and
    any error are persisted as one row in Postgres's `query_history` table,
    then the same data is returned to the caller.
@@ -1494,8 +1496,8 @@ After the existing table row `| MTG_API_BROKER_URL / MTG_API_RESULT_BACKEND | re
 
 ```
 | `MTG_API_GROQ_API_KEY` | *(required, no default)* | mtg-api |
-| `MTG_API_GROQ_MODEL` | `llama-3.3-70b-versatile` | mtg-api |
-| `MTG_API_POSTGRES_DSN` | `postgresql://mtg:mtg@postgres:5432/mtg` | mtg-api |
+| `MTG_API_GROQ_MODEL` | `openai/gpt-oss-120b` | mtg-api |
+| `MTG_API_POSTGRES_DSN` | `postgresql+psycopg://mtg:mtg@postgres:5432/mtg` | mtg-api |
 ```
 
 - [ ] **Step 5: Re-read the file for consistency**

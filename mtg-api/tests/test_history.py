@@ -19,7 +19,7 @@ def test_save_and_list_round_trips_a_row():
                 "oracle_id": None,
             }
         ],
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         error=None,
     )
     rows = list_history(engine)
@@ -27,7 +27,7 @@ def test_save_and_list_round_trips_a_row():
     assert rows[0]["query"] == "how does trample work"
     assert rows[0]["answer"] == "Trample lets excess damage carry over."
     assert rows[0]["results"][0]["title"] == "702.19"
-    assert rows[0]["model"] == "llama-3.3-70b-versatile"
+    assert rows[0]["model"] == "openai/gpt-oss-120b"
     assert rows[0]["error"] is None
 
 
@@ -38,7 +38,7 @@ def test_save_history_persists_null_answer_and_error():
         query="what does bolt do",
         answer=None,
         results=[],
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         error="rate limited",
     )
     rows = list_history(engine)

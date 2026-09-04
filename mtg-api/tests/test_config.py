@@ -47,7 +47,7 @@ def test_hybrid_env_override(monkeypatch):
 def test_groq_defaults():
     s = Settings(_env_file=None)
     assert s.groq_api_key == ""
-    assert s.groq_model == "llama-3.3-70b-versatile"
+    assert s.groq_model == "openai/gpt-oss-120b"
 
 
 def test_groq_env_override(monkeypatch):
@@ -60,7 +60,7 @@ def test_groq_env_override(monkeypatch):
 
 def test_postgres_dsn_default():
     s = Settings(_env_file=None)
-    assert s.postgres_dsn == "postgresql://mtg:mtg@postgres:5432/mtg"
+    assert s.postgres_dsn == "postgresql+psycopg://mtg:mtg@postgres:5432/mtg"
 
 
 def test_postgres_dsn_env_override(monkeypatch):

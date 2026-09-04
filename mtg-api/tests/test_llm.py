@@ -63,17 +63,17 @@ class _FakeGroqClient:
 
 def test_generate_returns_the_completion_text():
     client = _FakeGroqClient("Trample means excess damage carries over.")
-    answerer = GroqAnswerer(client, "llama-3.3-70b-versatile")
+    answerer = GroqAnswerer(client, "openai/gpt-oss-120b")
     answer = answerer.generate("how does trample work", "[rule] 702.19\nTrample text")
     assert answer == "Trample means excess damage carries over."
 
 
 def test_generate_sends_system_and_user_messages_with_model():
     client = _FakeGroqClient("answer")
-    answerer = GroqAnswerer(client, "llama-3.3-70b-versatile")
+    answerer = GroqAnswerer(client, "openai/gpt-oss-120b")
     answerer.generate("q", "ctx")
     call = client.chat.completions.calls[0]
-    assert call["model"] == "llama-3.3-70b-versatile"
+    assert call["model"] == "openai/gpt-oss-120b"
     assert call["messages"][0]["role"] == "system"
     assert call["messages"][1]["role"] == "user"
     assert "ctx" in call["messages"][1]["content"]
@@ -91,6 +91,6 @@ def test_generate_propagates_client_exceptions():
     class _RaisingClient:
         chat = _RaisingChat()
 
-    answerer = GroqAnswerer(_RaisingClient(), "llama-3.3-70b-versatile")
+    answerer = GroqAnswerer(_RaisingClient(), "openai/gpt-oss-120b")
     with pytest.raises(RuntimeError, match="rate limited"):
         answerer.generate("q", "ctx")

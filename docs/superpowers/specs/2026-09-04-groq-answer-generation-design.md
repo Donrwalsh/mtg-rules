@@ -10,7 +10,7 @@ card matches + fused dense/sparse vector hits) — no synthesized answer, by
 explicit decision of the prior hybrid-query spec ("no answer synthesis,
 no citation formatting"). This spec adds that synthesis stage: the
 existing retrieved passages are stuffed into a prompt and sent to Groq
-(`llama-3.3-70b-versatile`), and the generated answer is returned
+(`openai/gpt-oss-120b`), and the generated answer is returned
 alongside the unchanged results list. Every operation (query, answer,
 retrieved passages) is also persisted to a new Postgres store so past
 queries can be reviewed later via a new read endpoint. This is a first
@@ -26,7 +26,7 @@ browser -> mtg-web (Svelte)
 mtg-api (FastAPI)
   1. card_matcher + hybrid_search (unchanged, existing)
   2. build context from card_results + vector_results
-  3. Groq llama-3.3-70b-versatile completion (context + query -> answer)
+  3. Groq openai/gpt-oss-120b completion (context + query -> answer)
   4. INSERT query_history row (query, answer, results, model, error)
   5. return {query, results, answer}
               |
@@ -124,8 +124,15 @@ with the columns above.
 ## Config (`mtg_api.config.Settings`, unchanged `MTG_API_` prefix)
 
 - `groq_api_key: str` — required, no default (never committed).
-- `groq_model: str = "llama-3.3-70b-versatile"`.
-- `postgres_dsn: str = "postgresql://mtg:mtg@postgres:5432/mtg"`.
+- `groq_model: str = "openai/gpt-oss-120b"` (originally scoped as
+  `llama-3.3-70b-versatile`; Groq had fully retired that model from its
+  catalog by implementation time — confirmed via `GET
+  https://api.groq.com/openai/v1/models` returning a 404 for it — so the
+  default became this 120B open-weight model, the closest available
+  capability tier).
+- `postgres_dsn: str = "postgresql+psycopg://mtg:mtg@postgres:5432/mtg"` (the
+  `+psycopg` dialect suffix is required — a bare `postgresql://` makes
+  SQLAlchemy default to the `psycopg2` driver, which isn't installed).
 
 ## Infra changes
 
