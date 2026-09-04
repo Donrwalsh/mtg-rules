@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     hybrid_top_k: int = 10
     hybrid_per_branch_limit: int = 50
     hybrid_score_threshold: float = 0.0
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
+    postgres_dsn: str = "postgresql://mtg:mtg@postgres:5432/mtg"
 
 
 settings = Settings()

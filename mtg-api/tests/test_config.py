@@ -42,3 +42,28 @@ def test_hybrid_env_override(monkeypatch):
     monkeypatch.setenv("MTG_API_HYBRID_DENSE_WEIGHT", "0.7")
     s = Settings(_env_file=None)
     assert s.hybrid_dense_weight == 0.7
+
+
+def test_groq_defaults():
+    s = Settings(_env_file=None)
+    assert s.groq_api_key == ""
+    assert s.groq_model == "llama-3.3-70b-versatile"
+
+
+def test_groq_env_override(monkeypatch):
+    monkeypatch.setenv("MTG_API_GROQ_API_KEY", "test-key")
+    monkeypatch.setenv("MTG_API_GROQ_MODEL", "llama-3.1-8b-instant")
+    s = Settings(_env_file=None)
+    assert s.groq_api_key == "test-key"
+    assert s.groq_model == "llama-3.1-8b-instant"
+
+
+def test_postgres_dsn_default():
+    s = Settings(_env_file=None)
+    assert s.postgres_dsn == "postgresql://mtg:mtg@postgres:5432/mtg"
+
+
+def test_postgres_dsn_env_override(monkeypatch):
+    monkeypatch.setenv("MTG_API_POSTGRES_DSN", "postgresql://x:y@localhost:5432/z")
+    s = Settings(_env_file=None)
+    assert s.postgres_dsn == "postgresql://x:y@localhost:5432/z"
