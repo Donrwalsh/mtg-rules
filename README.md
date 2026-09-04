@@ -21,26 +21,29 @@ by a single `docker-compose.yml`.
                         +---------------------------+
                         |   backend (mtg-api)       |  FastAPI, port 8000
                         |   POST /health, /api/v1/* |
-                        +----+------------+---------+
-                             |            |
-          Qdrant (6333)      |            |  redis (Celery broker)
-          vector store       |            |  + worker (mtg-worker)
-                             v            |
-                        card matcher       v
-                        (Aho-Corasick)   celery tasks:
-                                         mtg_worker.ingest -> mtg-ingestion
-                                         mtg_worker.embed  -> mtg-embed
+                        +--+---------+-----------+--+
+                           |         |           |
+        Qdrant (6333)      |         |  redis    |  postgres (5433)
+        vector store       |         |  (Celery  |  query_history
+                           v         |   broker) |  (query/answer/
+                      card matcher   |   + worker|   results, via Groq)
+                      (Aho-Corasick) |           v
+                                     |      celery tasks:
+                                     v      mtg_worker.ingest -> mtg-ingestion
+                              Groq API      mtg_worker.embed  -> mtg-embed
+                              (openai/gpt-oss-120b)
 ```
 
 ### Components
 
 | Directory | What it is |
 |---|---|
-| `mtg-web/` | SvelteKit SPA frontend. One page with a search box that POSTs to the backend and lists results. Static build served by nginx on port 3000. |
-| `mtg-api/` | FastAPI backend. Query endpoint, Celery task triggers, task status. Port 8000. |
+| `mtg-web/` | SvelteKit SPA frontend. One page with a search box that POSTs to the backend and shows the generated answer plus the retrieved results. Static build served by nginx on port 3000. |
+| `mtg-api/` | FastAPI backend. Query endpoint (retrieval + Groq answer generation), history endpoint, Celery task triggers, task status. Port 8000. |
 | `mtg-worker/` | Celery worker. Registers `mtg_worker.ingest` and `mtg_worker.embed`, which delegate to the two packages below. |
 | `mtg-worker/mtg-ingestion/` | Fetch + parse stage. Pulls the Comprehensive Rules, Scryfall `oracle_cards` and `rulings` bulk data, writes JSONL to `data/parsed/`. |
 | `mtg-worker/mtg-embed/` | Embedding stage. Reads parsed JSONL, embeds chunks (dense + sparse), upserts into the Qdrant `mtg_rules` collection. |
+| `postgres` (Docker service) | Stores `query_history`: one row per `/api/v1/query` call (query, generated answer, retrieved results, error), managed by Alembic migrations in `mtg-api/alembic/`. |
 | `docs/superpowers/` | Design specs and subagent-driven-development records. |
 
 ### Data flow
@@ -55,19 +58,31 @@ by a single `docker-compose.yml`.
 3. **Query** — `POST /api/v1/query` finds exact card names in the query with an
    Aho-Corasick `CardMatcher`, embeds the query with both models, runs
    independent dense and sparse Qdrant searches, normalizes and fuses the two
-   score lists (weighted sum), and returns card matches plus top vector hits.
+   score lists (weighted sum), builds a text context from the card matches
+   plus top vector hits, and sends that context and the query to Groq
+   (`openai/gpt-oss-120b`) for a synthesized answer. The query, the
+   generated answer (or `null` if Groq failed), the retrieved results, and
+   any error are persisted as one row in Postgres's `query_history` table,
+   then the same data is returned to the caller.
+4. **Review** — `GET /api/v1/queries` reads `query_history` back out
+   (`?limit=&offset=`, newest first) for reviewing past operations.
 
 ## Quick start (Docker)
 
 Requires Docker with Compose v2 and BuildKit support (Docker Desktop 23+
 or recent Docker Engine — the Dockerfiles rely on BuildKit cache mounts).
 
+Copy [`.env.example`](.env.example) to `.env` and set `MTG_API_GROQ_API_KEY`
+to a real [Groq](https://console.groq.com/keys) API key — `docker compose up`
+fails fast with a clear error if it's missing, since the backend needs it to
+generate answers.
+
 ```bash
 docker compose up --build
 ```
 
-This starts `qdrant`, `redis`, `worker`, `backend` (port 8000), and
-`frontend` (port 3000). The first build pulls torch (multi-GB) once per
+This starts `qdrant`, `redis`, `postgres`, `worker`, `backend` (port 8000),
+and `frontend` (port 3000). The first build pulls torch (multi-GB) once per
 Python image; afterward `docker compose up` reuses the cached layers, and
 only cached-model wipe (`docker compose down -v`) triggers re-downloads.
 Backend/worker model weights live in a named `hf_cache` volume
@@ -108,7 +123,8 @@ Or open http://localhost:3000, type a question, and submit.
 | Endpoint | Method | Body | Description |
 |---|---|---|---|
 | `/health` | GET | — | Service health + Qdrant reachability |
-| `/api/v1/query` | POST | `{"query": str}` | Hybrid search results |
+| `/api/v1/query` | POST | `{"query": str}` | Hybrid search results plus a Groq-generated answer (`null` if generation failed); persists a `query_history` row |
+| `/api/v1/queries` | GET | — | Past query/answer/result records, newest first (`?limit=&offset=`, default `limit=50, offset=0`) |
 | `/api/v1/ingest` | POST | — | Trigger `mtg_worker.ingest`; returns `{"task_id"}` |
 | `/api/v1/embed` | POST | `{"limit": "all" \| int}` | Trigger `mtg_worker.embed`; returns `{"task_id"}` |
 | `/api/v1/tasks/{id}` | GET | — | Celery task status (+ result when ready) |
@@ -124,6 +140,9 @@ file; copy it to `.env` to override.
 | `MTG_API_QDRANT_HOST` / `MTG_API_QDRANT_PORT` | `qdrant` / `6333` | mtg-api |
 | `MTG_API_CORS_ORIGINS` | `["http://localhost:3000"]` | mtg-api |
 | `MTG_API_BROKER_URL` / `MTG_API_RESULT_BACKEND` | `redis://redis:6379/0` | mtg-api, mtg-worker |
+| `MTG_API_GROQ_API_KEY` | *(required, no default)* | mtg-api |
+| `MTG_API_GROQ_MODEL` | `openai/gpt-oss-120b` | mtg-api |
+| `MTG_API_POSTGRES_DSN` | `postgresql+psycopg://mtg:mtg@postgres:5432/mtg` | mtg-api |
 | `MTG_WORKER_BROKER_URL` / `MTG_WORKER_RESULT_BACKEND` | `redis://redis:6379/0` | mtg-worker |
 | `MTG_INGEST_DATA_DIR` | `data` | mtg-ingestion |
 | `MTG_EMBED_PARSED_DIR` | `../mtg-ingestion/data/parsed` | mtg-embed |
@@ -153,14 +172,19 @@ pip install -e "mtg-api[dev]"
 The Docker builds consume pinned `requirements.lock` files, not the `>=`
 floors in the pyproject files — that's what keeps the heavy torch layer
 cacheable. Regenerate after a deliberate dependency change with `uv pip
-compile`, targeting the container's Python version:
+compile`, targeting the container's Python version *and platform* — the
+Dockerfiles build `python:3.12-slim` (Linux) images, and `uv pip compile`
+otherwise resolves for whatever host OS you run it on. Compiling on Windows
+or macOS without `--python-platform` silently pulls in platform-only
+packages (e.g. `pywin32`) that the Linux build then fails to install:
 
 ```bash
 # mtg-api — runtime deps only
-uv pip compile --python-version 3.12 mtg-api/pyproject.toml -o mtg-api/requirements.lock
+uv pip compile --python-version 3.12 --python-platform x86_64-unknown-linux-gnu \
+  mtg-api/pyproject.toml -o mtg-api/requirements.lock
 
 # mtg-worker — union of mtg_worker + mtg-ingestion + mtg-embed runtime deps
-uv pip compile --python-version 3.12 \
+uv pip compile --python-version 3.12 --python-platform x86_64-unknown-linux-gnu \
   mtg-worker/mtg-ingestion/pyproject.toml mtg-worker/mtg-embed/pyproject.toml mtg-worker/pyproject.toml \
   -o mtg-worker/requirements.lock
 ```
