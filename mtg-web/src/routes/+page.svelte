@@ -20,6 +20,7 @@
 
 <main>
   <h1>MTG Rules Search (prototype)</h1>
+  <p><a href="/history">View query history</a></p>
   <form on:submit|preventDefault={onSubmit}>
     <input type="text" bind:value={query} placeholder="Ask a rules question" />
     <button type="submit">Search</button>
