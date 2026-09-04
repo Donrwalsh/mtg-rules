@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-120b"
     postgres_dsn: str = "postgresql+psycopg://mtg:mtg@postgres:5432/mtg"
+    card_ruling_limit: int = 20
 
 
 settings = Settings()

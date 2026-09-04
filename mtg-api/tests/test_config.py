@@ -67,3 +67,14 @@ def test_postgres_dsn_env_override(monkeypatch):
     monkeypatch.setenv("MTG_API_POSTGRES_DSN", "postgresql://x:y@localhost:5432/z")
     s = Settings(_env_file=None)
     assert s.postgres_dsn == "postgresql://x:y@localhost:5432/z"
+
+
+def test_card_ruling_limit_default():
+    s = Settings(_env_file=None)
+    assert s.card_ruling_limit == 20
+
+
+def test_card_ruling_limit_env_override(monkeypatch):
+    monkeypatch.setenv("MTG_API_CARD_RULING_LIMIT", "5")
+    s = Settings(_env_file=None)
+    assert s.card_ruling_limit == 5
