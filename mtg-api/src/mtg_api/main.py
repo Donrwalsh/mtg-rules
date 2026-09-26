@@ -18,7 +18,7 @@ from mtg_api.config import settings
 from mtg_api.embedder import Embedder, load_sentence_transformer_embedder
 from mtg_api.history import list_history, save_history
 from mtg_api.keyword_matcher import KeywordMatcher, load_keyword_matcher
-from mtg_api.llm import GroqAnswerer, build_context, load_groq_answerer
+from mtg_api.llm import GroqAnswerer, OllamaAnswerer, build_context, load_groq_answerer
 from mtg_api.models import EmbedRequest, QueryRequest, QueryResponse, QueryResult
 from mtg_api.qdrant_check import check_qdrant
 from mtg_api.retrieval import fetch_card_rulings, hybrid_search
@@ -66,8 +66,9 @@ def get_db_engine() -> Engine:
 
 
 @lru_cache(maxsize=1)
-def get_groq_answerer() -> GroqAnswerer:
-    return load_groq_answerer(settings.groq_api_key, settings.groq_model)
+def get_groq_answerer() -> GroqAnswerer | OllamaAnswerer:
+    # Local trial: route answers to Ollama instead of Groq.
+    return OllamaAnswerer(settings.ollama_url, settings.ollama_model)
 
 
 @asynccontextmanager
@@ -199,7 +200,7 @@ def query(
             query=request.query,
             answer=answer,
             results=[r.model_dump() for r in all_results],
-            model=settings.groq_model,
+            model=settings.ollama_model,
             error=error,
         )
     except Exception:

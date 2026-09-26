@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     hybrid_score_threshold: float = 0.0
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-120b"
+    ollama_url: str = "http://host.docker.internal:11434"
+    ollama_model: str = "phi4"
     postgres_dsn: str = "postgresql+psycopg://mtg:mtg@postgres:5432/mtg"
     card_ruling_limit: int = 20
 

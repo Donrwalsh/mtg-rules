@@ -37,3 +37,34 @@ def load_groq_answerer(api_key: str, model: str) -> GroqAnswerer:
     from groq import Groq
 
     return GroqAnswerer(Groq(api_key=api_key), model)
+
+
+class OllamaAnswerer:
+    """Local-model answerer via Ollama's /api/chat. Same generate()
+    interface as GroqAnswerer so it drops into the query endpoint."""
+
+    def __init__(self, base_url: str, model: str, num_ctx: int = 16384):
+        self._base_url = base_url.rstrip("/")
+        self._model = model
+        self._num_ctx = num_ctx
+
+    def generate(self, query: str, context: str) -> str:
+        import httpx
+
+        response = httpx.post(
+            f"{self._base_url}/api/chat",
+            json={
+                "model": self._model,
+                "stream": False,
+                # Ollama's default context window is small enough to
+                # silently truncate our retrieved context.
+                "options": {"num_ctx": self._num_ctx},
+                "messages": [
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"},
+                ],
+            },
+            timeout=300.0,
+        )
+        response.raise_for_status()
+        return response.json()["message"]["content"]
