@@ -16,6 +16,7 @@ def test_settings_defaults(monkeypatch):
     assert s.model_name == "BAAI/bge-base-en-v1.5"
     assert s.embed_batch_size == 32
     assert s.retrieve_batch_size == 256
+    assert s.qdrant_timeout == 60
 
 
 def test_settings_env_override(monkeypatch):

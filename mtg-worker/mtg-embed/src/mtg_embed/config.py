@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     sparse_model_name: str = "Qdrant/bm25"
     embed_batch_size: int = 32
     retrieve_batch_size: int = 256
+    # Seconds. qdrant-client's REST default (5s) is too short for a batch of
+    # payload overwrites against a large, freshly started collection.
+    qdrant_timeout: int = 60
 
 
 settings = Settings()

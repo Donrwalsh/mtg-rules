@@ -48,7 +48,9 @@ def run(
     from mtg_embed.qdrant_store import QdrantStore
     from mtg_embed.sparse_embedder import load_bm25_sparse_embedder
 
-    client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+    client = QdrantClient(
+        host=settings.qdrant_host, port=settings.qdrant_port, timeout=settings.qdrant_timeout
+    )
     store = QdrantStore(client, settings.collection_name)
     embedder = load_sentence_transformer_embedder(settings.model_name, settings.embed_batch_size)
     sparse_embedder = load_bm25_sparse_embedder(settings.sparse_model_name)
