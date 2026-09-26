@@ -190,7 +190,8 @@ file; copy it to `.env` to override.
 Additional knobs (query side): `MTG_API_DENSE_MODEL_NAME`,
 `MTG_API_SPARSE_MODEL_NAME`, `MTG_API_HYBRID_DENSE_WEIGHT` /
 `MTG_API_HYBRID_SPARSE_WEIGHT` (default 0.5 each), `MTG_API_HYBRID_TOP_K`,
-`MTG_API_HYBRID_SCORE_THRESHOLD`.
+`MTG_API_HYBRID_SCORE_THRESHOLD`, `MTG_API_GENERATION_TEMPERATURE` /
+`MTG_API_GENERATION_MAX_TOKENS` (unset: the model's defaults).
 
 Model weights download from HuggingFace on first use.
 
@@ -203,6 +204,7 @@ Python >= 3.12:
 pip install -e "mtg-worker/mtg-ingestion[dev]"
 pip install -e "mtg-worker/mtg-embed[dev]"
 pip install -e "mtg-api[dev]"
+pip install -e "evals[dev]"     # eval harness (see "Evals")
 ```
 
 ### Regenerating the dependency locks
@@ -253,7 +255,92 @@ collides on shared test-module names:
 (cd mtg-worker/mtg-ingestion && pytest)
 (cd mtg-worker/mtg-embed && pytest)
 (cd mtg-api && pytest)
+(cd evals && pytest)
 ```
+
+## Evals
+
+`eval.yaml` (repo root) is a 50-question set. Its header documents the
+fields. Each case lists the rules, rulings and cards that must reach the LLM
+context, plus a reference answer. The `evals/` package runs it against the
+running stack and diffs the result against a committed baseline.
+
+### Enabling eval mode (local only)
+
+The harness needs an API surface that is off by default and must never be
+on in production: per-request setting overrides, `generate=false`, the
+`context_hash` / `prompt_version` / `generator` response fields, and
+`GET /api/v1/config`. Turn it on locally:
+
+```bash
+echo "MTG_API_EVAL_MODE=true" >> .env
+docker compose up -d --build backend
+curl localhost:8000/api/v1/config     # 404 means eval mode is still off
+```
+
+With eval mode off, a request with non-empty `overrides` gets a 403 and
+`/api/v1/config` returns 404. Requests the harness sends carry
+`"source": "eval"`, and the API never saves those to query history. This
+applies with or without eval mode, so eval runs never show up in
+`GET /api/v1/queries` or the History page.
+
+### Running
+
+```bash
+pip install -e "evals[dev]"
+make eval-validate                  # eval.yaml vs the latest parsed rules/cards/rulings
+make eval                           # retrieval mode, dev split, compare to baseline
+make eval EXP=dense70               # same, with an experiment's overrides
+make eval-full TAG=negative         # + answer generation and the LLM judge
+make eval-test                      # both modes on the held-out test split
+make eval-baseline MODE=retrieval   # promote the latest retrieval run
+make eval-compare A=<run> B=<run>   # diff any two runs
+make eval-sweep EXPS="dense70 topk15"
+```
+
+All run targets accept `EXP=`, `TAG="a b"` and `ID="x y"`. Each target is
+a thin wrapper around `python -m mtg_evals ...` (`--help` lists every
+option). On Windows without GNU make, install it with
+`winget install ezwinports.make`, or call the module directly:
+
+```bash
+python -m mtg_evals run --mode retrieval --split dev --exp dense70
+```
+
+- **retrieval** mode makes no LLM calls. It scores whether each required
+  rule (prefix match), ruling and card appears in the returned results,
+  where the first one ranks, and whether the card matcher returned the
+  expected cards and none of the forbidden ones. Default concurrency is 4.
+- **full** mode also generates answers and grades them with an LLM judge:
+  correct / partial / incorrect against the reference answer, or
+  declined_properly / answered_anyway for out-of-scope questions. It also
+  parses yes/no verdicts deterministically and records citation checks.
+  Default concurrency is 1, since the model is local. Configure the judge
+  with any OpenAI-compatible endpoint: `EVAL_JUDGE_BASE_URL`,
+  `EVAL_JUDGE_MODEL`, `EVAL_JUDGE_API_KEY` (see `.env.example`). The report
+  warns if the judge is the same model as the generator.
+
+Answers are cached in `evals/.cache/` by question, context hash, generator,
+`PROMPT_VERSION` and generation overrides. Judge verdicts are cached by
+question, reference answer, answer, judge model and judge prompt version.
+A repeat run only calls the models for what changed. Delete the directory
+to start fresh. Bump `PROMPT_VERSION` in `mtg-api/src/mtg_api/llm.py`
+whenever the answer prompt changes.
+
+Every run writes `evals/runs/<UTC time>-<sha>[-dirty]-<mode>[-<exp>].json`
+(gitignored). The run file holds the metadata, the API config, per-case
+scores and aggregates. The committed baselines are
+`evals/baseline-retrieval.json` and `evals/baseline-full.json`. The report
+lists REGRESSIONS and FIXED cases with a reason each, and warns about
+added or removed cases, a changed `eval.yaml`, and config differences the
+experiment doesn't explain. The exit code is 1 if any case regressed and 2
+if the pre-run checks failed or the command was used wrong.
+
+Experiments live in `evals/experiments/<name>.yaml` as `description` +
+`overrides`. The API accepts only these override keys: the `hybrid_*`
+settings, `card_ruling_limit`, `collection_name`, `ollama_model`,
+`generation_temperature` and `generation_max_tokens`. Any other key gets
+a 422.
 
 ## Known limitations
 
