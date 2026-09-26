@@ -355,6 +355,46 @@ def get_query_history(
     return list_history(engine, limit=limit, offset=offset)
 
 
+# What GET /api/v1/config may show. An explicit allowlist, never a dump of
+# Settings, so a secret (groq_api_key, the password in postgres_dsn) can
+# never leak through a newly added setting.
+CONFIG_EXPOSED_SETTINGS = OVERRIDABLE_SETTINGS + (
+    "dense_model_name",
+    "sparse_model_name",
+    "ollama_url",
+)
+
+
+def _latest_name(pattern: str) -> str | None:
+    try:
+        return _latest(settings.parsed_dir, pattern).name
+    except FileNotFoundError:
+        return None
+
+
+@app.get("/api/v1/config")
+def get_config(client: QdrantClient = Depends(get_qdrant_client)) -> dict:
+    if not settings.eval_mode:
+        raise HTTPException(status_code=404, detail="Not Found")
+    collection: dict = {"name": settings.collection_name}
+    try:
+        collection["points_count"] = client.count(
+            collection_name=settings.collection_name, exact=True
+        ).count
+    except Exception as exc:
+        collection["points_count"] = None
+        collection["error"] = str(exc)
+    return {
+        "settings": {key: getattr(settings, key) for key in CONFIG_EXPOSED_SETTINGS},
+        "generator": f"ollama:{settings.ollama_model}",
+        "prompt_version": PROMPT_VERSION,
+        "collection": collection,
+        "data_files": {
+            kind: _latest_name(f"{kind}_*.jsonl") for kind in ("rules", "cards", "rulings")
+        },
+    }
+
+
 def _rule_summary(rule: dict) -> dict:
     return {"rule_id": rule["rule_id"], "text": rule["text"]}
 

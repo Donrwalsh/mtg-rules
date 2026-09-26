@@ -163,3 +163,81 @@ def test_results_carry_source_type():
     _override(dense_points=_two_rule_hits())
     results = _post({"query": "trample"}).json()["results"]
     assert {r["source_type"] for r in results} == {"rule"}
+
+
+class _CountResult:
+    def __init__(self, count):
+        self.count = count
+
+
+class _CountingClient:
+    def __init__(self, count=1234, raises=None):
+        self._count = count
+        self._raises = raises
+        self.counted = []
+
+    def count(self, collection_name, exact):
+        if self._raises:
+            raise self._raises
+        self.counted.append(collection_name)
+        return _CountResult(self._count)
+
+
+def _parsed_dir(tmp_path):
+    for name in [
+        "rules_2026-01-01.jsonl",
+        "rules_2026-08-25.jsonl",
+        "cards_2026-09-26.jsonl",
+        "rulings_2026-08-25.jsonl",
+    ]:
+        (tmp_path / name).write_text("")
+    return tmp_path
+
+
+def test_config_is_404_outside_eval_mode():
+    app.dependency_overrides[main.get_qdrant_client] = lambda: _CountingClient()
+    assert TestClient(app).get("/api/v1/config").status_code == 404
+
+
+def test_config_reports_settings_collection_and_data_files(eval_mode, monkeypatch, tmp_path):
+    monkeypatch.setattr(main.settings, "parsed_dir", _parsed_dir(tmp_path))
+    client = _CountingClient(count=4321)
+    app.dependency_overrides[main.get_qdrant_client] = lambda: client
+
+    body = TestClient(app).get("/api/v1/config").json()
+
+    assert body["settings"]["hybrid_top_k"] == main.settings.hybrid_top_k
+    assert body["settings"]["ollama_model"] == main.settings.ollama_model
+    assert body["generator"] == f"ollama:{main.settings.ollama_model}"
+    assert body["prompt_version"] == PROMPT_VERSION
+    assert body["collection"] == {"name": main.settings.collection_name, "points_count": 4321}
+    assert body["data_files"] == {
+        "rules": "rules_2026-08-25.jsonl",
+        "cards": "cards_2026-09-26.jsonl",
+        "rulings": "rulings_2026-08-25.jsonl",
+    }
+
+
+def test_config_reports_qdrant_failure_instead_of_crashing(eval_mode, monkeypatch, tmp_path):
+    monkeypatch.setattr(main.settings, "parsed_dir", _parsed_dir(tmp_path))
+    client = _CountingClient(raises=RuntimeError("collection missing"))
+    app.dependency_overrides[main.get_qdrant_client] = lambda: client
+
+    body = TestClient(app).get("/api/v1/config").json()
+
+    assert body["collection"]["points_count"] is None
+    assert "collection missing" in body["collection"]["error"]
+
+
+def test_config_never_includes_secrets(eval_mode, monkeypatch, tmp_path):
+    monkeypatch.setattr(main.settings, "parsed_dir", _parsed_dir(tmp_path))
+    monkeypatch.setattr(main.settings, "groq_api_key", "gsk-very-secret")
+    monkeypatch.setattr(
+        main.settings, "postgres_dsn", "postgresql+psycopg://mtg:hunter2@postgres:5432/mtg"
+    )
+    app.dependency_overrides[main.get_qdrant_client] = lambda: _CountingClient()
+
+    text = TestClient(app).get("/api/v1/config").text
+
+    for secret in ["gsk-very-secret", "hunter2", "groq_api_key", "postgres_dsn", "broker_url"]:
+        assert secret not in text
