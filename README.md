@@ -3,7 +3,8 @@
 A self-hosted, semantic search app for Magic: The Gathering rules. It ingests
 the MTG Comprehensive Rules, Scryfall oracle card text, and rulings into the
 Qdrant vector store, then answers natural-language queries by combining an
-exact card-name matcher with dense + sparse hybrid vector search.
+exact card-name and keyword-ability matcher with dense + sparse hybrid
+vector search.
 
 Built as a connectivity / retrieval prototype: FastAPI backend, SvelteKit
 frontend, Celery worker, and a Qdrant + Redis backing stack, all orchestrated
@@ -56,10 +57,13 @@ by a single `docker-compose.yml`.
    unchanged, and upserts dense vectors (`BAAI/bge-base-en-v1.5`) plus sparse
    BM25 vectors (`Qdrant/bm25`) into Qdrant.
 3. **Query** — `POST /api/v1/query` finds exact card names in the query with an
-   Aho-Corasick `CardMatcher`, embeds the query with both models, runs
-   independent dense and sparse Qdrant searches, normalizes and fuses the two
-   score lists (weighted sum), builds a text context from the card matches
-   plus top vector hits, and sends that context and the query to Groq
+   Aho-Corasick `CardMatcher` (plus each matched card's own rulings, fetched
+   from Qdrant by `oracle_id`) and keyword abilities with a `KeywordMatcher`
+   (the keyword's 702.N rule and all its subrules, held in memory), embeds
+   the query with both models, runs independent dense and sparse Qdrant
+   searches, normalizes and fuses the two score lists (weighted sum), builds
+   a text context from the exact matches followed by the top vector hits, and
+   sends that context and the query to Groq
    (`openai/gpt-oss-120b`) for a synthesized answer. The query, the
    generated answer (or `null` if Groq failed), the retrieved results, and
    any error are persisted as one row in Postgres's `query_history` table,
