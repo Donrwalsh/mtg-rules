@@ -1,0 +1,3 @@
+description: "Greedy decoding for the answer model (full mode only; retrieval is unaffected)."
+overrides:
+  generation_temperature: 0

@@ -205,7 +205,9 @@ def _pass_cell(stats: dict | None) -> str:
     return f"{stats['passed']}/{stats['scored']}"
 
 
-def render(new: dict, base: dict | None = None, diff: Diff | None = None) -> str:
+def render(
+    new: dict, base: dict | None = None, diff: Diff | None = None, skipped: str | None = None
+) -> str:
     mode = new["metadata"]["mode"]
     lines = [header(new)]
     if mode == "full" and new["metadata"].get("judge_model"):
@@ -221,7 +223,7 @@ def render(new: dict, base: dict | None = None, diff: Diff | None = None) -> str
         shared = {k: v for k, v in base["cases"].items() if k in new["cases"]}
         before = aggregate(shared, base["metadata"]["mode"])
     else:
-        lines.append(f"no baseline for {mode}; skipping comparison")
+        lines.append(skipped or f"no baseline for {mode}; skipping comparison")
 
     lines.append("")
     if before:

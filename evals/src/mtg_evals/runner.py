@@ -12,7 +12,7 @@ from pathlib import Path
 
 from mtg_evals.cache import JsonCache, answer_key, judge_key
 from mtg_evals.cases import Case, select
-from mtg_evals.client import ApiClient, PreflightError, preflight
+from mtg_evals.client import ApiClient, ApiError, PreflightError, preflight
 from mtg_evals.judge import JUDGE_PROMPT_VERSION, Judge, JudgeConfig, is_judged
 from mtg_evals.metrics import aggregate
 from mtg_evals.paths import CACHE_DIR, REPO_ROOT, RUNS_DIR
@@ -211,6 +211,13 @@ def execute(
         raise PreflightError(
             f"no cases match split={opts.split} tags={opts.tags or '-'} ids={opts.ids or '-'}"
         )
+    if opts.overrides:
+        # One cheap retrieval-only probe: a rejected key (403/422) should stop
+        # the run up front, not show up as an error on every case.
+        try:
+            api.query(cases[0].question, generate=False, overrides=opts.overrides)
+        except ApiError as exc:
+            raise PreflightError(f"the API rejected the overrides: {exc}") from exc
     caches = caches or Caches.at(CACHE_DIR)
     started = now or datetime.now(UTC)
     sha, dirty = git or git_info()

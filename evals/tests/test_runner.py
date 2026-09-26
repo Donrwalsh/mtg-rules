@@ -174,3 +174,17 @@ def test_schema_errors_fail_preflight(tmp_path):
 def test_no_matching_cases_fails(tmp_path, eval_file):
     with pytest.raises(PreflightError, match="no cases match"):
         _run(tmp_path, eval_file, FakeApi(), ids=["nope"])
+
+
+def test_rejected_overrides_stop_the_run_before_it_starts(tmp_path, eval_file):
+    from mtg_evals.client import ApiError
+
+    class RejectingApi(FakeApi):
+        def query(self, question, *, generate, overrides):
+            self.calls.append(question)
+            raise ApiError("HTTP 422: unknown override keys: hybrid_topk")
+
+    api = RejectingApi(RESULTS)
+    with pytest.raises(PreflightError, match="rejected the overrides.*hybrid_topk"):
+        _run(tmp_path, eval_file, api, overrides={"hybrid_topk": 15})
+    assert len(api.calls) == 1
