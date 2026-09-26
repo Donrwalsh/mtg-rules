@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 import re
-from pathlib import Path
 
 import ahocorasick
 
@@ -98,11 +96,3 @@ class KeywordMatcher:
                 matched_ids.append(rule_id)
         return [self._keywords[rule_id] for rule_id in matched_ids]
 
-
-def load_keyword_matcher(rules_path: Path) -> KeywordMatcher:
-    rules = []
-    with rules_path.open("r", encoding="utf-8") as f:
-        for line in f:
-            if line.strip():
-                rules.append(json.loads(line))
-    return KeywordMatcher(rules)

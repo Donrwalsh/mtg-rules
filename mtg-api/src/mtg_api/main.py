@@ -17,11 +17,12 @@ from mtg_api.celery_client import get_celery_client
 from mtg_api.config import settings
 from mtg_api.embedder import Embedder, load_sentence_transformer_embedder
 from mtg_api.history import list_history, save_history
-from mtg_api.keyword_matcher import KeywordMatcher, load_keyword_matcher
+from mtg_api.keyword_matcher import KeywordMatcher
 from mtg_api.llm import GroqAnswerer, OllamaAnswerer, build_context, load_groq_answerer
 from mtg_api.models import EmbedRequest, QueryRequest, QueryResponse, QueryResult
 from mtg_api.qdrant_check import check_qdrant
 from mtg_api.retrieval import fetch_card_rulings, hybrid_search
+from mtg_api.rules_index import RulesIndex, load_rules_index
 from mtg_api.sparse_embedder import SparseEmbedder, load_bm25_sparse_embedder
 
 logger = logging.getLogger(__name__)
@@ -45,9 +46,14 @@ def get_card_matcher() -> CardMatcher:
 
 
 @lru_cache(maxsize=1)
-def get_keyword_matcher() -> KeywordMatcher:
+def get_rules_index() -> RulesIndex:
     rules_path = _latest(settings.parsed_dir, "rules_*.jsonl")
-    return load_keyword_matcher(rules_path)
+    return load_rules_index(rules_path)
+
+
+@lru_cache(maxsize=1)
+def get_keyword_matcher() -> KeywordMatcher:
+    return KeywordMatcher(get_rules_index().rules)
 
 
 @lru_cache(maxsize=1)
@@ -73,9 +79,10 @@ def get_groq_answerer() -> GroqAnswerer | OllamaAnswerer:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Warm the card and keyword automatons and both models at container
-    # startup, not on the first request -- moves the ~20s cold-load cost
+    # Warm the rules index, the card and keyword automatons, and both models
+    # at container startup, not on the first request -- moves the ~20s cold-load cost
     # from the first query to `docker compose up` instead.
+    get_rules_index()
     get_card_matcher()
     get_keyword_matcher()
     get_dense_embedder()

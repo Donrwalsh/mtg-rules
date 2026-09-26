@@ -1,6 +1,7 @@
 import json
 
-from mtg_api.keyword_matcher import KeywordMatcher, load_keyword_matcher
+from mtg_api.keyword_matcher import KeywordMatcher
+from mtg_api.rules_index import load_rules_index
 
 RULES = [
     {"rule_id": "601.2", "text": "Casting a spell.", "parent_id": "601"},
@@ -124,8 +125,8 @@ def test_no_matches_returns_empty_list():
     assert KeywordMatcher(RULES).find_matches("just a generic rules question") == []
 
 
-def test_load_keyword_matcher_reads_jsonl(tmp_path):
+def test_keyword_matcher_builds_from_loaded_rules_index(tmp_path):
     path = tmp_path / "rules_2026-01-01.jsonl"
     path.write_text("\n".join(json.dumps(r) for r in RULES) + "\n", encoding="utf-8")
-    matcher = load_keyword_matcher(path)
+    matcher = KeywordMatcher(load_rules_index(path).rules)
     assert _ids(matcher.find_matches("hexproof")) == ["702.11"]
