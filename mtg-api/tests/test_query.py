@@ -1,15 +1,17 @@
+from conftest import memory_engine
 from fastapi.testclient import TestClient
 
-from conftest import memory_engine
 from mtg_api.card_matcher import CardMatcher
 from mtg_api.embedder import Embedder
 from mtg_api.history import list_history
+from mtg_api.keyword_matcher import KeywordMatcher
 from mtg_api.main import (
     app,
     get_card_matcher,
     get_db_engine,
     get_dense_embedder,
     get_groq_answerer,
+    get_keyword_matcher,
     get_qdrant_client,
     get_sparse_embedder,
 )
@@ -86,8 +88,10 @@ def _override(
     scroll_points=None,
     answerer=None,
     engine=None,
+    rules=None,
 ):
     app.dependency_overrides[get_card_matcher] = lambda: CardMatcher(cards or [])
+    app.dependency_overrides[get_keyword_matcher] = lambda: KeywordMatcher(rules or [])
     app.dependency_overrides[get_dense_embedder] = lambda: Embedder(_FakeDenseModel())
     app.dependency_overrides[get_sparse_embedder] = lambda: SparseEmbedder(_FakeSparseModel())
     app.dependency_overrides[get_qdrant_client] = lambda: _FakeQdrantClient(
@@ -204,6 +208,92 @@ def test_query_dedupes_vector_hit_matching_a_card_match():
     body = resp.json()
     assert len(body["results"]) == 1
     assert body["results"][0]["match_type"] == "card_name_match"
+
+
+HEXPROOF_RULES = [
+    {"rule_id": "702.11", "text": "Hexproof", "parent_id": "702"},
+    {"rule_id": "702.11a", "text": "Hexproof is a static ability.", "parent_id": "702.11"},
+    {"rule_id": "702.11b", "text": "Can't be targeted by opponents.", "parent_id": "702.11"},
+]
+
+
+def test_query_includes_keyword_rules_when_keyword_named():
+    _override(rules=HEXPROOF_RULES)
+    try:
+        resp = TestClient(app).post(
+            "/api/v1/query", json={"query": "can I target my own hexproof creature"}
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    keyword_hits = [r for r in resp.json()["results"] if r["match_type"] == "keyword_rule_match"]
+    assert [r["title"] for r in keyword_hits] == ["702.11", "702.11a", "702.11b"]
+    assert all(r["source"] == "rule" and r["score"] == 1.0 for r in keyword_hits)
+    assert keyword_hits[1]["text"] == "Hexproof is a static ability."
+
+
+def test_query_orders_keyword_rules_after_card_rulings_and_before_vector_hits():
+    cards = [{"oracle_id": "oid-1", "name": "Lightning Bolt", "oracle_text": "Deals 3 damage."}]
+    scroll_points = [
+        _FakeHit(
+            "r1",
+            None,
+            {
+                "source_type": "ruling",
+                "card_name": "Lightning Bolt",
+                "oracle_id": "oid-1",
+                "text": "Bolt ruling.",
+            },
+        )
+    ]
+    dense_points = [
+        _FakeHit("p1", 0.9, {"source_type": "rule", "rule_id": "115.1", "text": "Targets."})
+    ]
+    _override(
+        cards=cards, rules=HEXPROOF_RULES, dense_points=dense_points, scroll_points=scroll_points
+    )
+    try:
+        resp = TestClient(app).post(
+            "/api/v1/query", json={"query": "can Lightning Bolt target my hexproof creature"}
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    match_types = [r["match_type"] for r in resp.json()["results"]]
+    assert match_types == [
+        "card_name_match",
+        "card_ruling_match",
+        "keyword_rule_match",
+        "keyword_rule_match",
+        "keyword_rule_match",
+        "vector_hit",
+    ]
+
+
+def test_query_dedupes_vector_hit_matching_a_keyword_rule():
+    dense_points = [
+        _FakeHit(
+            "p1",
+            0.9,
+            {
+                "source_type": "rule",
+                "rule_id": "702.11b",
+                "text": "Can't be targeted by opponents.",
+            },
+        ),
+        _FakeHit("p2", 0.8, {"source_type": "rule", "rule_id": "115.1", "text": "Targets."}),
+    ]
+    _override(rules=HEXPROOF_RULES, dense_points=dense_points)
+    try:
+        resp = TestClient(app).post("/api/v1/query", json={"query": "how does hexproof work"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    titles = [r["title"] for r in resp.json()["results"]]
+    assert titles == ["702.11", "702.11a", "702.11b", "115.1"]
 
 
 def test_query_rejects_missing_query_field():

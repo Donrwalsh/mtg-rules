@@ -5,7 +5,11 @@ from mtg_api.keyword_matcher import KeywordMatcher, load_keyword_matcher
 RULES = [
     {"rule_id": "601.2", "text": "Casting a spell.", "parent_id": "601"},
     {"rule_id": "702", "text": "Keyword Abilities", "parent_id": None},
-    {"rule_id": "702.1", "text": "Most abilities describe exactly what they do.", "parent_id": "702"},
+    {
+        "rule_id": "702.1",
+        "text": "Most abilities describe exactly what they do.",
+        "parent_id": "702",
+    },
     {"rule_id": "702.1a", "text": "Intro subrule.", "parent_id": "702.1"},
     {"rule_id": "702.4", "text": "Double Strike", "parent_id": "702"},
     {"rule_id": "702.4a", "text": "Double strike is a static ability.", "parent_id": "702.4"},
@@ -15,7 +19,11 @@ RULES = [
     {"rule_id": "702.8a", "text": "Flash is a static ability.", "parent_id": "702.8"},
     {"rule_id": "702.11", "text": "Hexproof", "parent_id": "702"},
     {"rule_id": "702.11a", "text": "Hexproof is a static ability.", "parent_id": "702.11"},
-    {"rule_id": "702.11b", "text": "Can't be the target of opponents' spells.", "parent_id": "702.11"},
+    {
+        "rule_id": "702.11b",
+        "text": "Can't be the target of opponents' spells.",
+        "parent_id": "702.11",
+    },
     {"rule_id": "702.19", "text": "Trample", "parent_id": "702"},
     {"rule_id": "702.19a", "text": "Trample is a static ability.", "parent_id": "702.19"},
     {"rule_id": "702.34", "text": "Flashback", "parent_id": "702"},

@@ -17,6 +17,7 @@ from mtg_api.celery_client import get_celery_client
 from mtg_api.config import settings
 from mtg_api.embedder import Embedder, load_sentence_transformer_embedder
 from mtg_api.history import list_history, save_history
+from mtg_api.keyword_matcher import KeywordMatcher, load_keyword_matcher
 from mtg_api.llm import GroqAnswerer, build_context, load_groq_answerer
 from mtg_api.models import EmbedRequest, QueryRequest, QueryResponse, QueryResult
 from mtg_api.qdrant_check import check_qdrant
@@ -44,6 +45,12 @@ def get_card_matcher() -> CardMatcher:
 
 
 @lru_cache(maxsize=1)
+def get_keyword_matcher() -> KeywordMatcher:
+    rules_path = _latest(settings.parsed_dir, "rules_*.jsonl")
+    return load_keyword_matcher(rules_path)
+
+
+@lru_cache(maxsize=1)
 def get_dense_embedder() -> Embedder:
     return load_sentence_transformer_embedder(settings.dense_model_name, batch_size=1)
 
@@ -65,10 +72,11 @@ def get_groq_answerer() -> GroqAnswerer:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Warm the card automaton and both models at container startup, not on
-    # the first request -- moves the ~20s cold-load cost from the first
-    # query to `docker compose up` instead.
+    # Warm the card and keyword automatons and both models at container
+    # startup, not on the first request -- moves the ~20s cold-load cost
+    # from the first query to `docker compose up` instead.
     get_card_matcher()
+    get_keyword_matcher()
     get_dense_embedder()
     get_sparse_embedder()
     get_groq_answerer()
@@ -95,6 +103,7 @@ def health(client: QdrantClient = Depends(get_qdrant_client)) -> dict:
 def query(
     request: QueryRequest,
     matcher: CardMatcher = Depends(get_card_matcher),
+    keyword_matcher: KeywordMatcher = Depends(get_keyword_matcher),
     dense_embedder: Embedder = Depends(get_dense_embedder),
     sparse_embedder: SparseEmbedder = Depends(get_sparse_embedder),
     client: QdrantClient = Depends(get_qdrant_client),
@@ -129,6 +138,19 @@ def query(
         for _point_id, payload in card_ruling_hits
     ]
 
+    keyword_results = [
+        QueryResult(
+            source="rule",
+            title=rule["rule_id"],
+            text=rule["text"],
+            score=1.0,
+            match_type="keyword_rule_match",
+        )
+        for keyword in keyword_matcher.find_matches(request.query)
+        for rule in keyword["rules"]
+    ]
+    matched_rule_ids = {r.title for r in keyword_results}
+
     dense_vector = dense_embedder.encode([request.query])[0]
     sparse_vector = sparse_embedder.encode([request.query])[0]
     hits = hybrid_search(
@@ -148,6 +170,8 @@ def query(
         oracle_id = payload.get("oracle_id")
         if oracle_id and oracle_id in matched_oracle_ids:
             continue
+        if payload.get("rule_id") in matched_rule_ids:
+            continue
         vector_results.append(
             QueryResult(
                 source=payload.get("source_type", "unknown"),
@@ -159,7 +183,7 @@ def query(
             )
         )
 
-    all_results = card_results + card_ruling_results + vector_results
+    all_results = card_results + card_ruling_results + keyword_results + vector_results
     context = build_context(all_results)
     try:
         answer = answerer.generate(request.query, context)
