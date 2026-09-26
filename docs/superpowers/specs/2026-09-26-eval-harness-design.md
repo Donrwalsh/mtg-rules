@@ -1,6 +1,6 @@
 # Eval harness
 
-Status: draft, awaiting review
+Status: approved, implemented on feature/eval-harness
 Date: 2026-09-26
 
 ## Purpose
