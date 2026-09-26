@@ -192,7 +192,7 @@ def build_citations(cited_numbers, sources: dict[int, QueryResult]) -> list[Cita
   left alone.
 
 **Raw rule references.** Candidates match
-`(?<![\d.$€£])\d{3}\.\d+[a-z]?(?![\d]|\.\d)`, which is the requested
+`(?<![\d.$€£])\d{3}\.\d+[a-z]?(?![a-z\d]|\.\d)`, which is the requested
 `\b\d{3}\.\d+[a-z]?\b` hardened against prices (`$100.50`) and dotted
 dates or versions (`2018.01.19`, `100.1.2`). Each candidate is looked up
 in `RulesIndex`. Valid IDs go to `rule_references` (distinct, in order).
