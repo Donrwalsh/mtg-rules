@@ -22,6 +22,24 @@ class QueryResult(BaseModel):
     cited: bool = False
 
 
+class Citation(BaseModel):
+    number: int
+    source_type: str  # "rule" | "card" | "ruling"
+    title: str
+    rule_id: str | None = None
+    card_name: str | None = None
+    oracle_id: str | None = None
+    text: str
+    url: str | None = None
+    published_at: str | None = None
+
+
+class CitationStats(BaseModel):
+    cited_count: int = 0
+    invalid_count: int = 0
+    uncited_answer: bool = False
+
+
 class QueryResponse(BaseModel):
     query: str
     results: list[QueryResult]
