@@ -291,3 +291,22 @@ def get_query_history(
     engine: Engine = Depends(get_db_engine),
 ) -> list[dict]:
     return list_history(engine, limit=limit, offset=offset)
+
+
+def _rule_summary(rule: dict) -> dict:
+    return {"rule_id": rule["rule_id"], "text": rule["text"]}
+
+
+@app.get("/api/v1/rules/{rule_id}")
+def get_rule(rule_id: str, rules_index: RulesIndex = Depends(get_rules_index)) -> dict:
+    # Tolerate how people type rule numbers: "702.11B", "702.11b." in prose.
+    normalized = rule_id.strip().rstrip(".").lower()
+    rule = rules_index.get(normalized)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    return {
+        **_rule_summary(rule),
+        "ancestors": [_rule_summary(r) for r in rules_index.ancestors(normalized)],
+        "subrules": [_rule_summary(r) for r in rules_index.children(normalized)],
+        "rules_ingested_at": rules_index.ingested_at,
+    }
