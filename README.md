@@ -39,7 +39,7 @@ by a single `docker-compose.yml`.
 
 | Directory | What it is |
 |---|---|
-| `mtg-web/` | SvelteKit SPA frontend. One page with a search box that POSTs to the backend and shows the generated answer plus the retrieved results. Static build served by nginx on port 3000. |
+| `mtg-web/` | SvelteKit SPA frontend. A search page that shows the generated answer with inline citations (hover/focus previews, links to rules and Scryfall), a numbered Sources list and the other retrieved results; a `/rules/[id]` page; and `/history`. Static build served by nginx on port 3000. |
 | `mtg-api/` | FastAPI backend. Query endpoint (retrieval + Groq answer generation), history endpoint, Celery task triggers, task status. Port 8000. |
 | `mtg-worker/` | Celery worker. Registers `mtg_worker.ingest` and `mtg_worker.embed`, which delegate to the two packages below. |
 | `mtg-worker/mtg-ingestion/` | Fetch + parse stage. Pulls the Comprehensive Rules, Scryfall `oracle_cards` and `rulings` bulk data, writes JSONL to `data/parsed/`. |
@@ -55,7 +55,10 @@ by a single `docker-compose.yml`.
 2. **Embed** — `mtg_worker.embed` (or `mtg-embed` CLI) chunks each source
    (`rule`, `ruling`, `oracle`), skips points whose `content_hash` is
    unchanged, and upserts dense vectors (`BAAI/bge-base-en-v1.5`) plus sparse
-   BM25 vectors (`Qdrant/bm25`) into Qdrant.
+   BM25 vectors (`Qdrant/bm25`) into Qdrant. Each payload also stores a
+   `payload_hash`; when only metadata changed (same `content_hash`, different
+   payload — e.g. a new field such as `scryfall_uri` or a ruling's
+   `published_at`), the payload is overwritten in place without re-embedding.
 3. **Query** — `POST /api/v1/query` finds exact card names in the query with an
    Aho-Corasick `CardMatcher` (plus each matched card's own rulings, fetched
    from Qdrant by `oracle_id`) and keyword abilities with a `KeywordMatcher`
@@ -63,12 +66,21 @@ by a single `docker-compose.yml`.
    the query with both models, runs independent dense and sparse Qdrant
    searches, normalizes and fuses the two score lists (weighted sum), builds
    a text context from the exact matches followed by the top vector hits, and
-   sends that context and the query to Groq
-   (`openai/gpt-oss-120b`) for a synthesized answer. The query, the
-   generated answer (or `null` if Groq failed), the retrieved results, and
-   any error are persisted as one row in Postgres's `query_history` table,
-   then the same data is returned to the caller.
-4. **Review** — `GET /api/v1/queries` reads `query_history` back out
+   sends that context and the query to the answer model (Groq
+   `openai/gpt-oss-120b`, or a local Ollama model) for a synthesized answer.
+4. **Cite** — every context block is numbered (`[1] Rule 702.11b: …`,
+   `[2] Card — Lightning Bolt: …`, `[3] Ruling — X (2018-01-19): …`) and the
+   model is told to cite claims with those numbers only. The server owns the
+   number → source mapping: it parses the answer's `[n]` / `[n][m]` /
+   `[n, m]` markers, strips out-of-range or malformed ones (logged and
+   counted), marks each cited result, and validates any raw rule numbers in
+   the prose against the in-memory rules index. None of this depends on
+   provider features like tool calling or JSON mode.
+5. **Persist** — the query, the cleaned answer (or `null` if generation
+   failed), the retrieved results, citations, citation stats, rule
+   references and any error are saved as one row in Postgres's
+   `query_history` table, then returned to the caller.
+6. **Review** — `GET /api/v1/queries` reads `query_history` back out
    (`?limit=&offset=`, newest first) for reviewing past operations.
 
 ## Quick start (Docker)
@@ -109,6 +121,12 @@ curl -X POST localhost:8000/api/v1/embed -H 'Content-Type: application/json' -d 
 The live fetches hit `magic.wizards.com` and `api.scryfall.com`, so this needs
 a machine that can reach them.
 
+**Upgrading an existing collection:** the first embed run after pulling the
+answer-citations change reports roughly `embedded=0 payload_updated=120000`
+— every existing point gets its payload rewritten (adding `scryfall_uri`,
+`published_at` and `payload_hash`), but nothing is re-embedded. Later runs
+skip those points again.
+
 ### Verify it works
 
 ```bash
@@ -127,11 +145,27 @@ Or open http://localhost:3000, type a question, and submit.
 | Endpoint | Method | Body | Description |
 |---|---|---|---|
 | `/health` | GET | — | Service health + Qdrant reachability |
-| `/api/v1/query` | POST | `{"query": str}` | Hybrid search results plus a Groq-generated answer (`null` if generation failed); persists a `query_history` row |
-| `/api/v1/queries` | GET | — | Past query/answer/result records, newest first (`?limit=&offset=`, default `limit=50, offset=0`) |
+| `/api/v1/query` | POST | `{"query": str}` | Hybrid search results plus a generated answer (`null` if generation failed) with validated citations; persists a `query_history` row. See below. |
+| `/api/v1/queries` | GET | — | Past query/answer/result records including `citations`, `citation_stats` and `rule_references` (`null` for rows saved before citations), newest first (`?limit=&offset=`, default `limit=50, offset=0`) |
+| `/api/v1/rules/{rule_id}` | GET | — | One Comprehensive Rules entry: `rule_id`, `text`, `ancestors` (top-level first), direct `subrules`, `rules_ingested_at`. Case-insensitive, tolerates a trailing `.`; 404 for unknown IDs |
 | `/api/v1/ingest` | POST | — | Trigger `mtg_worker.ingest`; returns `{"task_id"}` |
 | `/api/v1/embed` | POST | `{"limit": "all" \| int}` | Trigger `mtg_worker.embed`; returns `{"task_id"}` |
 | `/api/v1/tasks/{id}` | GET | — | Celery task status (+ result when ready) |
+
+`/api/v1/query` response fields:
+
+- `query`, `answer` — the answer has invalid citation markers removed.
+- `results` — every retrieved source, in context-number order (result *i*
+  is `[i+1]`), each with `cited: bool` plus `rule_id` / `card_name` /
+  `published_at` / `scryfall_uri` where applicable.
+- `citations` — only the sources the answer cites: `{number, source_type
+  ("rule" | "card" | "ruling"), title, rule_id, card_name, oracle_id, text,
+  url, published_at}`. Rule URLs are the frontend route `/rules/{rule_id}`;
+  card and ruling URLs are the card's Scryfall page.
+- `rule_references` — raw rule numbers in the answer's prose that exist in
+  the rules (unknown ones stay plain text and are logged).
+- `citation_stats` — `{cited_count, invalid_count, uncited_answer}`;
+  `uncited_answer` is true when an answer was generated but cites nothing.
 
 ## Configuration
 
@@ -211,10 +245,14 @@ npm run build      # static build for adapter-static
 
 ## Tests
 
-`pytest` per package (parsing/embedding logic only; no network needed):
+`pytest` per package (parsing/embedding logic only; no network needed). Run
+each suite from its own directory — collecting them in one invocation
+collides on shared test-module names:
 
 ```bash
-pytest mtg-worker/mtg-ingestion/tests mtg-worker/mtg-embed/tests mtg-api/tests
+(cd mtg-worker/mtg-ingestion && pytest)
+(cd mtg-worker/mtg-embed && pytest)
+(cd mtg-api && pytest)
 ```
 
 ## Known limitations
@@ -226,3 +264,9 @@ pytest mtg-worker/mtg-ingestion/tests mtg-worker/mtg-embed/tests mtg-api/tests
   idempotent for unchanged content.
 - No auth, CI, or production TLS — the compose file targets a Coolify-style
   single-host deployment with the edge handled upstream.
+- Citations are validated for existence only: a cited `[n]` is guaranteed to
+  be a source that was in the context, not that it supports the sentence.
+- A raw rule number in the answer that exists in the rules is linked even if
+  that rule wasn't in the context (the model quoting from memory).
+- The rule page shows the rules file's ingest date, not the Comprehensive
+  Rules' own "effective as of" date, which isn't carried through parsing.
