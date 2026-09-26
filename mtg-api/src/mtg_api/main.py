@@ -14,12 +14,19 @@ from sqlalchemy.engine import Engine
 
 from mtg_api.card_matcher import CardMatcher, load_card_matcher
 from mtg_api.celery_client import get_celery_client
+from mtg_api.citations import cite_answer
 from mtg_api.config import settings
 from mtg_api.embedder import Embedder, load_sentence_transformer_embedder
 from mtg_api.history import list_history, save_history
 from mtg_api.keyword_matcher import KeywordMatcher
 from mtg_api.llm import GroqAnswerer, OllamaAnswerer, build_context, load_groq_answerer
-from mtg_api.models import EmbedRequest, QueryRequest, QueryResponse, QueryResult
+from mtg_api.models import (
+    CitationStats,
+    EmbedRequest,
+    QueryRequest,
+    QueryResponse,
+    QueryResult,
+)
 from mtg_api.qdrant_check import check_qdrant
 from mtg_api.retrieval import fetch_card_rulings, hybrid_search
 from mtg_api.rules_index import RulesIndex, load_rules_index
@@ -117,6 +124,7 @@ def query(
     client: QdrantClient = Depends(get_qdrant_client),
     answerer: GroqAnswerer = Depends(get_groq_answerer),
     engine: Engine = Depends(get_db_engine),
+    rules_index: RulesIndex = Depends(get_rules_index),
 ) -> QueryResponse:
     card_results = [
         QueryResult(
@@ -211,6 +219,15 @@ def query(
         answer = None
         error = str(exc)
 
+    # Must run before the results are dumped for history: it sets each
+    # cited result's `cited` flag.
+    cited = cite_answer(answer, sources, rules_index) if answer is not None else None
+    if cited is not None:
+        answer = cited.answer
+    citations = cited.citations if cited else []
+    rule_references = cited.rule_references if cited else []
+    citation_stats = cited.stats if cited else CitationStats()
+
     try:
         save_history(
             engine,
@@ -219,11 +236,21 @@ def query(
             results=[r.model_dump() for r in all_results],
             model=settings.ollama_model,
             error=error,
+            citations=[c.model_dump() for c in citations],
+            citation_stats=citation_stats.model_dump(),
+            rule_references=rule_references,
         )
     except Exception:
         logger.exception("Failed to persist query history")
 
-    return QueryResponse(query=request.query, results=all_results, answer=answer)
+    return QueryResponse(
+        query=request.query,
+        results=all_results,
+        answer=answer,
+        citations=citations,
+        rule_references=rule_references,
+        citation_stats=citation_stats,
+    )
 
 
 @app.post("/api/v1/ingest")

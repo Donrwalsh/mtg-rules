@@ -13,8 +13,10 @@ from mtg_api.main import (
     get_groq_answerer,
     get_keyword_matcher,
     get_qdrant_client,
+    get_rules_index,
     get_sparse_embedder,
 )
+from mtg_api.rules_index import RulesIndex
 from mtg_api.sparse_embedder import SparseEmbedder
 
 
@@ -92,6 +94,7 @@ def _override(
 ):
     app.dependency_overrides[get_card_matcher] = lambda: CardMatcher(cards or [])
     app.dependency_overrides[get_keyword_matcher] = lambda: KeywordMatcher(rules or [])
+    app.dependency_overrides[get_rules_index] = lambda: RulesIndex(rules or [])
     app.dependency_overrides[get_dense_embedder] = lambda: Embedder(_FakeDenseModel())
     app.dependency_overrides[get_sparse_embedder] = lambda: SparseEmbedder(_FakeSparseModel())
     app.dependency_overrides[get_qdrant_client] = lambda: _FakeQdrantClient(
@@ -416,3 +419,86 @@ def test_query_results_carry_source_metadata():
     )
     assert keyword["rule_id"] == "702.11"
     assert vector["rule_id"] == "115.1"
+
+
+def test_query_returns_validated_citations_and_persists_them():
+    cards = [
+        {
+            "oracle_id": "oid-1",
+            "name": "Lightning Bolt",
+            "oracle_text": "Deals 3 damage.",
+            "scryfall_uri": BOLT_URI,
+        }
+    ]
+    dense_points = [
+        _FakeHit("p1", 0.9, {"source_type": "rule", "rule_id": "115.1", "text": "Targets."})
+    ]
+    engine = memory_engine()
+    # Context numbering: 1 Bolt, 2 702.11, 3 702.11a, 4 702.11b, 5 115.1.
+    answer = "Bolt deals 3 [1]. Hexproof only stops opponents [4][99], see 702.11b and 999.9z."
+    _override(
+        cards=cards,
+        rules=HEXPROOF_RULES,
+        dense_points=dense_points,
+        answerer=_FakeAnswerer(answer=answer),
+        engine=engine,
+    )
+    try:
+        resp = TestClient(app).post(
+            "/api/v1/query", json={"query": "can Lightning Bolt target my hexproof creature"}
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["answer"] == (
+        "Bolt deals 3 [1]. Hexproof only stops opponents [4], see 702.11b and 999.9z."
+    )
+    assert [c["number"] for c in body["citations"]] == [1, 4]
+    bolt, rule = body["citations"]
+    assert (bolt["source_type"], bolt["title"], bolt["url"]) == (
+        "card",
+        "Card — Lightning Bolt",
+        BOLT_URI,
+    )
+    assert (rule["source_type"], rule["rule_id"], rule["url"], rule["text"]) == (
+        "rule",
+        "702.11b",
+        "/rules/702.11b",
+        "Can't be targeted by opponents.",
+    )
+    assert [r["cited"] for r in body["results"]] == [True, False, False, True, False]
+    assert body["citation_stats"] == {"cited_count": 2, "invalid_count": 1, "uncited_answer": False}
+    assert body["rule_references"] == ["702.11b"]
+
+    row = list_history(engine)[0]
+    assert row["answer"] == body["answer"]
+    assert [c["number"] for c in row["citations"]] == [1, 4]
+    assert row["citation_stats"] == body["citation_stats"]
+    assert row["rule_references"] == ["702.11b"]
+    assert [r["cited"] for r in row["results"]] == [True, False, False, True, False]
+
+
+def test_query_flags_an_answer_with_no_citations():
+    _override(answerer=_FakeAnswerer(answer="The context doesn't cover that."))
+    try:
+        body = TestClient(app).post("/api/v1/query", json={"query": "best standard deck"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert body["citations"] == []
+    assert body["citation_stats"] == {"cited_count": 0, "invalid_count": 0, "uncited_answer": True}
+
+
+def test_query_failed_generation_has_empty_citations():
+    engine = memory_engine()
+    _override(answerer=_FakeAnswerer(raises=RuntimeError("down")), engine=engine)
+    try:
+        body = TestClient(app).post("/api/v1/query", json={"query": "trample"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert body["answer"] is None
+    assert body["citations"] == []
+    assert body["rule_references"] == []
+    assert body["citation_stats"] == {"cited_count": 0, "invalid_count": 0, "uncited_answer": False}
+    assert list_history(engine)[0]["citations"] == []

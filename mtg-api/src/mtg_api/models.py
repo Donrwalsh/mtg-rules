@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class QueryRequest(BaseModel):
@@ -44,6 +44,11 @@ class QueryResponse(BaseModel):
     query: str
     results: list[QueryResult]
     answer: str | None = None
+    # Only the sources the answer actually cites, ordered by number.
+    citations: list[Citation] = Field(default_factory=list)
+    # Rule numbers mentioned in the answer's prose that exist in the rules.
+    rule_references: list[str] = Field(default_factory=list)
+    citation_stats: CitationStats = Field(default_factory=CitationStats)
 
 
 class EmbedRequest(BaseModel):
