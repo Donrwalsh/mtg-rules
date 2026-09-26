@@ -14,6 +14,9 @@ query_history = Table(
     Column("results", JSON, nullable=False),
     Column("model", Text, nullable=False),
     Column("error", Text, nullable=True),
+    Column("citations", JSON, nullable=True),
+    Column("citation_stats", JSON, nullable=True),
+    Column("rule_references", JSON, nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
 )
 
@@ -26,6 +29,9 @@ def save_history(
     results: list[dict],
     model: str,
     error: str | None,
+    citations: list[dict] | None = None,
+    citation_stats: dict | None = None,
+    rule_references: list[str] | None = None,
 ) -> None:
     with engine.begin() as conn:
         conn.execute(
@@ -35,6 +41,9 @@ def save_history(
                 results=results,
                 model=model,
                 error=error,
+                citations=citations,
+                citation_stats=citation_stats,
+                rule_references=rule_references,
             )
         )
 

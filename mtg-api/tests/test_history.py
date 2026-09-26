@@ -65,3 +65,45 @@ def test_list_history_respects_limit_and_offset():
 
 def test_list_history_empty_table_returns_empty_list():
     assert list_history(memory_engine()) == []
+
+
+CITATION = {
+    "number": 1,
+    "source_type": "rule",
+    "title": "Rule 702.11b",
+    "rule_id": "702.11b",
+    "card_name": None,
+    "oracle_id": None,
+    "text": "Hexproof text.",
+    "url": "/rules/702.11b",
+    "published_at": None,
+}
+STATS = {"cited_count": 1, "invalid_count": 0, "uncited_answer": False}
+
+
+def test_save_history_round_trips_citation_fields():
+    engine = memory_engine()
+    save_history(
+        engine,
+        query="q",
+        answer="It can't be targeted [1].",
+        results=[],
+        model="m",
+        error=None,
+        citations=[CITATION],
+        citation_stats=STATS,
+        rule_references=["702.11b"],
+    )
+    row = list_history(engine)[0]
+    assert row["citations"] == [CITATION]
+    assert row["citation_stats"] == STATS
+    assert row["rule_references"] == ["702.11b"]
+
+
+def test_citation_fields_default_to_none():
+    engine = memory_engine()
+    save_history(engine, query="q", answer=None, results=[], model="m", error=None)
+    row = list_history(engine)[0]
+    assert row["citations"] is None
+    assert row["citation_stats"] is None
+    assert row["rule_references"] is None

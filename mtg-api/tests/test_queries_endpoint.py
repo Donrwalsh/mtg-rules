@@ -42,3 +42,26 @@ def test_respects_limit_and_offset_query_params():
     body = resp.json()
     assert len(body) == 1
     assert body[0]["query"] == "q1"
+
+
+def test_returns_citation_fields():
+    engine = memory_engine()
+    save_history(
+        engine,
+        query="q",
+        answer="Yes [1].",
+        results=[],
+        model="m",
+        error=None,
+        citations=[{"number": 1, "title": "Rule 702.11b", "url": "/rules/702.11b"}],
+        citation_stats={"cited_count": 1, "invalid_count": 0, "uncited_answer": False},
+        rule_references=["702.11b"],
+    )
+    app.dependency_overrides[get_db_engine] = lambda: engine
+    try:
+        body = TestClient(app).get("/api/v1/queries").json()
+    finally:
+        app.dependency_overrides.clear()
+    assert body[0]["citations"][0]["url"] == "/rules/702.11b"
+    assert body[0]["citation_stats"]["cited_count"] == 1
+    assert body[0]["rule_references"] == ["702.11b"]
