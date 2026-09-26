@@ -28,6 +28,31 @@ class Settings(BaseSettings):
     ollama_model: str = "phi4"
     postgres_dsn: str = "postgresql+psycopg://mtg:mtg@postgres:5432/mtg"
     card_ruling_limit: int = 20
+    # None means "don't send it": the model's own default applies.
+    generation_temperature: float | None = None
+    generation_max_tokens: int | None = None
+    # Enables per-request overrides, eval response fields and
+    # GET /api/v1/config. Never on in production.
+    eval_mode: bool = False
 
 
 settings = Settings()
+
+# Settings an eval-mode request may override for itself (never globally).
+OVERRIDABLE_SETTINGS: tuple[str, ...] = (
+    "hybrid_dense_weight",
+    "hybrid_sparse_weight",
+    "hybrid_top_k",
+    "hybrid_per_branch_limit",
+    "hybrid_score_threshold",
+    "card_ruling_limit",
+    "collection_name",
+    "ollama_model",
+    "generation_temperature",
+    "generation_max_tokens",
+)
+
+# The subset that changes the generated answer (not the retrieved context).
+GENERATION_SETTINGS: frozenset[str] = frozenset(
+    {"ollama_model", "generation_temperature", "generation_max_tokens"}
+)

@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from mtg_api.models import QueryResult
 
+# Bump by hand whenever _SYSTEM_PROMPT or the user-message template changes:
+# eval answer caches are keyed on it.
+PROMPT_VERSION = 1
+
 _SYSTEM_PROMPT = """You are a Magic: The Gathering rules assistant. Answer the user's \
 question using only the numbered context sources below (Comprehensive Rules excerpts, \
 official rulings, and card text).
@@ -78,10 +82,33 @@ class OllamaAnswerer:
     """Local-model answerer via Ollama's /api/chat. Same generate()
     interface as GroqAnswerer so it drops into the query endpoint."""
 
-    def __init__(self, base_url: str, model: str, num_ctx: int = 16384):
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        num_ctx: int = 16384,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+    ):
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._num_ctx = num_ctx
+        self._temperature = temperature
+        self._max_tokens = max_tokens
+
+    @property
+    def model(self) -> str:
+        return self._model
+
+    def _options(self) -> dict:
+        # Ollama's default context window is small enough to
+        # silently truncate our retrieved context.
+        options: dict = {"num_ctx": self._num_ctx}
+        if self._temperature is not None:
+            options["temperature"] = self._temperature
+        if self._max_tokens is not None:
+            options["num_predict"] = self._max_tokens
+        return options
 
     def generate(self, query: str, context: str) -> str:
         import httpx
@@ -91,9 +118,7 @@ class OllamaAnswerer:
             json={
                 "model": self._model,
                 "stream": False,
-                # Ollama's default context window is small enough to
-                # silently truncate our retrieved context.
-                "options": {"num_ctx": self._num_ctx},
+                "options": self._options(),
                 "messages": [
                     {"role": "system", "content": _SYSTEM_PROMPT},
                     {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"},
