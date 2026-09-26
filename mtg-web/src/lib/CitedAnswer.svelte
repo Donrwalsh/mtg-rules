@@ -11,14 +11,16 @@
   $: byNumber = new Map(citations.map((c) => [c.number, c]));
   $: segments = segmentAnswer(answer, new Set(byNumber.keys()), new Set(ruleReferences));
 
-  let open: number | null = null;
+  // Popovers are keyed per marker occurrence ("<segment>-<number>"), not per
+  // source number: the same source can be cited several times in one answer.
+  let open: string | null = null;
 
-  function show(n: number) {
-    open = n;
+  function show(key: string) {
+    open = key;
   }
 
-  function hide(n: number) {
-    if (open === n) open = null;
+  function hide(key: string) {
+    if (open === key) open = null;
   }
 
   function onKeydown(event: KeyboardEvent) {
@@ -31,20 +33,20 @@
 </script>
 
 <!-- Every piece of model output is rendered as text; nothing uses {@html}. -->
-<p class="answer-text">{#each segments as seg}{#if seg.kind === 'text'}{seg.text}{:else if seg.kind === 'rule'}<a href="/rules/{seg.ruleId}">{seg.ruleId}</a>{:else}{#each seg.numbers as n}{@const c = byNumber.get(n)}{#if c}<span class="cite"><sup><a
+<p class="answer-text">{#each segments as seg, i}{#if seg.kind === 'text'}{seg.text}{:else if seg.kind === 'rule'}<a href="/rules/{seg.ruleId}">{seg.ruleId}</a>{:else}{#each seg.numbers as n}{@const c = byNumber.get(n)}{@const key = `${i}-${n}`}{#if c}<span class="cite"><sup><a
             href={href(c)}
             target={isExternalUrl(c.url) ? '_blank' : undefined}
             rel={isExternalUrl(c.url) ? 'noopener noreferrer' : undefined}
-            aria-describedby="{idPrefix}-pop-{n}"
-            on:mouseenter={() => show(n)}
-            on:mouseleave={() => hide(n)}
-            on:focus={() => show(n)}
-            on:blur={() => hide(n)}
+            aria-describedby="{idPrefix}-pop-{key}"
+            on:mouseenter={() => show(key)}
+            on:mouseleave={() => hide(key)}
+            on:focus={() => show(key)}
+            on:blur={() => hide(key)}
             on:keydown={onKeydown}>[{n}]</a></sup><span
           role="tooltip"
-          id="{idPrefix}-pop-{n}"
+          id="{idPrefix}-pop-{key}"
           class="popover"
-          hidden={open !== n}><strong>{c.title}</strong><span class="pop-text">{c.text}</span></span></span>{/if}{/each}{/if}{/each}</p>
+          hidden={open !== key}><strong>{c.title}</strong><span class="pop-text">{c.text}</span></span></span>{/if}{/each}{/if}{/each}</p>
 
 <style>
   .answer-text {
