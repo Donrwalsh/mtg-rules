@@ -6,6 +6,11 @@ from mtg_ingestion.models import Card
 from mtg_ingestion.parse._scryfall_io import iter_scryfall_records
 
 
+def _strip_query(uri: str | None) -> str | None:
+    # Scryfall appends ?utm_source=api to every API-served link.
+    return uri.split("?", 1)[0] if uri else None
+
+
 def parse_cards_file(raw_path: Path) -> list[Card]:
     """Parse a downloaded oracle-cards bulk file (.jsonl.gz or legacy .json)
     into Card records.
@@ -37,6 +42,7 @@ def parse_cards_file(raw_path: Path) -> list[Card]:
                 oracle_text=oracle_text,
                 type_line=raw.get("type_line", ""),
                 mana_cost=raw.get("mana_cost") or None,
+                scryfall_uri=_strip_query(raw.get("scryfall_uri")),
             )
         )
     return cards

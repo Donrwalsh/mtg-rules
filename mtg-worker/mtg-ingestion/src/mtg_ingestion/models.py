@@ -47,6 +47,9 @@ class Card(BaseModel):
     oracle_text: str = ""
     type_line: str = ""
     mana_cost: str | None = None
+    # A link, not rules content: deliberately left out of content_hash so a
+    # changed default printing never triggers a re-embed.
+    scryfall_uri: str | None = None
     content_hash: str = ""
 
     def model_post_init(self, __context: Any) -> None:

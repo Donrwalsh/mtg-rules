@@ -14,6 +14,7 @@ RAW_CARDS = [
         "oracle_text": "{T}: Add {G}.",
         "type_line": "Creature — Elf Druid",
         "mana_cost": "{G}",
+        "scryfall_uri": "https://scryfall.com/card/m10/155/llanowar-elves?utm_source=api",
     },
     {
         # double-faced card: text lives on card_faces, not the top level
@@ -106,3 +107,18 @@ def test_card_content_hash_ignores_field_order_but_not_content() -> None:
 
     assert a.content_hash == b.content_hash
     assert a.content_hash != c.content_hash
+
+
+def test_parse_cards_keeps_scryfall_uri_without_query_string(tmp_path: Path) -> None:
+    raw = tmp_path / "oracle_cards.jsonl.gz"
+    with gzip.open(raw, "wt", encoding="utf-8") as f:
+        for row in RAW_CARDS:
+            f.write(json.dumps(row) + "\n")
+    cards = {c.oracle_id: c for c in parse_cards_file(raw)}
+    assert cards["abc-123"].scryfall_uri == "https://scryfall.com/card/m10/155/llanowar-elves"
+    assert cards["def-456"].scryfall_uri is None
+
+
+def test_scryfall_uri_is_not_part_of_content_hash() -> None:
+    base = dict(oracle_id="o", name="N", oracle_text="t", type_line="x", mana_cost=None)
+    assert Card(**base).content_hash == Card(**base, scryfall_uri="https://a").content_hash
