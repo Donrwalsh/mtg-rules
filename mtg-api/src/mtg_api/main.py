@@ -126,6 +126,8 @@ def query(
             score=1.0,
             match_type="card_name_match",
             oracle_id=card.get("oracle_id"),
+            card_name=card["name"],
+            scryfall_uri=card.get("scryfall_uri"),
         )
         for card in matcher.find_matches(request.query)
     ]
@@ -142,6 +144,9 @@ def query(
             score=1.0,
             match_type="card_ruling_match",
             oracle_id=payload.get("oracle_id"),
+            card_name=payload.get("card_name"),
+            published_at=payload.get("published_at"),
+            scryfall_uri=payload.get("scryfall_uri"),
         )
         for _point_id, payload in card_ruling_hits
     ]
@@ -153,6 +158,7 @@ def query(
             text=rule["text"],
             score=1.0,
             match_type="keyword_rule_match",
+            rule_id=rule["rule_id"],
         )
         for keyword in keyword_matcher.find_matches(request.query)
         for rule in keyword["rules"]
@@ -188,11 +194,15 @@ def query(
                 score=score,
                 match_type="vector_hit",
                 oracle_id=oracle_id,
+                rule_id=payload.get("rule_id"),
+                card_name=payload.get("card_name"),
+                published_at=payload.get("published_at"),
+                scryfall_uri=payload.get("scryfall_uri"),
             )
         )
 
     all_results = card_results + card_ruling_results + keyword_results + vector_results
-    context = build_context(all_results)
+    context, sources = build_context(all_results)
     try:
         answer = answerer.generate(request.query, context)
         error = None

@@ -366,3 +366,53 @@ def test_query_persists_a_history_row():
     assert rows[0]["query"] == "how does trample work"
     assert rows[0]["answer"] == "An answer."
     assert rows[0]["error"] is None
+
+
+BOLT_URI = "https://scryfall.com/card/lea/161/lightning-bolt"
+
+
+def test_query_results_carry_source_metadata():
+    cards = [
+        {
+            "oracle_id": "oid-1",
+            "name": "Lightning Bolt",
+            "oracle_text": "Deals 3 damage.",
+            "scryfall_uri": BOLT_URI,
+        }
+    ]
+    scroll_points = [
+        _FakeHit(
+            "r1",
+            None,
+            {
+                "source_type": "ruling",
+                "card_name": "Lightning Bolt",
+                "oracle_id": "oid-1",
+                "text": "Bolt ruling.",
+                "published_at": "2020-01-01",
+                "scryfall_uri": BOLT_URI,
+            },
+        )
+    ]
+    dense_points = [
+        _FakeHit("p1", 0.9, {"source_type": "rule", "rule_id": "115.1", "text": "Targets."})
+    ]
+    _override(
+        cards=cards, rules=HEXPROOF_RULES, dense_points=dense_points, scroll_points=scroll_points
+    )
+    try:
+        resp = TestClient(app).post(
+            "/api/v1/query", json={"query": "can Lightning Bolt target my hexproof creature"}
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    card, ruling, keyword, _, _, vector = resp.json()["results"]
+    assert (card["card_name"], card["scryfall_uri"]) == ("Lightning Bolt", BOLT_URI)
+    assert (ruling["card_name"], ruling["published_at"], ruling["scryfall_uri"]) == (
+        "Lightning Bolt",
+        "2020-01-01",
+        BOLT_URI,
+    )
+    assert keyword["rule_id"] == "702.11"
+    assert vector["rule_id"] == "115.1"

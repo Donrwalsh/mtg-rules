@@ -1,29 +1,57 @@
 import pytest
 
-from mtg_api.llm import GroqAnswerer, build_context
+from mtg_api.llm import _SYSTEM_PROMPT, GroqAnswerer, build_context, source_label
 from mtg_api.models import QueryResult
 
 
-def test_build_context_formats_each_result_as_a_block():
+def _result(source, title, text="t", **fields):
+    return QueryResult(
+        source=source, title=title, text=text, score=1.0, match_type="vector_hit", **fields
+    )
+
+
+def test_source_label_for_each_source_type():
+    assert source_label(_result("rule", "702.11b", rule_id="702.11b")) == "Rule 702.11b"
+    assert source_label(_result("rule", "702.19")) == "Rule 702.19"
+    assert (
+        source_label(_result("card", "Lightning Bolt", card_name="Lightning Bolt"))
+        == "Card — Lightning Bolt"
+    )
+    # Vector hits on card text come back as source "oracle".
+    assert source_label(_result("oracle", "Shock")) == "Card — Shock"
+    assert (
+        source_label(_result("ruling", "Homing Lightning", published_at="2018-01-19"))
+        == "Ruling — Homing Lightning (2018-01-19)"
+    )
+    assert source_label(_result("ruling", "Homing Lightning")) == "Ruling — Homing Lightning"
+
+
+def test_build_context_numbers_blocks_in_order_and_returns_mapping():
     results = [
-        QueryResult(
-            source="rule", title="702.19", text="Trample lets...", score=0.9, match_type="vector_hit"
-        ),
-        QueryResult(
-            source="card",
-            title="Craterhoof Behemoth",
-            text="Trample. When...",
-            score=1.0,
-            match_type="card_name_match",
-        ),
+        _result("rule", "702.11b", "Hexproof text.", rule_id="702.11b"),
+        _result("card", "Lightning Bolt", "Deals 3 damage.", card_name="Lightning Bolt"),
+        _result("ruling", "Homing Lightning", "A ruling.", published_at="2018-01-19"),
     ]
-    context = build_context(results)
-    assert "[rule] 702.19\nTrample lets..." in context
-    assert "[card] Craterhoof Behemoth\nTrample. When..." in context
+    context, sources = build_context(results)
+    assert context == (
+        "[1] Rule 702.11b: Hexproof text.\n\n"
+        "[2] Card — Lightning Bolt: Deals 3 damage.\n\n"
+        "[3] Ruling — Homing Lightning (2018-01-19): A ruling."
+    )
+    assert sources == {1: results[0], 2: results[1], 3: results[2]}
+    # Same objects, not copies: citation processing flags them as cited.
+    assert sources[1] is results[0]
 
 
-def test_build_context_empty_list_returns_empty_string():
-    assert build_context([]) == ""
+def test_build_context_empty_list():
+    assert build_context([]) == ("", {})
+
+
+def test_system_prompt_requires_numbered_citations():
+    assert "only numbers that appear in the context" in _SYSTEM_PROMPT
+    assert "[1][3]" in _SYSTEM_PROMPT
+    assert "[1, 3]" in _SYSTEM_PROMPT
+    assert "with no citations" in _SYSTEM_PROMPT
 
 
 class _FakeMessage:

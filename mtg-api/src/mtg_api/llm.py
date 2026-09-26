@@ -2,17 +2,52 @@ from __future__ import annotations
 
 from mtg_api.models import QueryResult
 
-_SYSTEM_PROMPT = (
-    "You are a Magic: The Gathering rules assistant. Answer the user's "
-    "question using only the context below (card text, rulings, and "
-    "Comprehensive Rules excerpts). If the context does not cover the "
-    "question, say so plainly instead of guessing."
-)
+_SYSTEM_PROMPT = """You are a Magic: The Gathering rules assistant. Answer the user's \
+question using only the numbered context sources below (Comprehensive Rules excerpts, \
+official rulings, and card text).
+
+Citation rules:
+- Cite every factual claim with the bracketed number of the source that supports it, like [2].
+- Use only numbers that appear in the context. Never cite a number that is not listed, \
+and never quote rule numbers from memory.
+- Several sources may support one claim: write [1][3] or [1, 3].
+- When explaining why something works, prefer rules and rulings over card text.
+- If the context does not cover the question, say so plainly, with no citations, \
+instead of guessing.
+
+Example (format only -- these sources are not part of your context):
+Context:
+[1] Rule 702.19b: The controller of an attacking creature with trample first assigns \
+damage to the creature(s) blocking it. Once all those blocking creatures are assigned \
+lethal damage, any excess damage is assigned as its controller chooses among those \
+blocking creatures and the player, planeswalker, or battle the creature is attacking.
+[2] Card — Colossal Dreadmaw: Trample
+Question: My Colossal Dreadmaw is blocked by a 1/1. Does any damage get through?
+Answer: Yes. Colossal Dreadmaw has trample [2], so you assign lethal damage to the \
+blocker and the rest to the defending player [1]."""
 
 
-def build_context(results: list[QueryResult]) -> str:
-    blocks = [f"[{r.source}] {r.title}\n{r.text}" for r in results]
-    return "\n\n".join(blocks)
+def source_label(result: QueryResult) -> str:
+    """Human-readable name for a source. Used for both the context block the
+    LLM sees and the citation shown to the user, so the two always agree."""
+    if result.source == "rule":
+        return f"Rule {result.rule_id or result.title}"
+    if result.source == "ruling":
+        name = result.card_name or result.title
+        if result.published_at:
+            return f"Ruling — {name} ({result.published_at})"
+        return f"Ruling — {name}"
+    if result.source in ("card", "oracle"):
+        return f"Card — {result.card_name or result.title}"
+    return result.title
+
+
+def build_context(results: list[QueryResult]) -> tuple[str, dict[int, QueryResult]]:
+    """Number every result 1..N in order. The returned mapping is the only
+    source of truth for what each [n] the LLM cites refers to."""
+    sources = {number: result for number, result in enumerate(results, start=1)}
+    blocks = [f"[{number}] {source_label(r)}: {r.text}" for number, r in sources.items()]
+    return "\n\n".join(blocks), sources
 
 
 class GroqAnswerer:
