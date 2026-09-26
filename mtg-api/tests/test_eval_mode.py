@@ -5,7 +5,7 @@ from conftest import memory_engine
 from fastapi.testclient import TestClient
 from test_query import _FakeAnswerer, _FakeHit, _override
 
-import mtg_api.main as main
+from mtg_api import main
 from mtg_api.history import list_history
 from mtg_api.llm import PROMPT_VERSION, build_context
 from mtg_api.main import app
