@@ -113,3 +113,41 @@ def test_example_experiments_load():
     }
     assert load_experiment("topk15")["overrides"] == {"hybrid_top_k": 15}
     assert load_experiment("temp0")["overrides"] == {"generation_temperature": 0}
+
+
+def test_show_defaults_to_the_latest_run_of_any_mode_and_compares(dirs):
+    _write(dirs / "baseline-retrieval.json", _run(BASE))
+    _write(dirs / "runs" / "20260101T000000Z-abc-full.json", _run(BASE, mode="full"))
+    regressed = dict(BASE, trample=_case({"rules:702.19b": None}))
+    _write(dirs / "runs" / "20260102T000000Z-abc-retrieval.json", _run(regressed))
+
+    result = runner.invoke(cli.app, ["show"])
+
+    assert result.exit_code == 0  # viewing never fails on regressions
+    assert "20260102T000000Z-abc-retrieval.json" in result.output
+    assert "REGRESSIONS (1)" in result.output
+
+
+def test_show_filters_by_mode_and_accepts_a_name(dirs):
+    _write(dirs / "runs" / "20260101T000000Z-abc-full.json", _run(BASE, mode="full"))
+    _write(dirs / "runs" / "20260102T000000Z-abc-retrieval.json", _run(BASE))
+
+    by_mode = runner.invoke(cli.app, ["show", "--mode", "full"])
+    assert "eval  full" in by_mode.output
+    assert "no baseline for full" in by_mode.output
+
+    by_name = runner.invoke(cli.app, ["show", "20260102T000000Z-abc-retrieval", "--no-compare"])
+    assert "eval  retrieval" in by_name.output
+    assert "comparison disabled (--no-compare)" in by_name.output
+
+
+def test_show_on_the_baseline_itself_skips_comparison(dirs):
+    _write(dirs / "baseline-retrieval.json", _run(BASE))
+    result = runner.invoke(cli.app, ["show", "baseline-retrieval"])
+    assert result.exit_code == 0
+    assert "this is the retrieval baseline; nothing to compare" in result.output
+    assert "REGRESSIONS" not in result.output
+
+
+def test_show_without_runs_is_a_usage_error(dirs):
+    assert runner.invoke(cli.app, ["show"]).exit_code == 2

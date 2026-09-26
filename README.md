@@ -295,6 +295,7 @@ make eval-full TAG=negative         # + answer generation and the LLM judge
 make eval-test                      # both modes on the held-out test split
 make eval-baseline MODE=retrieval   # promote the latest retrieval run
 make eval-compare A=<run> B=<run>   # diff any two runs
+make eval-show                      # reprint the latest run's report (RUN=<run> for another)
 make eval-sweep EXPS="dense70 topk15"
 ```
 

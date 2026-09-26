@@ -75,14 +75,17 @@ def _resolve_run(name: str) -> Path:
     raise _fail(f"no run file {name!r} (looked in {RUNS_DIR} and {EVALS_DIR})")
 
 
-def _latest_run(mode: str) -> Path:
+def _latest_run(mode: str | None) -> Path:
+    """Newest run file (filenames start with a UTC timestamp), optionally of
+    one mode only."""
     for path in sorted(RUNS_DIR.glob("*.json"), reverse=True):
         try:
-            if _load(path)["metadata"]["mode"] == mode:
+            if mode is None or _load(path)["metadata"]["mode"] == mode:
                 return path
         except (json.JSONDecodeError, KeyError, OSError):
             continue
-    raise _fail(f"no {mode} runs in {RUNS_DIR}; run `mtg-evals run --mode {mode}` first")
+    kind = f"{mode} runs" if mode else "runs"
+    raise _fail(f"no {kind} in {RUNS_DIR}; run `mtg-evals run` first")
 
 
 def _baseline(mode: str) -> dict | None:
@@ -188,6 +191,34 @@ def baseline(
         notes.append("a dirty working tree")
     if notes:
         typer.echo(f"note: this run used {', '.join(notes)}")
+
+
+@app.command()
+def show(
+    run_file: Annotated[
+        str | None, typer.Argument(help="Run to show (default: the latest run).")
+    ] = None,
+    mode: Annotated[
+        Mode | None, typer.Option("--mode", help="Latest run of this mode only.")
+    ] = None,
+    no_compare: Annotated[bool, typer.Option("--no-compare")] = False,
+) -> None:
+    """Print the report for an existing run, compared to the current baseline."""
+    path = _resolve_run(run_file) if run_file else _latest_run(mode and mode.value)
+    new = _load(path)
+    run_mode = new["metadata"]["mode"]
+    base_file = baseline_path(run_mode)
+    is_baseline = base_file.exists() and base_file.resolve() == path.resolve()
+    base = None if no_compare or is_baseline else _baseline(run_mode)
+    diff = diff_runs(base, new) if base else None
+    if no_compare:
+        skipped = "comparison disabled (--no-compare)"
+    elif is_baseline:
+        skipped = f"this is the {run_mode} baseline; nothing to compare"
+    else:
+        skipped = None
+    typer.echo(f"{path}\n")
+    typer.echo(render(new, base, diff, skipped=skipped))
 
 
 @app.command()

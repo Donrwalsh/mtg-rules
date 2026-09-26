@@ -8,7 +8,7 @@ MODE   ?= retrieval
 FILTER  = $(if $(EXP),--exp $(EXP)) $(foreach t,$(TAG),--tag $(t)) $(foreach i,$(ID),--id $(i))
 SELECT  = $(foreach t,$(TAG),--tag $(t)) $(foreach i,$(ID),--id $(i))
 
-.PHONY: eval eval-full eval-test eval-baseline eval-compare eval-sweep eval-validate
+.PHONY: eval eval-full eval-test eval-baseline eval-compare eval-show eval-sweep eval-validate
 
 eval:
 	$(EVALS) run --mode retrieval --split dev $(FILTER)
@@ -27,6 +27,10 @@ eval-baseline:
 
 eval-compare:
 	$(EVALS) compare $(A) $(B)
+
+# Report for the latest run, or RUN=<run file or name>.
+eval-show:
+	$(EVALS) show $(RUN)
 
 eval-sweep:
 	$(EVALS) sweep $(EXPS) --mode $(MODE) $(SELECT)
