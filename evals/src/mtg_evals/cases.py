@@ -66,7 +66,7 @@ def load_raw(path: Path) -> list:
     return data if data is not None else []
 
 
-def _normalize(raw):
+def normalize_entry(raw):
     """PyYAML follows YAML 1.1, so an unquoted `verdict: yes` loads as True.
     Map it back so eval.yaml can keep the natural spelling."""
     if isinstance(raw, dict) and isinstance(raw.get("verdict"), bool):
@@ -128,7 +128,7 @@ def schema_errors(raw: list) -> list[str]:
         return ["eval file must be a YAML list of cases"]
     errors = []
     seen: set[str] = set()
-    for index, entry in enumerate(_normalize(e) for e in raw):
+    for index, entry in enumerate(normalize_entry(e) for e in raw):
         errors.extend(_case_errors(index, entry))
         case_id = entry.get("id") if isinstance(entry, dict) else None
         if isinstance(case_id, str):
@@ -138,7 +138,7 @@ def schema_errors(raw: list) -> list[str]:
     return errors
 
 
-def _to_case(raw: dict) -> Case:
+def to_case(raw: dict) -> Case:
     sources = raw.get("required_sources") or {}
     return Case(
         id=raw["id"],
@@ -165,7 +165,7 @@ def load_cases(path: Path) -> list[Case]:
     errors = schema_errors(raw)
     if errors:
         raise CaseFileError(errors)
-    return [_to_case(_normalize(entry)) for entry in raw]
+    return [to_case(normalize_entry(entry)) for entry in raw]
 
 
 def select(
