@@ -1,19 +1,22 @@
 <script lang="ts">
-  import { submitQuery, type QueryResult } from '$lib/api';
+  import { submitQuery, type QueryResponse } from '$lib/api';
+  import CitedAnswer from '$lib/CitedAnswer.svelte';
+  import SourcesList from '$lib/SourcesList.svelte';
 
   let query = '';
-  let results: QueryResult[] = [];
-  let answer: string | null = null;
+  let response: QueryResponse | null = null;
   let error = '';
+  let loading = false;
 
   async function onSubmit() {
     error = '';
+    loading = true;
     try {
-      const resp = await submitQuery(query);
-      results = resp.results;
-      answer = resp.answer;
+      response = await submitQuery(query);
     } catch (e) {
       error = String(e);
+    } finally {
+      loading = false;
     }
   }
 </script>
@@ -23,26 +26,40 @@
   <p><a href="/history">View query history</a></p>
   <form on:submit|preventDefault={onSubmit}>
     <input type="text" bind:value={query} placeholder="Ask a rules question" />
-    <button type="submit">Search</button>
+    <button type="submit" disabled={loading}>{loading ? 'Searching…' : 'Search'}</button>
   </form>
 
   {#if error}
     <p style="color: red">{error}</p>
   {/if}
 
-  {#if answer}
-    <div class="answer">
-      <h2>Answer</h2>
-      <p>{answer}</p>
-    </div>
-  {/if}
+  {#if response}
+    {#if response.answer}
+      <div class="answer">
+        <h2>Answer</h2>
+        <CitedAnswer
+          answer={response.answer}
+          citations={response.citations}
+          ruleReferences={response.rule_references}
+        />
+        {#if response.citation_stats.uncited_answer}
+          <p class="note">No sources cited</p>
+        {/if}
+      </div>
+    {/if}
 
-  <ul>
-    {#each results as result}
-      <li>
-        <strong>{result.title}</strong> ({result.source}, score {result.score})
-        <p>{result.text}</p>
-      </li>
-    {/each}
-  </ul>
+    <SourcesList
+      citations={response.citations}
+      results={response.results}
+      expanded={!response.answer}
+    />
+  {/if}
 </main>
+
+<style>
+  .note {
+    color: #666;
+    font-size: 0.9rem;
+    font-style: italic;
+  }
+</style>

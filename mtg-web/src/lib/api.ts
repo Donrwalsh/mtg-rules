@@ -5,12 +5,41 @@ export interface QueryResult {
   title: string;
   text: string;
   score: number;
+  match_type?: string;
+  oracle_id?: string | null;
+  rule_id?: string | null;
+  card_name?: string | null;
+  published_at?: string | null;
+  scryfall_uri?: string | null;
+  cited?: boolean;
+}
+
+export interface Citation {
+  number: number;
+  source_type: string; // "rule" | "card" | "ruling"
+  title: string;
+  rule_id: string | null;
+  card_name: string | null;
+  oracle_id: string | null;
+  text: string;
+  // "/rules/{id}" for rules (our own route), a Scryfall URL for cards and rulings.
+  url: string | null;
+  published_at: string | null;
+}
+
+export interface CitationStats {
+  cited_count: number;
+  invalid_count: number;
+  uncited_answer: boolean;
 }
 
 export interface QueryResponse {
   query: string;
   results: QueryResult[];
   answer: string | null;
+  citations: Citation[];
+  rule_references: string[];
+  citation_stats: CitationStats;
 }
 
 export async function submitQuery(query: string): Promise<QueryResponse> {
@@ -33,6 +62,10 @@ export interface QueryHistoryRow {
   model: string;
   error: string | null;
   created_at: string;
+  // null for rows saved before citations existed.
+  citations: Citation[] | null;
+  citation_stats: CitationStats | null;
+  rule_references: string[] | null;
 }
 
 export async function fetchHistory(limit: number, offset: number): Promise<QueryHistoryRow[]> {
@@ -41,4 +74,32 @@ export async function fetchHistory(limit: number, offset: number): Promise<Query
     throw new Error(`history fetch failed: ${resp.status}`);
   }
   return resp.json();
+}
+
+export interface RuleSummary {
+  rule_id: string;
+  text: string;
+}
+
+export interface RuleDetail extends RuleSummary {
+  ancestors: RuleSummary[];
+  subrules: RuleSummary[];
+  rules_ingested_at: string | null;
+}
+
+export class NotFoundError extends Error {}
+
+export async function fetchRule(ruleId: string): Promise<RuleDetail> {
+  const resp = await fetch(`${API_URL}/api/v1/rules/${encodeURIComponent(ruleId)}`);
+  if (resp.status === 404) {
+    throw new NotFoundError(`rule ${ruleId} not found`);
+  }
+  if (!resp.ok) {
+    throw new Error(`rule fetch failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
+export function isExternalUrl(url: string | null): boolean {
+  return !!url && /^https?:\/\//.test(url);
 }
