@@ -11,6 +11,7 @@ ROWS = [
         "oracle_text": "Lightning Bolt deals 3 damage to any target.",
         "type_line": "Instant",
         "mana_cost": "{R}",
+        "scryfall_uri": "https://scryfall.com/card/lea/161/lightning-bolt",
         "content_hash": "hcard1",
     },
     {
@@ -52,3 +53,12 @@ def test_limit_caps_number_of_chunks(tmp_path):
     path = _write_rows(tmp_path)
     chunks = load_card_chunks(path, limit=1)
     assert len(chunks) == 1
+
+
+def test_card_payload_carries_scryfall_uri(tmp_path):
+    chunks = {c.payload["card_name"]: c for c in load_card_chunks(_write_rows(tmp_path))}
+    assert (
+        chunks["Lightning Bolt"].payload["scryfall_uri"]
+        == "https://scryfall.com/card/lea/161/lightning-bolt"
+    )
+    assert chunks["Static Orb"].payload["scryfall_uri"] is None

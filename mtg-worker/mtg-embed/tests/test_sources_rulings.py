@@ -11,6 +11,7 @@ CARD_ROWS = [
         "oracle_text": "Lightning Bolt deals 3 damage to any target.",
         "type_line": "Instant",
         "mana_cost": "{R}",
+        "scryfall_uri": "https://scryfall.com/card/lea/161/lightning-bolt",
         "content_hash": "hcard1",
     }
 ]
@@ -119,3 +120,12 @@ def test_ruling_index_is_per_oracle_id_not_global(tmp_path):
     assert chunks[0].point_id == ruling_point_id("oid-1", 0)
     assert chunks[1].point_id == ruling_point_id("oid-2", 0)
     assert chunks[2].point_id == ruling_point_id("oid-1", 1)
+
+
+def test_ruling_payload_carries_published_at_and_card_scryfall_uri(tmp_path):
+    chunks, _ = load_ruling_chunks(
+        _write(tmp_path, "rulings.jsonl", RULING_ROWS), _write(tmp_path, "cards.jsonl", CARD_ROWS)
+    )
+    assert chunks[0].payload["published_at"] == "2020-01-01"
+    assert chunks[1].payload["published_at"] == "2020-01-02"
+    assert chunks[0].payload["scryfall_uri"] == "https://scryfall.com/card/lea/161/lightning-bolt"

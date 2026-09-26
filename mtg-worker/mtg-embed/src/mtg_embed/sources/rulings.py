@@ -55,6 +55,8 @@ def load_ruling_chunks(
                     "text": row["comment"],
                     "card_name": card["name"],
                     "oracle_id": oracle_id,
+                    "published_at": row.get("published_at"),
+                    "scryfall_uri": card.get("scryfall_uri"),
                 },
             )
         )

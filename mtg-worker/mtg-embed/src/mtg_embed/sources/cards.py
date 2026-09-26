@@ -35,6 +35,7 @@ def load_card_chunks(path: Path, limit: int | None = None) -> list[EmbeddableChu
                     "text": oracle_text,
                     "card_name": row["name"],
                     "oracle_id": row["oracle_id"],
+                    "scryfall_uri": row.get("scryfall_uri"),
                 },
             )
         )
