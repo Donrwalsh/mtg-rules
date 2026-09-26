@@ -1,5 +1,7 @@
 <script lang="ts">
   import { fetchHistory, type QueryHistoryRow } from '$lib/api';
+  import CitedAnswer from '$lib/CitedAnswer.svelte';
+  import SourcesList from '$lib/SourcesList.svelte';
 
   const PAGE_SIZE = 20;
 
@@ -72,9 +74,30 @@
           <tr>
             <td colspan="6">
               <h3>Full answer</h3>
-              <p>{row.answer ?? '(none)'}</p>
-              <h3>Retrieved results</h3>
-              <pre>{JSON.stringify(row.results, null, 2)}</pre>
+              {#if row.answer}
+                <!-- Rows saved before citations existed have null citations
+                     and render as plain text. -->
+                <CitedAnswer
+                  answer={row.answer}
+                  citations={row.citations ?? []}
+                  ruleReferences={row.rule_references ?? []}
+                  idPrefix="h{row.id}"
+                />
+                {#if row.citation_stats?.uncited_answer}
+                  <p class="note">No sources cited</p>
+                {/if}
+              {:else}
+                <p>(none)</p>
+              {/if}
+              <SourcesList
+                citations={row.citations ?? []}
+                results={row.results}
+                idPrefix="h{row.id}"
+              />
+              <details>
+                <summary>Raw results</summary>
+                <pre>{JSON.stringify(row.results, null, 2)}</pre>
+              </details>
             </td>
           </tr>
         {/if}
@@ -101,5 +124,10 @@
   pre {
     white-space: pre-wrap;
     word-break: break-word;
+  }
+  .note {
+    color: #666;
+    font-size: 0.9rem;
+    font-style: italic;
   }
 </style>
