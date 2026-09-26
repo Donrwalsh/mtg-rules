@@ -1,4 +1,5 @@
 from qdrant_client import QdrantClient
+from qdrant_client.http import models as qmodels
 
 from mtg_embed.embedder import Embedder
 from mtg_embed.models import EmbeddableChunk
@@ -35,13 +36,13 @@ class FakeSparseModel:
         return [_FakeSparseEmbedding(indices=[0], values=[1.0]) for _ in texts]
 
 
-def _chunk(point_id: str, content_hash: str) -> EmbeddableChunk:
+def _chunk(point_id: str, content_hash: str, extra: dict | None = None) -> EmbeddableChunk:
     return EmbeddableChunk(
         point_id=point_id,
         source_type="rule",
         text_to_embed=f"text for {point_id}",
         content_hash=content_hash,
-        payload={"source_type": "rule", "content_hash": content_hash, "text": "x"},
+        payload={"source_type": "rule", "content_hash": content_hash, "text": "x", **(extra or {})},
     )
 
 
@@ -195,3 +196,54 @@ def test_sparse_embedder_is_called_with_the_same_texts_as_the_dense_embedder():
     embed_and_store(chunks, store, embedder, sparse_embedder)
 
     assert sparse_model.embed_calls == 1
+
+
+def test_changed_payload_with_unchanged_content_hash_updates_payload_without_embedding():
+    store = _fresh_store()
+    model = FakeModel()
+    embedder = Embedder(model, batch_size=32)
+    sparse_embedder = SparseEmbedder(FakeSparseModel())
+    point_id = "11111111-1111-1111-1111-111111111111"
+
+    embed_and_store([_chunk(point_id, "h1")], store, embedder, sparse_embedder)
+    summary = embed_and_store(
+        [_chunk(point_id, "h1", {"scryfall_uri": "https://x"})], store, embedder, sparse_embedder
+    )
+
+    assert model.encode_calls == 1
+    assert summary.embedded == 0
+    assert summary.payload_updated == 1
+    assert summary.skipped_unchanged == 0
+    stored = store._client.retrieve("pipeline_test", ids=[point_id], with_payload=True)[0]
+    assert stored.payload["scryfall_uri"] == "https://x"
+
+
+def test_point_stored_without_payload_hash_gets_payload_rewritten_once():
+    """Simulates points embedded before payload_hash existed: the first run
+    rewrites their payloads (no embedding), the second run skips them."""
+    store = _fresh_store()
+    point_id = "11111111-1111-1111-1111-111111111111"
+    chunk = _chunk(point_id, "h1")
+    store._client.upsert(
+        "pipeline_test",
+        points=[
+            qmodels.PointStruct(
+                id=point_id,
+                vector={
+                    "dense": [1.0, 0.0, 0.0, 0.0],
+                    "sparse": qmodels.SparseVector(indices=[0], values=[1.0]),
+                },
+                payload=chunk.payload,
+            )
+        ],
+    )
+    model = FakeModel()
+    embedder = Embedder(model, batch_size=32)
+    sparse_embedder = SparseEmbedder(FakeSparseModel())
+
+    first = embed_and_store([chunk], store, embedder, sparse_embedder)
+    second = embed_and_store([chunk], store, embedder, sparse_embedder)
+
+    assert model.encode_calls == 0
+    assert (first.embedded, first.payload_updated, first.skipped_unchanged) == (0, 1, 0)
+    assert (second.embedded, second.payload_updated, second.skipped_unchanged) == (0, 0, 1)

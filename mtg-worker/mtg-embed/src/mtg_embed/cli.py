@@ -25,8 +25,8 @@ def _latest(directory: Path, pattern: str) -> Path:
 def _format_summary_line(source_name: str, summary: RunSummary) -> str:
     """Format a summary line for display, using source_name even when summary.source_type is empty."""
     return (
-        f"  {source_name}: embedded={summary.embedded} skipped_unchanged={summary.skipped_unchanged} "
-        f"total_seen={summary.total_seen}"
+        f"  {source_name}: embedded={summary.embedded} payload_updated={summary.payload_updated} "
+        f"skipped_unchanged={summary.skipped_unchanged} total_seen={summary.total_seen}"
     )
 
 
@@ -81,15 +81,19 @@ def run(
 
     typer.echo("")
     typer.echo("Embedding summary:")
-    grand_total = grand_embedded = grand_skipped = 0
+    grand_total = grand_embedded = grand_skipped = grand_repayloaded = 0
     for source_name, s in summaries:
         typer.echo(_format_summary_line(source_name, s))
         grand_total += s.total_seen
         grand_embedded += s.embedded
         grand_skipped += s.skipped_unchanged
+        grand_repayloaded += s.payload_updated
     if skipped_no_card:
         typer.echo(f"  rulings skipped (no matching card): {skipped_no_card}")
-    typer.echo(f"  TOTAL: embedded={grand_embedded} skipped_unchanged={grand_skipped} total_seen={grand_total}")
+    typer.echo(
+        f"  TOTAL: embedded={grand_embedded} payload_updated={grand_repayloaded} "
+        f"skipped_unchanged={grand_skipped} total_seen={grand_total}"
+    )
 
 
 if __name__ == "__main__":

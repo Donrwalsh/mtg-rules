@@ -39,4 +39,5 @@ def test_format_summary_line_preserves_source_name_on_zero_chunks():
     assert line.startswith("  rules:")
     assert "embedded=0" in line
     assert "skipped_unchanged=0" in line
+    assert "payload_updated=0" in line
     assert "total_seen=0" in line
