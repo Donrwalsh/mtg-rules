@@ -37,3 +37,9 @@ eval-sweep:
 
 eval-validate:
 	$(EVALS) validate
+
+# Copy the local Qdrant collection and parsed data into the production stack
+# (see README "Production deployment"). HOST=root@your-server
+.PHONY: sync-prod
+sync-prod:
+	$(PYTHON) deploy/sync_data.py --host $(HOST) $(if $(PROJECT),--project $(PROJECT))

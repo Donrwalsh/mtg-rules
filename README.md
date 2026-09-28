@@ -264,6 +264,7 @@ collides on shared test-module names:
 (cd mtg-worker/mtg-embed && pytest)
 (cd mtg-api && pytest)
 (cd evals && pytest)
+(cd deploy && pytest)       # production data sync script
 ```
 
 ## Evals
@@ -382,40 +383,42 @@ an override of the dev compose file.
 3. Environment variables: set `MTG_API_GEMINI_API_KEY`. Coolify generates
    `SERVICE_PASSWORD_POSTGRES` itself. Optional: `MTG_API_GEMINI_MODEL`,
    `MTG_API_EMBED_THREADS` (default 1).
-4. Deploy. The backend stays unhealthy on the first deploy until the data
-   is seeded (below), because it refuses to start without the parsed rules
-   and cards.
+4. Deploy. On the first deploy the backend crash-loops and the frontend
+   doesn't start until the data is seeded (below): the backend refuses to
+   start without the parsed rules and cards.
 
 ### Seeding the data
 
-Coolify prefixes volume and network names with the resource's UUID, so look
-them up on the server first:
+[`deploy/sync_data.py`](deploy/sync_data.py) copies this machine's data into
+the deployed stack over SSH. It sends the local Qdrant collection (as a
+snapshot) and the latest `cards_*.jsonl` / `rules_*.jsonl`, restarts the
+backend, and starts the rest of the stack:
 
 ```bash
-docker volume ls --filter name=parsed_data     # <uuid>_parsed-data or similar
-docker network ls                              # the network named <uuid>
+make sync-prod HOST=root@your-server     # or: python deploy/sync_data.py --host root@your-server
 ```
 
-```bash
-# 1. On the dev machine: snapshot the embedded collection.
-curl -X POST localhost:6333/collections/mtg_rules/snapshots   # note "name"
-curl -o mtg_rules.snapshot localhost:6333/collections/mtg_rules/snapshots/<name>
-# Copy mtg_rules.snapshot plus the latest cards_*.jsonl and rules_*.jsonl
-# (from mtg-worker/mtg-ingestion/data/parsed/) to the server.
+Run it after the first deploy, and again whenever you re-ingest or re-embed
+locally. It needs SSH access as a user that can run `docker` on the server,
+and the dev stack's Qdrant running on `localhost:6333`.
 
-# 2. On the server: restore the collection into qdrant. It has no host
-#    port, so upload from a throwaway container on the stack's network.
-docker run --rm --network <network> -v "$PWD:/s" curlimages/curl \
-  -X POST "http://qdrant:6333/collections/mtg_rules/snapshots/upload?priority=snapshot" \
-  -F "snapshot=@/s/mtg_rules.snapshot"
-
-# 3. Copy the parsed JSONL into the parsed_data volume.
-docker run --rm -v <parsed_data volume>:/d -v "$PWD:/s:ro" alpine \
-  sh -c 'cp /s/cards_*.jsonl /s/rules_*.jsonl /d/'
-```
-
-Then restart the backend from Coolify. To refresh the data later, repeat
-the same steps: the backend loads the parsed files only at startup.
+- **Finding the stack:** Coolify prefixes container and volume names with a
+  generated UUID. The script finds the backend as the container with a
+  *volume* at `/app/data/parsed`, and qdrant as the container in the same
+  compose project. If several stacks match, pass `PROJECT=<uuid>`
+  (`--project`).
+- **Nothing is staged on the server's disk:**
+  - The snapshot (about 580 MB) streams into the qdrant container and is
+    recovered from there.
+  - The JSONL streams into the parsed-data volume through a throwaway
+    `alpine` container.
+- **It fails loudly:** it exits non-zero if the server's point count after
+  recovery doesn't match the local one, or if the backend isn't healthy
+  within 5 minutes.
+- **Testing:** `--local` runs the server-side steps against the local
+  Docker instead. Point it at a local copy of the production stack, e.g.
+  `docker compose -p mtgprod -f docker-compose.prod.yml up -d`, with
+  `SERVICE_PASSWORD_POSTGRES` and `MTG_API_GEMINI_API_KEY` exported.
 
 ### Host preparation
 
