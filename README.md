@@ -190,8 +190,9 @@ file; copy it to `.env` to override.
 Additional knobs (query side): `MTG_API_DENSE_MODEL_NAME`,
 `MTG_API_SPARSE_MODEL_NAME`, `MTG_API_HYBRID_DENSE_WEIGHT` /
 `MTG_API_HYBRID_SPARSE_WEIGHT` (default 0.5 each), `MTG_API_HYBRID_TOP_K`,
-`MTG_API_HYBRID_SCORE_THRESHOLD`, `MTG_API_GENERATION_TEMPERATURE` /
-`MTG_API_GENERATION_MAX_TOKENS` (unset: the model's defaults).
+`MTG_API_HYBRID_SCORE_THRESHOLD`, `MTG_API_RULES_TOP_K` (default 5: extra
+hits from a rules-only search; 0 disables it), `MTG_API_GENERATION_TEMPERATURE`
+(default 0) / `MTG_API_GENERATION_MAX_TOKENS` (unset: the model's default).
 
 Model weights download from HuggingFace on first use.
 
@@ -339,7 +340,7 @@ if the pre-run checks failed or the command was used wrong.
 
 Experiments live in `evals/experiments/<name>.yaml` as `description` +
 `overrides`. The API accepts only these override keys: the `hybrid_*`
-settings, `card_ruling_limit`, `collection_name`, `ollama_model`,
+settings, `rules_top_k`, `card_ruling_limit`, `collection_name`, `ollama_model`,
 `generation_temperature` and `generation_max_tokens`. Any other key gets
 a 422.
 
