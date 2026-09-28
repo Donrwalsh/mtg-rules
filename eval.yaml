@@ -1,0 +1,487 @@
+# mtg-rules eval set — v1 (50 cases)
+#
+# Rule IDs are verified against rules_2026-08-25.jsonl; card names and rulings
+# against cards_/rulings_2026-08-25.jsonl. Re-verify after re-ingesting new data.
+#
+# Field reference
+#   id                 stable, unique slug (used to diff runs)
+#   question           exactly what gets sent to /api/v1/query
+#   tags               first tag is the category: keyword | cr-only | card-ruling |
+#                      interaction | negative | messy. Extra tags are free-form.
+#   split              dev (tune against this) | test (check only before merging)
+#   required_sources   what must appear in the retrieved context:
+#     rules:   rule IDs, PREFIX-matched ("702.11" is satisfied by "702.11b")
+#     rulings: card names; satisfied by at least one ruling for that card
+#     cards:   card names; satisfied by that card's oracle text (exact match or vector hit)
+#   expected_cards     card-matcher must return these
+#   forbidden_cards    card-matcher must NOT return these. Each one listed here
+#                      is a real card in the data whose name is an ordinary rules
+#                      word ("Library", "Sacrifice", "Flash", "Lightning", ...)
+#   gold_answer        short reference answer for the judge
+#   verdict            yes | no, when the question has a binary answer
+#   should_decline     true when the app should say the context doesn't cover it
+
+# ─────────────────────────── KEYWORD ABILITIES (10) ───────────────────────────
+
+- id: hexproof-own-target
+  question: Can I target my own creature that has hexproof with Lightning Bolt?
+  tags: [keyword, hexproof, card-match]
+  split: dev
+  required_sources:
+    rules: ["702.11b"]
+  expected_cards: ["Lightning Bolt"]
+  forbidden_cards: ["Lightning"]
+  gold_answer: Yes. Hexproof only stops spells and abilities your opponents control from targeting it.
+  verdict: yes
+
+- id: deathtouch-trample-assignment
+  question: My attacker has deathtouch and trample and gets blocked by a 5/5. How much damage do I have to assign to the blocker before the rest can go to the player?
+  tags: [keyword, deathtouch, trample, combat]
+  split: dev
+  required_sources:
+    rules: ["702.2c", "702.19b"]
+  gold_answer: Just 1. Any nonzero damage from a deathtouch source counts as lethal, so the rest can be assigned to the player.
+
+- id: trample-blocker-removed
+  question: My creature with trample was blocked, but the only blocker was removed from combat before damage. Where does its damage go?
+  tags: [keyword, trample, combat]
+  split: dev
+  required_sources:
+    rules: ["702.19d"]
+  gold_answer: All of it is assigned to the defending player (or planeswalker/battle it's attacking), as though all blockers had been assigned lethal damage.
+
+- id: blocked-no-trample-blocker-removed
+  question: My attacking creature without trample was blocked, then the blocker was destroyed before combat damage. Does my creature deal damage to the defending player?
+  tags: [keyword, trample, combat, contrast]
+  split: test
+  required_sources:
+    rules: ["510.1c", "509.1h"]
+  gold_answer: No. It stays blocked, and a blocked creature with no blockers left assigns no combat damage unless it has trample.
+  verdict: no
+
+- id: ward-targeting
+  question: What happens when my opponent targets my creature that has ward 2 with a removal spell?
+  tags: [keyword, ward, targeting]
+  split: dev
+  required_sources:
+    rules: ["702.21a"]
+  gold_answer: Ward triggers, and the spell is countered unless the opponent pays 2.
+
+- id: indestructible-zero-toughness
+  question: Does indestructible keep a creature alive if an effect reduces its toughness to 0?
+  tags: [keyword, indestructible, sba]
+  split: dev
+  required_sources:
+    rules: ["704.5f", "702.12b"]
+  gold_answer: No. A creature with 0 or less toughness is put into the graveyard as a state-based action. That isn't destruction, so indestructible doesn't help.
+  verdict: no
+
+- id: protection-vs-wrath
+  question: Does protection from white save my creature from Wrath of God?
+  tags: [keyword, protection, card-match]
+  split: test
+  required_sources:
+    rules: ["702.16"]
+  expected_cards: ["Wrath of God"]
+  gold_answer: No. Wrath of God doesn't target, damage, enchant or block, so protection doesn't stop it from destroying the creature.
+  verdict: no
+
+- id: vigilance-tapping
+  question: Does a creature with vigilance tap when it attacks?
+  tags: [keyword, vigilance, matcher-noise]
+  split: dev
+  required_sources:
+    rules: ["702.20b"]
+  forbidden_cards: ["Vigilance"]
+  gold_answer: No. Attacking doesn't cause a creature with vigilance to tap.
+  verdict: no
+
+- id: lifelink-uses-stack
+  question: Does lifelink use the stack, or do I gain the life at the same time the damage is dealt?
+  tags: [keyword, lifelink, matcher-noise]
+  split: dev
+  required_sources:
+    rules: ["702.15"]
+  forbidden_cards: ["Lifelink"]
+  gold_answer: It doesn't use the stack. Lifelink is a static ability; you gain the life as the damage is dealt.
+
+- id: first-strike-double-strike
+  question: How does combat damage work when one creature has first strike and another has double strike?
+  tags: [keyword, first-strike, double-strike, combat]
+  split: dev
+  required_sources:
+    rules: ["702.4b"]
+  gold_answer: There's an extra first combat damage step. First strike and double strike creatures deal damage in it; then double strike creatures and creatures with neither ability deal damage in the second step.
+
+# ─────────────────────────── COMPREHENSIVE RULES ONLY (12) ───────────────────────────
+
+- id: empty-library-draw
+  question: What happens if I have to draw a card but my library is empty?
+  tags: [cr-only, sba, matcher-noise]
+  split: dev
+  required_sources:
+    rules: ["704.5b"]
+  forbidden_cards: ["Library"]
+  gold_answer: You lose the game the next time state-based actions are checked, not at the moment of the draw.
+
+- id: legend-rule
+  question: What happens if I control two legendary permanents with the same name?
+  tags: [cr-only, sba, legendary]
+  split: dev
+  required_sources:
+    rules: ["704.5j"]
+  gold_answer: You choose one to keep and put the rest into their owners' graveyards (the legend rule, a state-based action).
+
+- id: zero-life-response
+  question: If my life total drops to 0, can I cast an instant to gain life before I lose?
+  tags: [cr-only, sba, priority]
+  split: test
+  required_sources:
+    rules: ["704.5a"]
+  gold_answer: No. State-based actions are checked before anyone gets priority, so you lose before you could cast anything.
+  verdict: no
+
+- id: artifact-summoning-sickness
+  question: Can a noncreature artifact use a tap ability the turn it enters the battlefield?
+  tags: [cr-only, summoning-sickness]
+  split: dev
+  required_sources:
+    rules: ["302.6"]
+  gold_answer: Yes. Summoning sickness only applies to creatures. An artifact creature would still be affected.
+  verdict: yes
+
+- id: put-land-not-land-drop
+  question: If a spell puts a land onto the battlefield, does that count as my land drop for the turn?
+  tags: [cr-only, lands]
+  split: dev
+  required_sources:
+    rules: ["305.4"]
+  gold_answer: No. Putting a land onto the battlefield isn't the same as playing a land, so you can still make your normal land play.
+  verdict: no
+
+- id: all-targets-illegal
+  question: What happens to a spell if its only target becomes illegal before it resolves?
+  tags: [cr-only, targeting, resolution]
+  split: dev
+  required_sources:
+    rules: ["608.2b"]
+  gold_answer: It doesn't resolve and none of its effects happen.
+
+- id: damage-wears-off
+  question: Does damage marked on a creature carry over into the next turn?
+  tags: [cr-only, damage, turn-structure]
+  split: dev
+  required_sources:
+    rules: ["514.2"]
+  gold_answer: No. All damage marked on permanents is removed during the cleanup step.
+  verdict: no
+
+- id: token-bounced
+  question: If one of my creature tokens gets returned to my hand, can I cast it later?
+  tags: [cr-only, tokens, zones]
+  split: test
+  required_sources:
+    rules: ["704.5d"]
+  gold_answer: No. A token that leaves the battlefield ceases to exist the next time state-based actions are checked.
+  verdict: no
+
+- id: copy-not-cast
+  question: When a spell gets copied, does the copy count as casting a spell for "whenever you cast" triggers?
+  tags: [cr-only, copy, triggers, matcher-noise]
+  split: dev
+  required_sources:
+    rules: ["707.10"]
+  forbidden_cards: ["Copy"]
+  gold_answer: No. A copy of a spell isn't cast, so cast triggers don't trigger.
+  verdict: no
+
+- id: sacrifice-indestructible
+  question: Can I sacrifice an indestructible creature?
+  tags: [cr-only, sacrifice, indestructible, matcher-noise]
+  split: dev
+  required_sources:
+    rules: ["701.21a"]
+  forbidden_cards: ["Sacrifice"]
+  gold_answer: Yes. Sacrificing doesn't destroy the creature, so indestructible doesn't stop it.
+  verdict: yes
+
+- id: commander-damage
+  question: How much combat damage from a single commander makes a player lose in Commander?
+  tags: [cr-only, commander, multiplayer]
+  split: dev
+  required_sources:
+    rules: ["903.10a"]
+  gold_answer: 21 or more combat damage from the same commander over the course of the game.
+
+- id: simultaneous-triggers
+  question: When several of my abilities trigger at the same time, who decides the order they go on the stack?
+  tags: [cr-only, triggers, stack]
+  split: dev
+  required_sources:
+    rules: ["603.3b"]
+  gold_answer: You do. Each player puts their own triggers on the stack in any order they choose, active player first (APNAP order), so the last one put on the stack resolves first.
+
+# ─────────────────────────── CARD RULINGS (12) ───────────────────────────
+
+- id: rest-in-peace-dies
+  question: With Rest in Peace on the battlefield, do "when this creature dies" abilities trigger?
+  tags: [card-ruling, replacement, dies]
+  split: dev
+  required_sources:
+    rulings: ["Rest in Peace"]
+  expected_cards: ["Rest in Peace"]
+  gold_answer: No. Creatures are exiled instead of going to the graveyard, so they never die.
+  verdict: no
+
+- id: blood-moon-basics
+  question: Does Blood Moon affect my basic Forests?
+  tags: [card-ruling, lands, matcher-noise]
+  split: dev
+  required_sources:
+    cards: ["Blood Moon"]
+  expected_cards: ["Blood Moon"]
+  forbidden_cards: ["Forest", "Blood"]
+  gold_answer: No. It only affects nonbasic lands.
+  verdict: no
+
+- id: blood-moon-enters-tapped
+  question: With Blood Moon out, does a nonbasic land that normally enters tapped still enter tapped?
+  tags: [card-ruling, lands, replacement]
+  split: test
+  required_sources:
+    rulings: ["Blood Moon"]
+  expected_cards: ["Blood Moon"]
+  gold_answer: No. It loses that ability before it can apply and enters untapped as a Mountain.
+  verdict: no
+
+- id: doubling-season-loyalty
+  question: With Doubling Season out, how many loyalty counters does my planeswalker enter with, and are my +1 abilities doubled?
+  tags: [card-ruling, counters, planeswalker]
+  split: dev
+  required_sources:
+    rulings: ["Doubling Season"]
+  expected_cards: ["Doubling Season"]
+  gold_answer: It enters with double its printed loyalty, but loyalty counters added as an ability's cost (like +1) are not doubled.
+
+- id: swords-power-response
+  question: If I pump my opponent's creature in response to Swords to Plowshares, how much life do they gain?
+  tags: [card-ruling, last-known-information]
+  split: dev
+  required_sources:
+    rulings: ["Swords to Plowshares"]
+  expected_cards: ["Swords to Plowshares"]
+  gold_answer: Life equal to the creature's power as it last existed on the battlefield, so the pumped power counts.
+
+- id: path-optional-search
+  question: Does my opponent have to search for a basic land when I Path to Exile their creature?
+  tags: [card-ruling, choices]
+  split: dev
+  required_sources:
+    rulings: ["Path to Exile"]
+  expected_cards: ["Path to Exile"]
+  gold_answer: No, the search is optional. If they don't search, they don't shuffle.
+  verdict: no
+
+- id: thoughtseize-empty-hand
+  question: Do I still lose 2 life from Thoughtseize if my opponent has no nonland cards in hand?
+  tags: [card-ruling]
+  split: dev
+  required_sources:
+    rulings: ["Thoughtseize"]
+  expected_cards: ["Thoughtseize"]
+  gold_answer: Yes, you lose 2 life regardless.
+  verdict: yes
+
+- id: torpor-orb-counters
+  question: Does Torpor Orb stop a creature that "enters with a +1/+1 counter" from getting its counter?
+  tags: [card-ruling, replacement, triggers]
+  split: test
+  required_sources:
+    rulings: ["Torpor Orb"]
+  expected_cards: ["Torpor Orb"]
+  gold_answer: No. Torpor Orb only stops triggered abilities; "enters with" effects are replacement effects and still apply.
+  verdict: no
+
+- id: platinum-angel-concede
+  question: Can I still lose the game while I control Platinum Angel?
+  tags: [card-ruling, game-loss]
+  split: dev
+  required_sources:
+    rulings: ["Platinum Angel"]
+  expected_cards: ["Platinum Angel"]
+  gold_answer: Not from game effects, but you can still concede or receive a game loss as a tournament penalty.
+
+- id: stifle-draw-step
+  question: Can Stifle counter my opponent's normal draw for the turn?
+  tags: [card-ruling, stack, turn-based-actions]
+  split: dev
+  required_sources:
+    rulings: ["Stifle"]
+  expected_cards: ["Stifle"]
+  gold_answer: No. The normal draw is a turn-based action, not an ability, so it can't be targeted.
+  verdict: no
+
+- id: clone-counters
+  question: If Clone copies a creature that has +1/+1 counters on it, does Clone get those counters too?
+  tags: [card-ruling, copy]
+  split: dev
+  required_sources:
+    rulings: ["Clone"]
+  expected_cards: ["Clone"]
+  gold_answer: No. Clone copies only the printed characteristics, not counters, Auras, or tapped status.
+  verdict: no
+
+- id: blood-artist-board-wipe
+  question: If Blood Artist dies at the same time as other creatures, does it trigger for them?
+  tags: [card-ruling, dies, look-back, matcher-noise]
+  split: dev
+  required_sources:
+    rulings: ["Blood Artist"]
+  expected_cards: ["Blood Artist"]
+  forbidden_cards: ["Blood"]
+  gold_answer: Yes. It triggers for itself and for each creature that died with it.
+  verdict: yes
+
+# ─────────────────────────── INTERACTIONS / STRETCH (6) ───────────────────────────
+
+- id: humility-opalescence
+  question: How do Humility and Opalescence interact when both are on the battlefield?
+  tags: [interaction, layers, stretch]
+  split: dev
+  required_sources:
+    rulings: ["Humility", "Opalescence"]
+  expected_cards: ["Humility", "Opalescence"]
+  gold_answer: Opalescence makes Humility a creature (layer 4). Power/toughness setting effects apply in timestamp order, so the result depends on which entered later. Humility's effect keeps applying even though Humility loses its own abilities.
+
+- id: leyline-vs-thoughtseize
+  question: Can my opponent target me with Thoughtseize if I control Leyline of Sanctity?
+  tags: [interaction, hexproof, player]
+  split: test
+  required_sources:
+    rules: ["702.11c"]
+  expected_cards: ["Thoughtseize", "Leyline of Sanctity"]
+  gold_answer: No. Leyline of Sanctity gives you hexproof, so opponents' spells can't target you.
+  verdict: no
+
+- id: phasing-oblivion-ring
+  question: If a permanent phases out, does that trigger leaves-the-battlefield abilities like Oblivion Ring's?
+  tags: [interaction, phasing, triggers]
+  split: dev
+  required_sources:
+    rules: ["702.26d"]
+  expected_cards: ["Oblivion Ring"]
+  gold_answer: No. Phasing out doesn't change zones, so leaves-the-battlefield abilities don't trigger.
+  verdict: no
+
+- id: two-kokusho
+  question: What happens if I control two copies of Kokusho, the Evening Star?
+  tags: [interaction, legendary, dies]
+  split: test
+  required_sources:
+    rules: ["704.5j"]
+  expected_cards: ["Kokusho, the Evening Star"]
+  gold_answer: The legend rule makes you put one into the graveyard. That Kokusho died, so its trigger drains each opponent for 5.
+
+- id: deathtouch-pinger
+  question: If Prodigal Sorcerer gains deathtouch, does its 1 damage destroy any creature it hits?
+  tags: [interaction, deathtouch, noncombat]
+  split: dev
+  required_sources:
+    rules: ["702.2b"]
+  expected_cards: ["Prodigal Sorcerer"]
+  gold_answer: Yes. Any damage from a deathtouch source destroys the creature, including noncombat damage (unless it's indestructible).
+  verdict: yes
+
+- id: settle-hexproof
+  question: Does Settle the Wreckage exile attacking creatures that have hexproof?
+  tags: [interaction, hexproof, targeting, contrast]
+  split: test
+  required_sources:
+    rulings: ["Settle the Wreckage"]
+  expected_cards: ["Settle the Wreckage"]
+  gold_answer: Yes. It targets only the player, so hexproof on the creatures doesn't matter.
+  verdict: yes
+
+# ─────────────────────────── NEGATIVE / OUT OF SCOPE (4) ───────────────────────────
+
+- id: standard-meta
+  question: What's the best deck in Standard right now?
+  tags: [negative, metagame]
+  split: dev
+  should_decline: true
+
+- id: alpha-print-run
+  question: How many copies of Alpha were printed?
+  tags: [negative, history]
+  split: dev
+  should_decline: true
+
+- id: black-lotus-price
+  question: How much is a Black Lotus worth?
+  tags: [negative, pricing, card-match]
+  split: test
+  expected_cards: ["Black Lotus"]
+  should_decline: true
+
+- id: next-set-release
+  question: When does the next Magic set come out?
+  tags: [negative, products]
+  split: dev
+  should_decline: true
+
+# ─────────────────────────── MESSY INPUT (6) ───────────────────────────
+
+- id: messy-slang-bolt-hexproof
+  question: can i bolt my own hexproof guy
+  tags: [messy, slang, hexproof]
+  split: dev
+  required_sources:
+    rules: ["702.11b"]
+  gold_answer: Yes. Hexproof only stops opponents from targeting it.
+  verdict: yes
+
+- id: messy-lowercase-cards
+  question: does rest in peace stop blood artist from triggering
+  tags: [messy, lowercase, card-match, interaction]
+  split: dev
+  required_sources:
+    rulings: ["Rest in Peace"]
+  expected_cards: ["Rest in Peace", "Blood Artist"]
+  forbidden_cards: ["Blood"]
+  gold_answer: Yes. Creatures are exiled instead of dying, so Blood Artist never triggers.
+  verdict: yes
+
+- id: messy-misspelled-card
+  question: What happens when I Lightening Bolt a planeswalker?
+  tags: [messy, misspelling, planeswalker]
+  split: test
+  required_sources:
+    rules: ["120.3c"]
+  forbidden_cards: ["Lightning"]
+  gold_answer: Lightning Bolt can target a planeswalker; the 3 damage removes 3 loyalty counters, and it dies at 0 loyalty.
+
+- id: messy-misspelled-keyword
+  question: wrath of god vs indestructable creature, does it survive?
+  tags: [messy, misspelling, indestructible, card-match]
+  split: dev
+  required_sources:
+    rules: ["702.12b"]
+  expected_cards: ["Wrath of God"]
+  gold_answer: Yes. Indestructible creatures can't be destroyed, so Wrath of God doesn't kill it.
+  verdict: yes
+
+- id: messy-terse-hand-size
+  question: max hand size?
+  tags: [messy, terse]
+  split: dev
+  required_sources:
+    rules: ["402.2"]
+  gold_answer: Seven, normally. Extra cards are discarded during your cleanup step.
+
+- id: messy-mulligan
+  question: how do mulligans work these days
+  tags: [messy, casual, game-start]
+  split: test
+  required_sources:
+    rules: ["103.5"]
+  gold_answer: Shuffle your hand back, draw seven again, then put one card on the bottom for each mulligan you've taken. You can keep going until your hand would be zero cards.
