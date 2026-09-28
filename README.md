@@ -274,6 +274,27 @@ collides on shared test-module names:
 (cd deploy && pytest)       # production data sync script
 ```
 
+Lint each package with `ruff check . && ruff format --check .`. In
+`mtg-worker/`, use `src tests mtg-ingestion mtg-embed` in place of `.`.
+ruff is pinned (`ruff==0.16.4`) because its default rules and format style
+change between releases.
+
+### CI
+
+GitHub Actions runs one workflow per component on pushes and pull requests
+to `main` (`.github/workflows/`):
+
+| Workflow | Runs |
+|---|---|
+| Backend CI | mtg-api: lint, tests, Docker image build |
+| Frontend CI | mtg-web: `npm run build`, Docker image build |
+| Worker CI | mtg-worker, mtg-ingestion, mtg-embed: lint, tests (CPU-only torch) |
+| Evals CI | evals: lint, tests |
+| Deploy CI | deploy: lint, tests |
+
+The image builds catch Dockerfile breakage before Coolify, which builds the
+same Dockerfiles on deploy.
+
 ## Evals
 
 `eval.yaml` (repo root) is a 50-question set. Its header documents the
