@@ -1,0 +1,54 @@
+name: Worker CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  worker:
+    name: Lint and Test
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./mtg-worker
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: |
+            mtg-worker/pyproject.toml
+            mtg-worker/mtg-ingestion/pyproject.toml
+            mtg-worker/mtg-embed/pyproject.toml
+
+      # CPU-only torch first: the tests never load a model, and the default
+      # CUDA build is several GB of wheels.
+      - name: Install dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e "./mtg-ingestion[dev]" -e "./mtg-embed[dev]" -e ".[dev]"
+
+      - name: Lint
+        run: |
+          ruff check src tests mtg-ingestion mtg-embed
+          ruff format --check src tests mtg-ingestion mtg-embed
+
+      # One run per package: their test module names collide.
+      - name: Run worker tests
+        run: pytest
+
+      - name: Run ingestion tests
+        working-directory: ./mtg-worker/mtg-ingestion
+        run: pytest
+
+      - name: Run embed tests
+        working-directory: ./mtg-worker/mtg-embed
+        run: pytest

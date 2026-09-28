@@ -30,8 +30,8 @@ class _FakeDenseModel:
 
 
 class _FakeSparseEmbedding:
-    indices = [0]
-    values = [1.0]
+    indices = (0,)
+    values = (1.0,)
 
 
 class _FakeSparseModel:
@@ -144,7 +144,9 @@ def test_query_returns_vector_hit_when_no_card_named():
 
 
 def test_query_includes_matched_cards_own_rulings():
-    cards = [{"oracle_id": "oid-1", "name": "Craterhoof Behemoth", "oracle_text": "Trample. When..."}]
+    cards = [
+        {"oracle_id": "oid-1", "name": "Craterhoof Behemoth", "oracle_text": "Trample. When..."}
+    ]
     # An unrelated card's ruling that a naive semantic search might surface
     # instead of Craterhoof's own -- the bug this test guards against.
     dense_points = [

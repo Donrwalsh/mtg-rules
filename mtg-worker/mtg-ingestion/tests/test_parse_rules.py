@@ -112,8 +112,7 @@ def test_skips_table_of_contents_and_parses_leaf_rules() -> None:
     assert "100.1" in chunks
     assert "100.1a" in chunks
     assert chunks["100.1a"].text == (
-        'In a two-player game, another term for that player\'s opponent '
-        'is "the opponent."'
+        'In a two-player game, another term for that player\'s opponent is "the opponent."'
     )
 
 

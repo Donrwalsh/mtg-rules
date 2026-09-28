@@ -31,9 +31,7 @@ def parse_cards_file(raw_path: Path) -> list[Card]:
             # Double-faced and split cards keep their text on each face
             # instead of the top-level field; join both so rules text for
             # the whole card is captured in one place.
-            oracle_text = "\n//\n".join(
-                face.get("oracle_text", "") for face in raw["card_faces"]
-            )
+            oracle_text = "\n//\n".join(face.get("oracle_text", "") for face in raw["card_faces"])
 
         cards.append(
             Card(

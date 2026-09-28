@@ -61,7 +61,11 @@ def test_recall_and_first_hit_rank():
     score = score_retrieval(case, results)
     assert score["recall"] == pytest.approx(2 / 3)
     assert score["first_hit_rank"] == 2
-    assert score["requirement_ranks"] == {"rules:702.2c": 4, "rules:702.19b": 2, "rules:510.1c": None}
+    assert score["requirement_ranks"] == {
+        "rules:702.2c": 4,
+        "rules:702.19b": 2,
+        "rules:510.1c": None,
+    }
     assert score["sources_pass"] is False
     assert score["pass"] is False
 
@@ -81,7 +85,9 @@ def test_no_hits_gives_null_rank():
 
 
 def test_forbidden_card_from_matcher_fails_the_case():
-    case = _case(rules=("702.11b",), forbidden_cards=("Lightning",), expected_cards=("Lightning Bolt",))
+    case = _case(
+        rules=("702.11b",), forbidden_cards=("Lightning",), expected_cards=("Lightning Bolt",)
+    )
     results = [card("Lightning Bolt"), card("Lightning"), rule("702.11b")]
     score = score_retrieval(case, results)
     assert score["forbidden_hits"] == ["Lightning"]

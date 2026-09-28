@@ -1,0 +1,130 @@
+# Production stack, deployed by Coolify (Docker Compose build pack) on a
+# small host shared with other apps. See README "Production deployment".
+# Standalone -- not an override of docker-compose.yml.
+#
+# Differences from the dev stack:
+# - No worker or redis. Ingest and embed run on a dev machine; the Qdrant
+#   collection and parsed JSONL are copied into the volumes below.
+# - No published ports. Give the frontend a domain in Coolify; its proxy
+#   (Traefik) terminates TLS and routes to nginx on port 80, which serves
+#   the SPA and proxies /api to the backend over the private network.
+# - Memory/CPU caps so this app can't starve its neighbours, bounded logs,
+#   healthchecks and restart policies.
+# - The whole site is behind HTTP basic auth (user MTG_WEB_AUTH_USER,
+#   default "admin"; password SERVICE_PASSWORD_WEB) while it's being tested.
+#   To open it to the public, remove MTG_WEB_AUTH_PASSWORD below.
+# - SERVICE_PASSWORD_* are Coolify magic variables: Coolify generates them on
+#   first deploy and shows them in the resource's environment variables. The
+#   only variable to set by hand is MTG_API_GEMINI_API_KEY (the backend
+#   refuses to start without it).
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.19.1
+    restart: unless-stopped
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    mem_limit: 512m
+    healthcheck:
+      # The image has no curl/wget; ask /readyz over bash's /dev/tcp.
+      test:
+        - CMD
+        - bash
+        - -c
+        - exec 3<>/dev/tcp/127.0.0.1/6333 && printf 'GET /readyz HTTP/1.0\r\n\r\n' >&3 && grep -q ' 200 ' <&3
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mtg
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+      POSTGRES_DB: mtg
+    # Sized for one app with a handful of connections.
+    command: postgres -c shared_buffers=32MB -c max_connections=20
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mtg -d mtg"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+  backend:
+    build: ./mtg-api
+    restart: unless-stopped
+    environment:
+      MTG_API_QDRANT_HOST: qdrant
+      MTG_API_QDRANT_PORT: "6333"
+      MTG_API_PARSED_DIR: /app/data/parsed
+      MTG_API_POSTGRES_DSN: postgresql+psycopg://mtg:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/mtg
+      MTG_API_GEMINI_API_KEY: ${MTG_API_GEMINI_API_KEY}
+      MTG_API_GEMINI_MODEL: ${MTG_API_GEMINI_MODEL:-gemini-3.5-flash}
+      # Two shared vCPUs across several apps: one thread per embedding model.
+      MTG_API_EMBED_THREADS: ${MTG_API_EMBED_THREADS:-1}
+      # Same origin as the SPA, so CORS never applies; keep it closed.
+      MTG_API_CORS_ORIGINS: "[]"
+      MTG_API_EVAL_MODE: "false"
+      # No Celery worker here: ingest/embed/tasks would only queue jobs that
+      # never run. Data arrives via deploy/sync_data.py instead.
+      MTG_API_TASK_ENDPOINTS: "false"
+    # One worker: each uvicorn worker loads its own copy of the models.
+    # --proxy-headers so client IPs come from X-Forwarded-For (Traefik drops
+    # client-supplied values, then nginx appends).
+    command: >-
+      sh -c "alembic upgrade head &&
+      uvicorn mtg_api.main:app --host 0.0.0.0 --port 8000 --workers 1
+      --proxy-headers --forwarded-allow-ips='*'"
+    volumes:
+      - parsed_data:/app/data/parsed:ro
+      - hf_cache:/root/.cache/huggingface
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    mem_limit: 900m
+    cpus: 1.0
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # First start downloads the embedding models into hf_cache.
+      start_period: 180s
+    logging: *logging
+
+  frontend:
+    build: ./mtg-web
+    restart: unless-stopped
+    environment:
+      MTG_WEB_AUTH_USER: ${MTG_WEB_AUTH_USER:-admin}
+      MTG_WEB_AUTH_PASSWORD: ${SERVICE_PASSWORD_WEB}
+    depends_on:
+      backend:
+        condition: service_healthy
+    mem_limit: 64m
+    logging: *logging
+
+volumes:
+  qdrant_storage:
+  postgres_data:
+  hf_cache:
+  # Latest cards_*.jsonl and rules_*.jsonl, copied in from the dev machine.
+  parsed_data:

@@ -14,7 +14,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
-    "ruff>=0.5",
+    "ruff==0.16.4",  # pinned: CI lint must not drift with new releases
 ]
 
 [project.scripts]
@@ -30,3 +30,7 @@ packages = ["src/mtg_ingestion"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI/typer declare parameters with call defaults by design.
+extend-immutable-calls = ["typer.Option", "typer.Argument"]

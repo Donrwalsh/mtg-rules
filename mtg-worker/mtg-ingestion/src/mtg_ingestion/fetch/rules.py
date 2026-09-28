@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -55,7 +55,7 @@ def fetch_rules_text(raw_dir: Path | None = None) -> Path:
         response.raise_for_status()
         content = response.content
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d")
     dest = raw_dir / f"rules_{timestamp}.txt"
     dest.write_bytes(content)
     return dest

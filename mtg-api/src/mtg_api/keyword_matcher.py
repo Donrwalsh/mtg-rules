@@ -95,4 +95,3 @@ class KeywordMatcher:
             if rule_id not in matched_ids:
                 matched_ids.append(rule_id)
         return [self._keywords[rule_id] for rule_id in matched_ids]
-

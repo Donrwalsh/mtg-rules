@@ -41,8 +41,14 @@ class FakeApi:
 
     base_url = "http://fake"
 
-    def __init__(self, results_by_question=None, answer="Yes. Because [1].", config=None,
-                 health=None, config_status=200):
+    def __init__(
+        self,
+        results_by_question=None,
+        answer="Yes. Because [1].",
+        config=None,
+        health=None,
+        config_status=200,
+    ):
         self.results_by_question = results_by_question or {}
         self.answer = answer
         self._config = config if config is not None else CONFIG

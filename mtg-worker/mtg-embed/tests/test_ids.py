@@ -1,4 +1,4 @@
-from mtg_embed.ids import oracle_point_id, ruling_point_id, rule_point_id
+from mtg_embed.ids import oracle_point_id, rule_point_id, ruling_point_id
 
 
 def test_rule_point_id_is_deterministic():

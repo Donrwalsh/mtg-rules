@@ -104,7 +104,7 @@ _YES_NO = re.compile(r"\b(yes|no)\b")
 
 
 def parse_verdict(answer: str | None) -> str:
-    """"yes" | "no" | "unclear", from the answer's opening sentence only.
+    """ "yes" | "no" | "unclear", from the answer's opening sentence only.
 
     An answer that opens with yes/no wins outright. Otherwise the first
     sentence must contain exactly one kind of standalone yes/no ("The

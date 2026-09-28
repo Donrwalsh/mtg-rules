@@ -56,17 +56,13 @@ def _full(cases: list[dict]) -> dict:
         "judged": len(grades),
         "correct_rate": _rate(grades.count("correct"), len(grades)),
         "partial_rate": _rate(grades.count("partial"), len(grades)),
-        "incorrect_rate": _rate(
-            grades.count("incorrect") + grades.count("no_answer"), len(grades)
-        ),
+        "incorrect_rate": _rate(grades.count("incorrect") + grades.count("no_answer"), len(grades)),
         "verdict_accuracy": _rate(sum(1 for f in verdicts if f["verdict_correct"]), len(verdicts)),
         "decline_accuracy": _rate(decline_grades.count("declined_properly"), len(decline_grades)),
         "answer_cache_hit_rate": _rate(sum(1 for f in full if f["answer_cached"]), len(full)),
         "judge_cache_hit_rate": _rate(sum(1 for f in judged if f["judge_cached"]), len(judged)),
         "invalid_citations": sum(f["citations"]["invalid_citations"] for f in full),
-        "mean_generate_ms": _mean(
-            [f["generate_ms"] for f in full if f["generate_ms"] is not None]
-        ),
+        "mean_generate_ms": _mean([f["generate_ms"] for f in full if f["generate_ms"] is not None]),
     }
 
 

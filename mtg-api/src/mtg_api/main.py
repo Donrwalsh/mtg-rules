@@ -25,7 +25,7 @@ from mtg_api.config import (
     generator_label,
     settings,
 )
-from mtg_api.embedder import Embedder, load_sentence_transformer_embedder
+from mtg_api.embedder import Embedder, load_fastembed_embedder
 from mtg_api.history import list_history, save_history
 from mtg_api.keyword_matcher import KeywordMatcher
 from mtg_api.llm import (
@@ -78,12 +78,12 @@ def get_keyword_matcher() -> KeywordMatcher:
 
 @lru_cache(maxsize=1)
 def get_dense_embedder() -> Embedder:
-    return load_sentence_transformer_embedder(settings.dense_model_name, batch_size=1)
+    return load_fastembed_embedder(settings.dense_model_name, threads=settings.embed_threads)
 
 
 @lru_cache(maxsize=1)
 def get_sparse_embedder() -> SparseEmbedder:
-    return load_bm25_sparse_embedder(settings.sparse_model_name)
+    return load_bm25_sparse_embedder(settings.sparse_model_name, threads=settings.embed_threads)
 
 
 @lru_cache(maxsize=1)
@@ -356,13 +356,18 @@ def query(
     )
 
 
-@app.post("/api/v1/ingest")
+def require_task_endpoints() -> None:
+    if not settings.task_endpoints:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+@app.post("/api/v1/ingest", dependencies=[Depends(require_task_endpoints)])
 def trigger_ingest(client: Celery = Depends(get_celery_client)) -> dict:
     result = client.send_task("mtg_worker.ingest")
     return {"task_id": result.id}
 
 
-@app.post("/api/v1/embed")
+@app.post("/api/v1/embed", dependencies=[Depends(require_task_endpoints)])
 def trigger_embed(request: EmbedRequest, client: Celery = Depends(get_celery_client)) -> dict:
     if request.limit == "all":
         limit = None
@@ -377,7 +382,7 @@ def trigger_embed(request: EmbedRequest, client: Celery = Depends(get_celery_cli
     return {"task_id": result.id}
 
 
-@app.get("/api/v1/tasks/{task_id}")
+@app.get("/api/v1/tasks/{task_id}", dependencies=[Depends(require_task_endpoints)])
 def get_task_status(task_id: str, client: Celery = Depends(get_celery_client)) -> dict:
     result = client.AsyncResult(task_id)
     return {
@@ -421,7 +426,7 @@ def get_config(client: QdrantClient = Depends(get_qdrant_client)) -> dict:
         collection["points_count"] = client.count(
             collection_name=settings.collection_name, exact=True
         ).count
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- report any failure instead of failing the endpoint
         collection["points_count"] = None
         collection["error"] = str(exc)
     return {

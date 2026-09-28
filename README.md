@@ -98,8 +98,9 @@ docker compose up --build
 ```
 
 This starts `qdrant`, `redis`, `postgres`, `worker`, `backend` (port 8000),
-and `frontend` (port 3000). The first build pulls torch (multi-GB) once per
-Python image; afterward `docker compose up` reuses the cached layers, and
+and `frontend` (port 3000). The first worker build pulls torch (multi-GB)
+once; the backend has no torch (it embeds queries with fastembed / ONNX
+Runtime). Afterward `docker compose up` reuses the cached layers, and
 only cached-model wipe (`docker compose down -v`) triggers re-downloads.
 Backend/worker model weights live in a named `hf_cache` volume
 (`/root/.cache/huggingface`), so they persist across normal `up`/`down`
@@ -186,14 +187,25 @@ file; copy it to `.env` to override.
 | `MTG_INGEST_DATA_DIR` | `data` | mtg-ingestion |
 | `MTG_EMBED_PARSED_DIR` | `../mtg-ingestion/data/parsed` | mtg-embed |
 | `MTG_EMBED_QDRANT_HOST` / `PORT` | `localhost` / `6333` | mtg-embed |
-| `PUBLIC_API_URL` | `http://localhost:8000` | mtg-web build ARG |
 
 Additional knobs (query side): `MTG_API_DENSE_MODEL_NAME`,
 `MTG_API_SPARSE_MODEL_NAME`, `MTG_API_HYBRID_DENSE_WEIGHT` /
 `MTG_API_HYBRID_SPARSE_WEIGHT` (default 0.5 each), `MTG_API_HYBRID_TOP_K`,
 `MTG_API_HYBRID_SCORE_THRESHOLD`, `MTG_API_RULES_TOP_K` (default 5: extra
 hits from a rules-only search; 0 disables it), `MTG_API_GENERATION_TEMPERATURE`
-(default 0) / `MTG_API_GENERATION_MAX_TOKENS` (unset: the model's default).
+(default 0) / `MTG_API_GENERATION_MAX_TOKENS` (unset: the model's default),
+`MTG_API_EMBED_THREADS` (ONNX Runtime threads per query-embedding model;
+unset uses every core, so cap it on a host shared with other apps),
+`MTG_API_TASK_ENDPOINTS` (default true; false makes `/ingest`, `/embed`
+and `/tasks` return 404, for deployments without a worker).
+
+The frontend container reads `MTG_WEB_AUTH_PASSWORD` / `MTG_WEB_AUTH_USER`
+(default `admin`) at startup. With a password set, the whole site requires
+basic auth. Unset (the dev stack), it's open.
+
+The worker indexes with `sentence-transformers` while the backend embeds
+queries with fastembed's ONNX export of the same model; the two agree to
+cosine 1.0000 on the eval questions.
 
 Model weights download from HuggingFace on first use.
 
@@ -254,11 +266,34 @@ each suite from its own directory — collecting them in one invocation
 collides on shared test-module names:
 
 ```bash
+(cd mtg-worker && pytest)
 (cd mtg-worker/mtg-ingestion && pytest)
 (cd mtg-worker/mtg-embed && pytest)
 (cd mtg-api && pytest)
 (cd evals && pytest)
+(cd deploy && pytest)       # production data sync script
 ```
+
+Lint each package with `ruff check . && ruff format --check .`. In
+`mtg-worker/`, use `src tests mtg-ingestion mtg-embed` in place of `.`.
+ruff is pinned (`ruff==0.16.4`) because its default rules and format style
+change between releases.
+
+### CI
+
+GitHub Actions runs one workflow per component on pushes and pull requests
+to `main` (`.github/workflows/`):
+
+| Workflow | Runs |
+|---|---|
+| Backend CI | mtg-api: lint, tests, Docker image build |
+| Frontend CI | mtg-web: `npm run build`, Docker image build |
+| Worker CI | mtg-worker, mtg-ingestion, mtg-embed: lint, tests (CPU-only torch) |
+| Evals CI | evals: lint, tests |
+| Deploy CI | deploy: lint, tests |
+
+The image builds catch Dockerfile breakage before Coolify, which builds the
+same Dockerfiles on deploy.
 
 ## Evals
 
@@ -345,6 +380,100 @@ settings, `rules_top_k`, `card_ruling_limit`, `collection_name`, `gemini_model`,
 `generation_temperature` and `generation_max_tokens`. Any other key gets
 a 422.
 
+## Production deployment
+
+Production runs on [Coolify](https://coolify.io) (Docker Compose build pack)
+on a small host shared with other apps (target: a 4 GB, 2 vCPU VM, where
+Coolify itself takes roughly 0.5–0.8 GB). The stack is
+[`docker-compose.prod.yml`](docker-compose.prod.yml). It is standalone, not
+an override of the dev compose file.
+
+- **Services:** `qdrant`, `postgres`, `backend`, `frontend`. There is no
+  worker or redis: ingest and embed run on a dev machine (a GPU makes
+  embedding fast), and the results are copied to the server.
+- **Networking:** no published ports. Coolify's Traefik terminates TLS and
+  routes the frontend's domain to nginx on port 80. nginx serves the SPA
+  and proxies `/api` and `/health` to the backend, so the browser only ever
+  talks to one origin (no CORS).
+- **Limits:** memory caps (backend 900m, qdrant 512m, postgres 256m,
+  frontend 64m), a 1-CPU cap and one ONNX thread per model on the backend,
+  and log rotation (3 × 10 MB per container). Measured at idle after a
+  query: about 950 MB for the whole stack.
+- **Builds:** Coolify builds both images from the repo on each deploy. The
+  backend has no torch, so both builds are light.
+
+### Coolify setup
+
+1. New resource → your Git repository → build pack **Docker Compose**,
+   compose file `/docker-compose.prod.yml`, and the branch to deploy.
+2. On the `frontend` service, set the domain (e.g. `https://rules.example.com`).
+   Leave the other services without domains.
+3. Environment variables: set `MTG_API_GEMINI_API_KEY`. Coolify generates
+   `SERVICE_PASSWORD_POSTGRES` and `SERVICE_PASSWORD_WEB` itself. Optional:
+   `MTG_WEB_AUTH_USER` (default `admin`), `MTG_API_GEMINI_MODEL`,
+   `MTG_API_EMBED_THREADS` (default 1).
+4. Deploy. On the first deploy the backend crash-loops and the frontend
+   doesn't start until the data is seeded (below): the backend refuses to
+   start without the parsed rules and cards.
+
+### Access
+
+The site is private while it's being tested. The frontend's nginx puts the
+whole site behind HTTP basic auth: every page and every `/api` call. Log in
+as `MTG_WEB_AUTH_USER` (default `admin`), with the `SERVICE_PASSWORD_WEB`
+value from the resource's environment variables in Coolify (you can replace
+it with your own). The browser sends the credentials with the SPA's
+same-origin API calls automatically. `/health` stays open for uptime
+monitoring.
+
+The backend also runs with `MTG_API_TASK_ENDPOINTS=false`, so `/ingest`,
+`/embed` and `/tasks` return 404 (production has no Celery worker), and
+with eval mode off.
+
+To open the site to the public, remove `MTG_WEB_AUTH_PASSWORD` from the
+frontend in `docker-compose.prod.yml`. Before you do, add rate limiting on
+`/api/v1/query` (every query is a paid Gemini call), and restrict
+`/api/v1/queries`, which shows every visitor's questions.
+
+### Seeding the data
+
+[`deploy/sync_data.py`](deploy/sync_data.py) copies this machine's data into
+the deployed stack over SSH. It sends the local Qdrant collection (as a
+snapshot) and the latest `cards_*.jsonl` / `rules_*.jsonl`, restarts the
+backend, and starts the rest of the stack:
+
+```bash
+make sync-prod HOST=root@your-server     # or: python deploy/sync_data.py --host root@your-server
+```
+
+Run it after the first deploy, and again whenever you re-ingest or re-embed
+locally. It needs SSH access as a user that can run `docker` on the server,
+and the dev stack's Qdrant running on `localhost:6333`.
+
+- **Finding the stack:** Coolify prefixes container and volume names with a
+  generated UUID. The script finds the backend as the container with a
+  *volume* at `/app/data/parsed`, and qdrant as the container in the same
+  compose project. If several stacks match, pass `PROJECT=<uuid>`
+  (`--project`).
+- **Nothing is staged on the server's disk:**
+  - The snapshot (about 580 MB) streams into the qdrant container and is
+    recovered from there.
+  - The JSONL streams into the parsed-data volume through a throwaway
+    `alpine` container.
+- **It fails loudly:** it exits non-zero if the server's point count after
+  recovery doesn't match the local one, or if the backend isn't healthy
+  within 5 minutes.
+- **Testing:** `--local` runs the server-side steps against the local
+  Docker instead. Point it at a local copy of the production stack, e.g.
+  `docker compose -p mtgprod -f docker-compose.prod.yml up -d`, with
+  `SERVICE_PASSWORD_POSTGRES` and `MTG_API_GEMINI_API_KEY` exported.
+
+### Host preparation
+
+Hetzner images come without swap. Add a 2 GB swapfile as a safety net on a
+4 GB box, and keep the Hetzner Cloud Firewall to ports 22, 80 and 443
+(Docker's published ports bypass `ufw`).
+
 ## Known limitations
 
 - The rules parser stops before the Glossary section.
@@ -352,8 +481,9 @@ a 422.
 - The diff/persistence stage (comparing parsed JSONL to the store by
   `content_hash`, scheduling re-syncs) is not yet built; re-running embed is
   idempotent for unchanged content.
-- No auth, CI, or production TLS — the compose file targets a Coolify-style
-  single-host deployment with the edge handled upstream.
+- No user accounts, rate limiting or CI. Production is private behind
+  basic auth, and TLS is handled by Coolify's proxy (see "Production
+  deployment").
 - Citations are validated for existence only: a cited `[n]` is guaranteed to
   be a source that was in the context, not that it supports the sentence.
 - A raw rule number in the answer that exists in the rules is linked even if

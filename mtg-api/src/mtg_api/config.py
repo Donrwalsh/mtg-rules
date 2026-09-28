@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     parsed_dir: Path = Path("../mtg-worker/mtg-ingestion/data/parsed")
     dense_model_name: str = "BAAI/bge-base-en-v1.5"
     sparse_model_name: str = "Qdrant/bm25"
+    # ONNX Runtime threads per embedding model. None uses every core; cap it
+    # on a host shared with other apps.
+    embed_threads: int | None = None
     hybrid_dense_weight: float = 0.5
     hybrid_sparse_weight: float = 0.5
     hybrid_top_k: int = 10
@@ -40,6 +43,9 @@ class Settings(BaseSettings):
     # Enables per-request overrides, eval response fields and
     # GET /api/v1/config. Never on in production.
     eval_mode: bool = False
+    # Enables POST /api/v1/ingest, POST /api/v1/embed and GET /api/v1/tasks.
+    # Off in production, which runs no Celery worker.
+    task_endpoints: bool = True
 
 
 settings = Settings()

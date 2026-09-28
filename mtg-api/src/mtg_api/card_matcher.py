@@ -59,9 +59,7 @@ class CardMatcher:
         matched_keys = {
             key
             for start, end, key in spans
-            if not any(
-                s <= start and end <= e and (s, e) != (start, end) for s, e, _ in spans
-            )
+            if not any(s <= start and end <= e and (s, e) != (start, end) for s, e, _ in spans)
         }
         return [self._cards_by_key[key] for key in matched_keys]
 

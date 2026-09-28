@@ -26,7 +26,9 @@ def test_query_response_holds_answer():
 
 
 def test_query_result_source_type_mirrors_source():
-    result = QueryResult(source="oracle", title="Shock", text="", score=1.0, match_type="vector_hit")
+    result = QueryResult(
+        source="oracle", title="Shock", text="", score=1.0, match_type="vector_hit"
+    )
     assert result.source_type == "oracle"
     assert result.model_dump()["source_type"] == "oracle"
 

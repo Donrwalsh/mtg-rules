@@ -31,7 +31,7 @@ class RuleChunk(BaseModel):
     parent_id: str | None = None
     content_hash: str = ""
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, context: Any, /) -> None:
         if not self.content_hash:
             self.content_hash = _sha256(self.rule_id, self.text)
 
@@ -52,7 +52,7 @@ class Card(BaseModel):
     scryfall_uri: str | None = None
     content_hash: str = ""
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, context: Any, /) -> None:
         if not self.content_hash:
             self.content_hash = _sha256(
                 self.oracle_id,
@@ -71,7 +71,7 @@ class Ruling(BaseModel):
     comment: str
     content_hash: str = ""
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, context: Any, /) -> None:
         if not self.content_hash:
             self.content_hash = _sha256(self.oracle_id, self.published_at, self.comment)
 

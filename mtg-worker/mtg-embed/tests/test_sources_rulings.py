@@ -17,9 +17,24 @@ CARD_ROWS = [
 ]
 
 RULING_ROWS = [
-    {"oracle_id": "oid-1", "published_at": "2020-01-01", "comment": "First ruling.", "content_hash": "hr1"},
-    {"oracle_id": "oid-1", "published_at": "2020-01-02", "comment": "Second ruling.", "content_hash": "hr2"},
-    {"oracle_id": "oid-missing", "published_at": "2020-01-01", "comment": "Orphan ruling.", "content_hash": "hr3"},
+    {
+        "oracle_id": "oid-1",
+        "published_at": "2020-01-01",
+        "comment": "First ruling.",
+        "content_hash": "hr1",
+    },
+    {
+        "oracle_id": "oid-1",
+        "published_at": "2020-01-02",
+        "comment": "Second ruling.",
+        "content_hash": "hr2",
+    },
+    {
+        "oracle_id": "oid-missing",
+        "published_at": "2020-01-01",
+        "comment": "Orphan ruling.",
+        "content_hash": "hr3",
+    },
 ]
 
 
@@ -105,9 +120,24 @@ def test_ruling_index_is_per_oracle_id_not_global(tmp_path):
 
     # Interleaved rulings: oid-1, oid-2, oid-1
     ruling_rows = [
-        {"oracle_id": "oid-1", "published_at": "2020-01-01", "comment": "First oid-1 ruling.", "content_hash": "hr1"},
-        {"oracle_id": "oid-2", "published_at": "2020-01-01", "comment": "First oid-2 ruling.", "content_hash": "hr2"},
-        {"oracle_id": "oid-1", "published_at": "2020-01-02", "comment": "Second oid-1 ruling.", "content_hash": "hr3"},
+        {
+            "oracle_id": "oid-1",
+            "published_at": "2020-01-01",
+            "comment": "First oid-1 ruling.",
+            "content_hash": "hr1",
+        },
+        {
+            "oracle_id": "oid-2",
+            "published_at": "2020-01-01",
+            "comment": "First oid-2 ruling.",
+            "content_hash": "hr2",
+        },
+        {
+            "oracle_id": "oid-1",
+            "published_at": "2020-01-02",
+            "comment": "Second oid-1 ruling.",
+            "content_hash": "hr3",
+        },
     ]
 
     rulings_path = _write(tmp_path, "rulings.jsonl", ruling_rows)

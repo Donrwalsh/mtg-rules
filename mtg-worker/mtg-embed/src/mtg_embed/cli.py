@@ -33,12 +33,16 @@ def _format_summary_line(source_name: str, summary: RunSummary) -> str:
 @app.command("run")
 def run(
     source: str = typer.Option("all", help="rules|cards|rulings|all"),
-    limit: int | None = typer.Option(None, help="Cap rows read per source, for cheap verification runs."),
+    limit: int | None = typer.Option(
+        None, help="Cap rows read per source, for cheap verification runs."
+    ),
 ) -> None:
     sources = _SOURCES if source == "all" else (source,)
     for name in sources:
         if name not in _SOURCES:
-            raise typer.BadParameter(f"Unknown source {name!r}; expected one of {_SOURCES} or 'all'.")
+            raise typer.BadParameter(
+                f"Unknown source {name!r}; expected one of {_SOURCES} or 'all'."
+            )
 
     # Imported here, not at module top, so argument validation above never
     # requires the model weights or a Qdrant connection.
@@ -63,14 +67,24 @@ def run(
         rules_path = _latest(settings.parsed_dir, "rules_*.jsonl")
         chunks = load_rule_chunks(rules_path, limit=limit)
         summaries.append(
-            ("rules", embed_and_store(chunks, store, embedder, sparse_embedder, settings.retrieve_batch_size))
+            (
+                "rules",
+                embed_and_store(
+                    chunks, store, embedder, sparse_embedder, settings.retrieve_batch_size
+                ),
+            )
         )
 
     if "cards" in sources:
         cards_path = _latest(settings.parsed_dir, "cards_*.jsonl")
         chunks = load_card_chunks(cards_path, limit=limit)
         summaries.append(
-            ("cards", embed_and_store(chunks, store, embedder, sparse_embedder, settings.retrieve_batch_size))
+            (
+                "cards",
+                embed_and_store(
+                    chunks, store, embedder, sparse_embedder, settings.retrieve_batch_size
+                ),
+            )
         )
 
     if "rulings" in sources:
@@ -78,7 +92,12 @@ def run(
         cards_path = _latest(settings.parsed_dir, "cards_*.jsonl")
         chunks, skipped_no_card = load_ruling_chunks(rulings_path, cards_path, limit=limit)
         summaries.append(
-            ("rulings", embed_and_store(chunks, store, embedder, sparse_embedder, settings.retrieve_batch_size))
+            (
+                "rulings",
+                embed_and_store(
+                    chunks, store, embedder, sparse_embedder, settings.retrieve_batch_size
+                ),
+            )
         )
 
     typer.echo("")

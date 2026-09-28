@@ -14,5 +14,8 @@ COPY --from=builder /app/src ./src
 COPY alembic.ini ./
 COPY alembic ./alembic
 ENV PYTHONPATH=/app/src
+# fastembed models go on the hf_cache volume instead of /tmp, so they
+# survive container recreation.
+ENV FASTEMBED_CACHE_PATH=/root/.cache/huggingface/fastembed
 EXPOSE 8000
 CMD alembic upgrade head && uvicorn mtg_api.main:app --host 0.0.0.0 --port 8000

@@ -11,7 +11,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
-    "ruff>=0.5",
+    "ruff==0.16.4",  # pinned: CI lint must not drift with new releases
 ]
 
 [build-system]
@@ -23,3 +23,8 @@ packages = ["src/mtg_worker"]
 
 [tool.ruff]
 line-length = 100
+
+[tool.pytest.ini_options]
+# Only this package's tests: mtg-ingestion/ and mtg-embed/ have their own
+# suites, whose module names collide with these.
+testpaths = ["tests"]
