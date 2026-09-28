@@ -259,7 +259,38 @@ def query(
             )
         )
 
-    all_results = card_results + card_ruling_results + keyword_results + vector_results
+    rule_search_results = []
+    if s.rules_top_k > 0:
+        seen_rule_ids = matched_rule_ids | {r.rule_id for r in vector_results if r.rule_id}
+        rule_hits = hybrid_search(
+            client,
+            s.collection_name,
+            dense_vector,
+            sparse_vector,
+            s.hybrid_per_branch_limit,
+            s.hybrid_dense_weight,
+            s.hybrid_sparse_weight,
+            s.hybrid_score_threshold,
+            s.rules_top_k,
+            source_type="rule",
+        )
+        for _point_id, score, payload in rule_hits:
+            if payload.get("rule_id") in seen_rule_ids:
+                continue
+            rule_search_results.append(
+                QueryResult(
+                    source="rule",
+                    title=payload.get("rule_id", ""),
+                    text=payload.get("text", ""),
+                    score=score,
+                    match_type="rule_vector_hit",
+                    rule_id=payload.get("rule_id"),
+                )
+            )
+
+    all_results = (
+        card_results + card_ruling_results + keyword_results + rule_search_results + vector_results
+    )
     context, sources = build_context(all_results)
     answer = None
     error = None

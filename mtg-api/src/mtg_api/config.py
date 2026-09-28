@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     hybrid_top_k: int = 10
     hybrid_per_branch_limit: int = 50
     hybrid_score_threshold: float = 0.0
+    # Extra hits from a rules-only hybrid search. Rules are a few percent of
+    # the collection, so the mixed search rarely ranks them. 0 disables it.
+    rules_top_k: int = 0
     groq_api_key: str = ""
     groq_model: str = "openai/gpt-oss-120b"
     ollama_url: str = "http://host.docker.internal:11434"
@@ -45,6 +48,7 @@ OVERRIDABLE_SETTINGS: tuple[str, ...] = (
     "hybrid_top_k",
     "hybrid_per_branch_limit",
     "hybrid_score_threshold",
+    "rules_top_k",
     "card_ruling_limit",
     "collection_name",
     "ollama_model",

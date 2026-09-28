@@ -26,13 +26,24 @@ def hybrid_search(
     sparse_weight: float,
     score_threshold: float,
     top_k: int,
+    source_type: str | None = None,
 ) -> list[tuple[str, float, dict]]:
+    query_filter = None
+    if source_type is not None:
+        query_filter = qmodels.Filter(
+            must=[
+                qmodels.FieldCondition(
+                    key="source_type", match=qmodels.MatchValue(value=source_type)
+                )
+            ]
+        )
     dense_hits = client.query_points(
         collection_name=collection_name,
         using="dense",
         query=dense_vector,
         limit=per_branch_limit,
         with_payload=True,
+        query_filter=query_filter,
     ).points
     sparse_hits = client.query_points(
         collection_name=collection_name,
@@ -40,6 +51,7 @@ def hybrid_search(
         query=qmodels.SparseVector(indices=sparse_vector.indices, values=sparse_vector.values),
         limit=per_branch_limit,
         with_payload=True,
+        query_filter=query_filter,
     ).points
 
     dense_scores = {str(h.id): h.score for h in dense_hits}
