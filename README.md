@@ -195,7 +195,13 @@ Additional knobs (query side): `MTG_API_DENSE_MODEL_NAME`,
 hits from a rules-only search; 0 disables it), `MTG_API_GENERATION_TEMPERATURE`
 (default 0) / `MTG_API_GENERATION_MAX_TOKENS` (unset: the model's default),
 `MTG_API_EMBED_THREADS` (ONNX Runtime threads per query-embedding model;
-unset uses every core, so cap it on a host shared with other apps).
+unset uses every core, so cap it on a host shared with other apps),
+`MTG_API_TASK_ENDPOINTS` (default true; false makes `/ingest`, `/embed`
+and `/tasks` return 404, for deployments without a worker).
+
+The frontend container reads `MTG_WEB_AUTH_PASSWORD` / `MTG_WEB_AUTH_USER`
+(default `admin`) at startup. With a password set, the whole site requires
+basic auth. Unset (the dev stack), it's open.
 
 The worker indexes with `sentence-transformers` while the backend embeds
 queries with fastembed's ONNX export of the same model; the two agree to
@@ -381,11 +387,31 @@ an override of the dev compose file.
 2. On the `frontend` service, set the domain (e.g. `https://rules.example.com`).
    Leave the other services without domains.
 3. Environment variables: set `MTG_API_GEMINI_API_KEY`. Coolify generates
-   `SERVICE_PASSWORD_POSTGRES` itself. Optional: `MTG_API_GEMINI_MODEL`,
+   `SERVICE_PASSWORD_POSTGRES` and `SERVICE_PASSWORD_WEB` itself. Optional:
+   `MTG_WEB_AUTH_USER` (default `admin`), `MTG_API_GEMINI_MODEL`,
    `MTG_API_EMBED_THREADS` (default 1).
 4. Deploy. On the first deploy the backend crash-loops and the frontend
    doesn't start until the data is seeded (below): the backend refuses to
    start without the parsed rules and cards.
+
+### Access
+
+The site is private while it's being tested. The frontend's nginx puts the
+whole site behind HTTP basic auth: every page and every `/api` call. Log in
+as `MTG_WEB_AUTH_USER` (default `admin`), with the `SERVICE_PASSWORD_WEB`
+value from the resource's environment variables in Coolify (you can replace
+it with your own). The browser sends the credentials with the SPA's
+same-origin API calls automatically. `/health` stays open for uptime
+monitoring.
+
+The backend also runs with `MTG_API_TASK_ENDPOINTS=false`, so `/ingest`,
+`/embed` and `/tasks` return 404 (production has no Celery worker), and
+with eval mode off.
+
+To open the site to the public, remove `MTG_WEB_AUTH_PASSWORD` from the
+frontend in `docker-compose.prod.yml`. Before you do, add rate limiting on
+`/api/v1/query` (every query is a paid Gemini call), and restrict
+`/api/v1/queries`, which shows every visitor's questions.
 
 ### Seeding the data
 
@@ -433,8 +459,9 @@ Hetzner images come without swap. Add a 2 GB swapfile as a safety net on a
 - The diff/persistence stage (comparing parsed JSONL to the store by
   `content_hash`, scheduling re-syncs) is not yet built; re-running embed is
   idempotent for unchanged content.
-- No auth or CI. Production TLS is handled by Coolify's proxy (see
-  "Production deployment").
+- No user accounts, rate limiting or CI. Production is private behind
+  basic auth, and TLS is handled by Coolify's proxy (see "Production
+  deployment").
 - Citations are validated for existence only: a cited `[n]` is guaranteed to
   be a source that was in the context, not that it supports the sentence.
 - A raw rule number in the answer that exists in the rules is linked even if

@@ -356,13 +356,18 @@ def query(
     )
 
 
-@app.post("/api/v1/ingest")
+def require_task_endpoints() -> None:
+    if not settings.task_endpoints:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+@app.post("/api/v1/ingest", dependencies=[Depends(require_task_endpoints)])
 def trigger_ingest(client: Celery = Depends(get_celery_client)) -> dict:
     result = client.send_task("mtg_worker.ingest")
     return {"task_id": result.id}
 
 
-@app.post("/api/v1/embed")
+@app.post("/api/v1/embed", dependencies=[Depends(require_task_endpoints)])
 def trigger_embed(request: EmbedRequest, client: Celery = Depends(get_celery_client)) -> dict:
     if request.limit == "all":
         limit = None
@@ -377,7 +382,7 @@ def trigger_embed(request: EmbedRequest, client: Celery = Depends(get_celery_cli
     return {"task_id": result.id}
 
 
-@app.get("/api/v1/tasks/{task_id}")
+@app.get("/api/v1/tasks/{task_id}", dependencies=[Depends(require_task_endpoints)])
 def get_task_status(task_id: str, client: Celery = Depends(get_celery_client)) -> dict:
     result = client.AsyncResult(task_id)
     return {

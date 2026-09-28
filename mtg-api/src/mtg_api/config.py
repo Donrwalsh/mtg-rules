@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # Enables per-request overrides, eval response fields and
     # GET /api/v1/config. Never on in production.
     eval_mode: bool = False
+    # Enables POST /api/v1/ingest, POST /api/v1/embed and GET /api/v1/tasks.
+    # Off in production, which runs no Celery worker.
+    task_endpoints: bool = True
 
 
 settings = Settings()

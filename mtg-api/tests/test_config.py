@@ -80,3 +80,12 @@ def test_embed_threads_defaults_to_onnx_runtime_choice():
 def test_embed_threads_env_override(monkeypatch):
     monkeypatch.setenv("MTG_API_EMBED_THREADS", "1")
     assert Settings(_env_file=None).embed_threads == 1
+
+
+def test_task_endpoints_on_by_default():
+    assert Settings(_env_file=None).task_endpoints is True
+
+
+def test_task_endpoints_env_override(monkeypatch):
+    monkeypatch.setenv("MTG_API_TASK_ENDPOINTS", "false")
+    assert Settings(_env_file=None).task_endpoints is False
