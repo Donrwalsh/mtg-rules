@@ -21,7 +21,7 @@ _SECTION_HEADING = re.compile(r"^(?P<num>\d{1,2})\.\s+\S")
 
 
 def _parent_id(rule_id: str) -> str | None:
-    """"100" -> None, "100.1" -> "100", "100.1a" -> "100.1"."""
+    """ "100" -> None, "100.1" -> "100", "100.1a" -> "100.1"."""
     if "." not in rule_id:
         return None
     base, _, tail = rule_id.partition(".")
@@ -56,7 +56,9 @@ def parse_rules_text(raw_text: str) -> list[RuleChunk]:
             return
         text = " ".join(current_lines).strip()
         if text:
-            chunks.append(RuleChunk(rule_id=current_id, text=text, parent_id=_parent_id(current_id)))
+            chunks.append(
+                RuleChunk(rule_id=current_id, text=text, parent_id=_parent_id(current_id))
+            )
 
     for raw_line in raw_text.splitlines():
         line = raw_line.strip()

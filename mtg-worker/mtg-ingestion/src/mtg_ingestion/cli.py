@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
@@ -13,11 +13,13 @@ from mtg_ingestion.parse.rules import parse_rules_file
 from mtg_ingestion.parse.rulings import parse_rulings_file
 from mtg_ingestion.storage import write_jsonl
 
-app = typer.Typer(help="Fetch and parse the MTG Comprehensive Rules, oracle card text, and rulings.")
+app = typer.Typer(
+    help="Fetch and parse the MTG Comprehensive Rules, oracle card text, and rulings."
+)
 
 
 def _today() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return datetime.now(UTC).strftime("%Y-%m-%d")
 
 
 def _latest(directory: Path, pattern: str) -> Path:
@@ -30,7 +32,10 @@ def _latest(directory: Path, pattern: str) -> Path:
 def _find_scryfall_raw(data_type: str) -> Path:
     """Locate a fetched Scryfall bulk file regardless of which wire format
     it was saved in (current .jsonl.gz vs legacy .json)."""
-    for candidate in (settings.raw_dir / f"{data_type}.jsonl.gz", settings.raw_dir / f"{data_type}.json"):
+    for candidate in (
+        settings.raw_dir / f"{data_type}.jsonl.gz",
+        settings.raw_dir / f"{data_type}.json",
+    ):
         if candidate.exists():
             return candidate
     raise FileNotFoundError(

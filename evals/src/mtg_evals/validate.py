@@ -35,9 +35,7 @@ def validate(eval_path: Path, parsed_dir: Path) -> list[str]:
     oracle_ids_by_name: dict[str, set[str]] = {}
     for card in cards:
         oracle_ids_by_name.setdefault(card["name"], set()).add(card["oracle_id"])
-    ruled_oracle_ids = {
-        r["oracle_id"] for r in _read_jsonl(latest(parsed_dir, "rulings_*.jsonl"))
-    }
+    ruled_oracle_ids = {r["oracle_id"] for r in _read_jsonl(latest(parsed_dir, "rulings_*.jsonl"))}
 
     for entry in raw if isinstance(raw, list) else []:
         # Data checks only make sense on entries that are structurally sound.

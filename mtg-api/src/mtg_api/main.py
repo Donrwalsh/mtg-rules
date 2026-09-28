@@ -426,7 +426,7 @@ def get_config(client: QdrantClient = Depends(get_qdrant_client)) -> dict:
         collection["points_count"] = client.count(
             collection_name=settings.collection_name, exact=True
         ).count
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 -- report any failure instead of failing the endpoint
         collection["points_count"] = None
         collection["error"] = str(exc)
     return {

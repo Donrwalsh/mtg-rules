@@ -266,6 +266,7 @@ each suite from its own directory — collecting them in one invocation
 collides on shared test-module names:
 
 ```bash
+(cd mtg-worker && pytest)
 (cd mtg-worker/mtg-ingestion && pytest)
 (cd mtg-worker/mtg-embed && pytest)
 (cd mtg-api && pytest)

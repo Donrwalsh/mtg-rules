@@ -1,6 +1,6 @@
+from conftest import memory_engine
 from fastapi.testclient import TestClient
 
-from conftest import memory_engine
 from mtg_api.history import save_history
 from mtg_api.main import app, get_db_engine
 

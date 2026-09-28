@@ -30,9 +30,7 @@ def test_upsert_then_existing_hashes_round_trips_content_hash():
         content_hash="hash-1",
         payload={"source_type": "rule", "content_hash": "hash-1", "text": "text"},
     )
-    store.upsert(
-        [chunk], [[0.1, 0.2, 0.3, 0.4]], [SparseVector(indices=[0, 2], values=[0.5, 0.5])]
-    )
+    store.upsert([chunk], [[0.1, 0.2, 0.3, 0.4]], [SparseVector(indices=[0, 2], values=[0.5, 0.5])])
 
     assert store.existing_hashes([chunk.point_id]) == {
         chunk.point_id: StoredHashes("hash-1", payload_hash(chunk.payload))

@@ -51,8 +51,14 @@ def test_normalize_spread_maps_to_zero_one_range():
 
 
 def test_hybrid_search_combines_dense_and_sparse_with_weights():
-    dense_points = [_FakeHit("p1", 1.0, {"text": "dense hit"}), _FakeHit("p2", 0.0, {"text": "other"})]
-    sparse_points = [_FakeHit("p2", 1.0, {"text": "other"}), _FakeHit("p1", 0.0, {"text": "dense hit"})]
+    dense_points = [
+        _FakeHit("p1", 1.0, {"text": "dense hit"}),
+        _FakeHit("p2", 0.0, {"text": "other"}),
+    ]
+    sparse_points = [
+        _FakeHit("p2", 1.0, {"text": "other"}),
+        _FakeHit("p1", 0.0, {"text": "dense hit"}),
+    ]
     client = _FakeClient(dense_points, sparse_points)
 
     results = hybrid_search(

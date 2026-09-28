@@ -14,8 +14,7 @@ class FakeSparseModel:
     def embed(self, texts):
         self.calls.append(list(texts))
         return [
-            _FakeSparseEmbedding(indices=list(range(len(t))), values=[1.0] * len(t))
-            for t in texts
+            _FakeSparseEmbedding(indices=list(range(len(t))), values=[1.0] * len(t)) for t in texts
         ]
 
 

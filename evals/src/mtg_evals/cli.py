@@ -171,7 +171,9 @@ def run(
 
 @app.command()
 def baseline(
-    run_file: Annotated[str | None, typer.Argument(help="Run to promote (default: latest).")] = None,
+    run_file: Annotated[
+        str | None, typer.Argument(help="Run to promote (default: latest).")
+    ] = None,
     mode: Annotated[Mode, typer.Option("--mode")] = Mode.retrieval,
 ) -> None:
     """Promote a run to evals/baseline-<mode>.json."""
@@ -311,4 +313,3 @@ def validate(
             typer.echo(f"  {problem}")
         raise typer.Exit(EXIT_REGRESSION)
     typer.echo(f"{eval_file}: clean ({len(load_cases(eval_file))} cases, data in {parsed_dir})")
-

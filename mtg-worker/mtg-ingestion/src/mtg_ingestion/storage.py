@@ -1,14 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, TypeVar
 
 from pydantic import BaseModel
 
-ModelT = TypeVar("ModelT", bound=BaseModel)
 
-
-def write_jsonl(records: Iterable[ModelT], dest: Path) -> int:
+def write_jsonl[ModelT: BaseModel](records: Iterable[ModelT], dest: Path) -> int:
     """Write one JSON object per line. Returns the number of records written.
 
     JSONL over a single JSON array so a future diff/embed stage can stream
@@ -24,6 +22,6 @@ def write_jsonl(records: Iterable[ModelT], dest: Path) -> int:
     return count
 
 
-def read_jsonl(path: Path, model: type[ModelT]) -> list[ModelT]:
+def read_jsonl[ModelT: BaseModel](path: Path, model: type[ModelT]) -> list[ModelT]:
     with path.open("r", encoding="utf-8") as f:
         return [model.model_validate_json(line) for line in f if line.strip()]

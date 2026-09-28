@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Column, DateTime, Integer, JSON, MetaData, Table, Text, func, select
+from sqlalchemy import JSON, Column, DateTime, Integer, MetaData, Table, Text, func, select
 from sqlalchemy.engine import Engine
 
 metadata = MetaData()

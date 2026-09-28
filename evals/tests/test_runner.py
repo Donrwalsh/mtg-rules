@@ -25,10 +25,20 @@ CASES = [
         "required_sources": {"rules": ["702.21a"]},
         "gold_answer": "It's countered unless they pay.",
     },
-    {"id": "meta", "question": "Best deck?", "tags": ["negative"], "split": "dev",
-     "should_decline": True},
-    {"id": "held-out", "question": "Held out?", "tags": ["keyword"], "split": "test",
-     "required_sources": {"rules": ["100"]}},
+    {
+        "id": "meta",
+        "question": "Best deck?",
+        "tags": ["negative"],
+        "split": "dev",
+        "should_decline": True,
+    },
+    {
+        "id": "held-out",
+        "question": "Held out?",
+        "tags": ["keyword"],
+        "split": "test",
+        "required_sources": {"rules": ["100"]},
+    },
 ]
 
 RESULTS = {"Trample?": [rule_result("702.19b")], "Ward?": [rule_result("702.2c")]}
@@ -117,8 +127,14 @@ def test_full_run_generates_then_hits_both_caches(tmp_path, eval_file):
 def test_generation_override_misses_the_answer_cache(tmp_path, eval_file):
     _run(tmp_path, eval_file, FakeApi(RESULTS), mode="full", judge=FakeJudge())
     api = FakeApi(RESULTS)
-    _run(tmp_path, eval_file, api, mode="full", judge=FakeJudge(),
-         overrides={"generation_temperature": 0})
+    _run(
+        tmp_path,
+        eval_file,
+        api,
+        mode="full",
+        judge=FakeJudge(),
+        overrides={"generation_temperature": 0},
+    )
     assert [c["generate"] for c in api.calls].count(True) == 3
 
 

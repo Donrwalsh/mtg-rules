@@ -120,5 +120,5 @@ def test_parse_cards_keeps_scryfall_uri_without_query_string(tmp_path: Path) -> 
 
 
 def test_scryfall_uri_is_not_part_of_content_hash() -> None:
-    base = dict(oracle_id="o", name="N", oracle_text="t", type_line="x", mana_cost=None)
+    base = {"oracle_id": "o", "name": "N", "oracle_text": "t", "type_line": "x", "mana_cost": None}
     assert Card(**base).content_hash == Card(**base, scryfall_uri="https://a").content_hash
