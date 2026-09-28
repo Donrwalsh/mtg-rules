@@ -80,7 +80,8 @@ def test_bad_override_type_is_422(eval_mode):
     assert "hybrid_top_k" in resp.json()["detail"]
 
 
-def test_override_applies_to_its_request_only(eval_mode):
+def test_override_applies_to_its_request_only(eval_mode, monkeypatch):
+    monkeypatch.setattr(main.settings, "rules_top_k", 0)
     default_top_k = main.settings.hybrid_top_k
     _override(dense_points=_two_rule_hits())
 
@@ -102,11 +103,11 @@ def test_generation_override_builds_a_per_request_answerer(eval_mode, monkeypatc
     monkeypatch.setattr(main, "build_answerer", fake_build_answerer)
     _override(answerer=_FakeAnswerer("Shared answer."))
 
-    resp = _post({"query": "q", "overrides": {"generation_temperature": 0}})
+    resp = _post({"query": "q", "overrides": {"generation_temperature": 0.7}})
 
     assert resp.json()["answer"] == "Per-request answer."
-    assert seen[0].generation_temperature == 0.0
-    assert main.settings.generation_temperature is None
+    assert seen[0].generation_temperature == 0.7
+    assert main.settings.generation_temperature == 0.0
 
 
 def test_retrieval_override_keeps_the_shared_answerer(eval_mode, monkeypatch):

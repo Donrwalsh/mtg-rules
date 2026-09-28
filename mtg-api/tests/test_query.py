@@ -526,8 +526,9 @@ def _post_query(query):
         app.dependency_overrides.clear()
 
 
-def test_rules_search_is_off_by_default(monkeypatch):
+def test_rules_search_is_off_at_zero(monkeypatch):
     monkeypatch.setattr(main.settings, "hybrid_top_k", 2)
+    monkeypatch.setattr(main.settings, "rules_top_k", 0)
     _override(dense_points=_ruling_hits_and_one_rule())
     body = _post_query("draw from an empty library")
     assert [r["match_type"] for r in body["results"]] == ["vector_hit", "vector_hit"]
