@@ -15,7 +15,7 @@ from qdrant_client import QdrantClient
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
-from mtg_api.card_matcher import CardMatcher, load_card_matcher
+from mtg_api.card_matcher import CardMatcher, load_card_matcher, ordinary_words
 from mtg_api.celery_client import get_celery_client
 from mtg_api.citations import cite_answer
 from mtg_api.config import GENERATION_SETTINGS, OVERRIDABLE_SETTINGS, Settings, settings
@@ -58,7 +58,7 @@ def _latest(directory: Path, pattern: str) -> Path:
 @lru_cache(maxsize=1)
 def get_card_matcher() -> CardMatcher:
     cards_path = _latest(settings.parsed_dir, "cards_*.jsonl")
-    return load_card_matcher(cards_path)
+    return load_card_matcher(cards_path, ordinary_words(get_rules_index().rules))
 
 
 @lru_cache(maxsize=1)
