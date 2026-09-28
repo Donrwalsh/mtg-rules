@@ -54,7 +54,7 @@ def _run(cases, mode="retrieval", overrides=None, settings=None, eval_hash="h", 
             "judge_model": "judge" if mode == "full" else None,
             "api_config": {
                 "settings": settings or {"hybrid_top_k": 10, "hybrid_dense_weight": 0.5},
-                "generator": "ollama:phi4",
+                "generator": "gemini:gemini-3.5-flash",
                 "prompt_version": 1,
                 "collection": {"name": "mtg_rules", "points_count": 1000},
                 "data_files": {"rules": "rules_2026-08-25.jsonl"},
@@ -206,5 +206,5 @@ def test_arrow_direction():
 
 def test_judge_same_as_generator_warns():
     run = _run(BASE, mode="full")
-    run["metadata"]["judge_model"] = "phi4"
-    assert "WARNING: the judge (phi4) is the generator model" in render(run)
+    run["metadata"]["judge_model"] = "gemini-3.5-flash"
+    assert "WARNING: the judge (gemini-3.5-flash) is the generator model" in render(run)

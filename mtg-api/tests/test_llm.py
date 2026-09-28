@@ -3,8 +3,7 @@ import pytest
 from mtg_api.llm import (
     _SYSTEM_PROMPT,
     PROMPT_VERSION,
-    GroqAnswerer,
-    OllamaAnswerer,
+    GeminiAnswerer,
     build_context,
     source_label,
 )
@@ -61,111 +60,77 @@ def test_system_prompt_requires_numbered_citations():
     assert "with no citations" in _SYSTEM_PROMPT
 
 
-class _FakeMessage:
-    def __init__(self, content):
-        self.content = content
-
-
-class _FakeChoice:
-    def __init__(self, content):
-        self.message = _FakeMessage(content)
-
-
-class _FakeCompletionResponse:
-    def __init__(self, content):
-        self.choices = [_FakeChoice(content)]
-
-
-class _FakeCompletions:
-    def __init__(self, content):
-        self._content = content
-        self.calls = []
-
-    def create(self, *, model, messages):
-        self.calls.append({"model": model, "messages": messages})
-        return _FakeCompletionResponse(self._content)
-
-
-class _FakeChat:
-    def __init__(self, content):
-        self.completions = _FakeCompletions(content)
-
-
-class _FakeGroqClient:
-    def __init__(self, content):
-        self.chat = _FakeChat(content)
-
-
-def test_generate_returns_the_completion_text():
-    client = _FakeGroqClient("Trample means excess damage carries over.")
-    answerer = GroqAnswerer(client, "openai/gpt-oss-120b")
-    answer = answerer.generate("how does trample work", "[rule] 702.19\nTrample text")
-    assert answer == "Trample means excess damage carries over."
-
-
-def test_generate_sends_system_and_user_messages_with_model():
-    client = _FakeGroqClient("answer")
-    answerer = GroqAnswerer(client, "openai/gpt-oss-120b")
-    answerer.generate("q", "ctx")
-    call = client.chat.completions.calls[0]
-    assert call["model"] == "openai/gpt-oss-120b"
-    assert call["messages"][0]["role"] == "system"
-    assert call["messages"][1]["role"] == "user"
-    assert "ctx" in call["messages"][1]["content"]
-    assert "q" in call["messages"][1]["content"]
-
-
-def test_generate_propagates_client_exceptions():
-    class _RaisingCompletions:
-        def create(self, *, model, messages):
-            raise RuntimeError("rate limited")
-
-    class _RaisingChat:
-        completions = _RaisingCompletions()
-
-    class _RaisingClient:
-        chat = _RaisingChat()
-
-    answerer = GroqAnswerer(_RaisingClient(), "openai/gpt-oss-120b")
-    with pytest.raises(RuntimeError, match="rate limited"):
-        answerer.generate("q", "ctx")
-
-
-def _capture_ollama_request(monkeypatch):
+def _capture_gemini_request(monkeypatch, response_json=None, status=200):
     import httpx
 
+    if response_json is None:
+        response_json = {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}
     sent = {}
 
-    class _Response:
-        def raise_for_status(self):
-            pass
-
-        def json(self):
-            return {"message": {"content": "ok"}}
-
-    def fake_post(url, json, timeout):
-        sent.update(json)
-        return _Response()
+    def fake_post(url, headers, json, timeout):
+        sent.update(url=url, headers=headers, json=json, timeout=timeout)
+        request = httpx.Request("POST", url)
+        return httpx.Response(status, json=response_json, request=request)
 
     monkeypatch.setattr(httpx, "post", fake_post)
     return sent
 
 
-def test_ollama_answerer_omits_unset_generation_options(monkeypatch):
-    sent = _capture_ollama_request(monkeypatch)
-    OllamaAnswerer("http://ollama", "phi4").generate("q", "ctx")
-    assert sent["model"] == "phi4"
-    assert sent["options"] == {"num_ctx": 16384}
+def test_gemini_answerer_posts_generate_content(monkeypatch):
+    sent = _capture_gemini_request(
+        monkeypatch,
+        {"candidates": [{"content": {"parts": [{"text": "Trample carries over [1]."}]}}]},
+    )
+    answer = GeminiAnswerer(
+        "secret",
+        "gemini-3.5-flash",
+        base_url="https://generativelanguage.googleapis.com/",
+        timeout=30.0,
+    ).generate("q", "ctx")
+    assert answer == "Trample carries over [1]."
+    assert sent["url"] == (
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
+    )
+    assert sent["headers"] == {"x-goog-api-key": "secret"}
+    assert sent["timeout"] == 30.0
+    assert sent["json"]["systemInstruction"] == {"parts": [{"text": _SYSTEM_PROMPT}]}
+    assert sent["json"]["contents"][0]["role"] == "user"
+    assert "ctx" in sent["json"]["contents"][0]["parts"][0]["text"]
+    assert "generationConfig" not in sent["json"]
 
 
-def test_ollama_answerer_sends_temperature_and_max_tokens(monkeypatch):
-    sent = _capture_ollama_request(monkeypatch)
-    OllamaAnswerer("http://ollama", "phi4", temperature=0.0, max_tokens=256).generate("q", "ctx")
-    assert sent["options"] == {"num_ctx": 16384, "temperature": 0.0, "num_predict": 256}
+def test_gemini_answerer_sends_temperature_and_max_tokens(monkeypatch):
+    sent = _capture_gemini_request(monkeypatch)
+    GeminiAnswerer("k", "m", temperature=0.0, max_tokens=256).generate("q", "ctx")
+    assert sent["json"]["generationConfig"] == {"temperature": 0.0, "maxOutputTokens": 256}
 
 
-def test_ollama_answerer_exposes_its_model():
-    assert OllamaAnswerer("http://ollama", "phi4").model == "phi4"
+def test_gemini_answerer_skips_thought_parts(monkeypatch):
+    parts = [
+        {"text": "Let me think...", "thought": True},
+        {"text": "Yes "},
+        {"text": "[1]."},
+    ]
+    _capture_gemini_request(monkeypatch, {"candidates": [{"content": {"parts": parts}}]})
+    assert GeminiAnswerer("k", "m").generate("q", "ctx") == "Yes [1]."
+
+
+def test_gemini_answerer_raises_when_blocked(monkeypatch):
+    _capture_gemini_request(monkeypatch, {"promptFeedback": {"blockReason": "SAFETY"}})
+    with pytest.raises(RuntimeError, match="SAFETY"):
+        GeminiAnswerer("k", "m").generate("q", "ctx")
+
+
+def test_gemini_answerer_raises_on_http_error(monkeypatch):
+    import httpx
+
+    _capture_gemini_request(monkeypatch, status=429)
+    with pytest.raises(httpx.HTTPStatusError):
+        GeminiAnswerer("k", "m").generate("q", "ctx")
+
+
+def test_gemini_answerer_exposes_its_model():
+    assert GeminiAnswerer("k", "gemini-3.5-flash").model == "gemini-3.5-flash"
 
 
 def test_prompt_version_is_an_int():

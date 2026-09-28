@@ -54,77 +54,62 @@ def build_context(results: list[QueryResult]) -> tuple[str, dict[int, QueryResul
     return "\n\n".join(blocks), sources
 
 
-class GroqAnswerer:
-    def __init__(self, client, model: str):
-        self._client = client
-        self._model = model
-
-    def generate(self, query: str, context: str) -> str:
-        response = self._client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"},
-            ],
-        )
-        return response.choices[0].message.content
-
-
-def load_groq_answerer(api_key: str, model: str) -> GroqAnswerer:
-    """Real-client factory. Imports groq lazily so importing this module
-    never requires that dependency unless this factory is actually called."""
-    from groq import Groq
-
-    return GroqAnswerer(Groq(api_key=api_key), model)
-
-
-class OllamaAnswerer:
-    """Local-model answerer via Ollama's /api/chat. Same generate()
-    interface as GroqAnswerer so it drops into the query endpoint."""
+class GeminiAnswerer:
+    """Answerer via the Gemini API's generateContent."""
 
     def __init__(
         self,
-        base_url: str,
+        api_key: str,
         model: str,
-        num_ctx: int = 16384,
+        base_url: str = "https://generativelanguage.googleapis.com",
         temperature: float | None = None,
         max_tokens: int | None = None,
+        timeout: float = 60.0,
     ):
-        self._base_url = base_url.rstrip("/")
+        self._api_key = api_key
         self._model = model
-        self._num_ctx = num_ctx
+        self._base_url = base_url.rstrip("/")
         self._temperature = temperature
         self._max_tokens = max_tokens
+        self._timeout = timeout
 
     @property
     def model(self) -> str:
         return self._model
 
-    def _options(self) -> dict:
-        # Ollama's default context window is small enough to
-        # silently truncate our retrieved context.
-        options: dict = {"num_ctx": self._num_ctx}
-        if self._temperature is not None:
-            options["temperature"] = self._temperature
-        if self._max_tokens is not None:
-            options["num_predict"] = self._max_tokens
-        return options
-
     def generate(self, query: str, context: str) -> str:
         import httpx
 
+        body: dict = {
+            "systemInstruction": {"parts": [{"text": _SYSTEM_PROMPT}]},
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": f"Context:\n{context}\n\nQuestion: {query}"}],
+                }
+            ],
+        }
+        config: dict = {}
+        if self._temperature is not None:
+            config["temperature"] = self._temperature
+        if self._max_tokens is not None:
+            # Gemini counts thinking tokens against this limit too.
+            config["maxOutputTokens"] = self._max_tokens
+        if config:
+            body["generationConfig"] = config
         response = httpx.post(
-            f"{self._base_url}/api/chat",
-            json={
-                "model": self._model,
-                "stream": False,
-                "options": self._options(),
-                "messages": [
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"},
-                ],
-            },
-            timeout=300.0,
+            f"{self._base_url}/v1beta/models/{self._model}:generateContent",
+            headers={"x-goog-api-key": self._api_key},
+            json=body,
+            timeout=self._timeout,
         )
         response.raise_for_status()
-        return response.json()["message"]["content"]
+        data = response.json()
+        candidates = data.get("candidates") or []
+        if not candidates:
+            # A blocked prompt comes back 200 with no candidates.
+            reason = data.get("promptFeedback", {}).get("blockReason", "no candidates")
+            raise RuntimeError(f"Gemini returned no answer: {reason}")
+        parts = candidates[0].get("content", {}).get("parts", [])
+        # Skip thought-summary parts; keep only the answer text.
+        return "".join(p.get("text", "") for p in parts if not p.get("thought"))

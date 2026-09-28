@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,10 +26,11 @@ class Settings(BaseSettings):
     # Extra hits from a rules-only hybrid search. Rules are a few percent of
     # the collection, so the mixed search rarely ranks them. 0 disables it.
     rules_top_k: int = 5
-    groq_api_key: str = ""
-    groq_model: str = "openai/gpt-oss-120b"
-    ollama_url: str = "http://host.docker.internal:11434"
-    ollama_model: str = "phi4"
+    # Google Gemini writes the answers.
+    gemini_api_key: SecretStr = SecretStr("")
+    gemini_model: str = "gemini-3.5-flash"
+    gemini_url: str = "https://generativelanguage.googleapis.com"
+    gemini_timeout_seconds: float = 60.0
     postgres_dsn: str = "postgresql+psycopg://mtg:mtg@postgres:5432/mtg"
     card_ruling_limit: int = 20
     # None means "don't send it": the model's own default applies.
@@ -52,12 +54,18 @@ OVERRIDABLE_SETTINGS: tuple[str, ...] = (
     "rules_top_k",
     "card_ruling_limit",
     "collection_name",
-    "ollama_model",
+    "gemini_model",
     "generation_temperature",
     "generation_max_tokens",
 )
 
 # The subset that changes the generated answer (not the retrieved context).
 GENERATION_SETTINGS: frozenset[str] = frozenset(
-    {"ollama_model", "generation_temperature", "generation_max_tokens"}
+    {"gemini_model", "generation_temperature", "generation_max_tokens"}
 )
+
+
+def generator_label(s: Settings) -> str:
+    """Provider-qualified model, e.g. "gemini:gemini-3.5-flash". Eval
+    answer caches are keyed on it."""
+    return f"gemini:{s.gemini_model}"

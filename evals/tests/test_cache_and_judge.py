@@ -7,15 +7,15 @@ from mtg_evals.cache import JsonCache, answer_key, judge_key
 from mtg_evals.cases import Case
 from mtg_evals.judge import Judge, JudgeConfig, build_messages, is_judged, parse_grade
 
-ANSWER_ARGS = ("Q?", "ctxhash", "ollama:phi4", 1, {"generation_temperature": 0})
+ANSWER_ARGS = ("Q?", "ctxhash", "gemini:gemini-3.5-flash", 1, {"generation_temperature": 0})
 JUDGE_ARGS = ("Q?", "Gold.", "Answer.", "llama3", 1)
 
 
 def test_answer_key_is_stable_and_order_independent():
     first = answer_key(*ANSWER_ARGS)
     assert first == answer_key(*ANSWER_ARGS)
-    a = answer_key("Q?", "h", "g", 1, {"ollama_model": "x", "generation_temperature": 0})
-    b = answer_key("Q?", "h", "g", 1, {"generation_temperature": 0, "ollama_model": "x"})
+    a = answer_key("Q?", "h", "g", 1, {"gemini_model": "x", "generation_temperature": 0})
+    b = answer_key("Q?", "h", "g", 1, {"generation_temperature": 0, "gemini_model": "x"})
     assert a == b
 
 

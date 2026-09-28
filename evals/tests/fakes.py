@@ -3,8 +3,12 @@
 import hashlib
 
 CONFIG = {
-    "settings": {"hybrid_top_k": 10, "hybrid_dense_weight": 0.5, "ollama_model": "phi4"},
-    "generator": "ollama:phi4",
+    "settings": {
+        "hybrid_top_k": 10,
+        "hybrid_dense_weight": 0.5,
+        "gemini_model": "gemini-3.5-flash",
+    },
+    "generator": "gemini:gemini-3.5-flash",
     "prompt_version": 1,
     "collection": {"name": "mtg_rules", "points_count": 1000},
     "data_files": {"rules": "rules_2026-08-25.jsonl"},
@@ -64,7 +68,7 @@ class FakeApi:
             "citation_stats": {"cited_count": 1, "invalid_count": 0, "uncited_answer": False},
             "context_hash": context_hash,
             "prompt_version": 1,
-            "generator": "ollama:" + overrides.get("ollama_model", "phi4"),
+            "generator": "gemini:" + overrides.get("gemini_model", "gemini-3.5-flash"),
         }
         return body, 12.5
 

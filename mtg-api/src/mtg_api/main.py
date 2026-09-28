@@ -18,16 +18,20 @@ from sqlalchemy.engine import Engine
 from mtg_api.card_matcher import CardMatcher, load_card_matcher, ordinary_words
 from mtg_api.celery_client import get_celery_client
 from mtg_api.citations import cite_answer
-from mtg_api.config import GENERATION_SETTINGS, OVERRIDABLE_SETTINGS, Settings, settings
+from mtg_api.config import (
+    GENERATION_SETTINGS,
+    OVERRIDABLE_SETTINGS,
+    Settings,
+    generator_label,
+    settings,
+)
 from mtg_api.embedder import Embedder, load_sentence_transformer_embedder
 from mtg_api.history import list_history, save_history
 from mtg_api.keyword_matcher import KeywordMatcher
 from mtg_api.llm import (
     PROMPT_VERSION,
-    GroqAnswerer,
-    OllamaAnswerer,
+    GeminiAnswerer,
     build_context,
-    load_groq_answerer,
 )
 from mtg_api.models import (
     CitationStats,
@@ -87,18 +91,24 @@ def get_db_engine() -> Engine:
     return create_engine(settings.postgres_dsn)
 
 
-def build_answerer(s: Settings) -> OllamaAnswerer:
-    return OllamaAnswerer(
-        s.ollama_url,
-        s.ollama_model,
+def build_answerer(s: Settings) -> GeminiAnswerer:
+    api_key = s.gemini_api_key.get_secret_value()
+    if not api_key:
+        # Fail at startup (lifespan builds the answerer), not on the
+        # first user query.
+        raise RuntimeError("MTG_API_GEMINI_API_KEY is required")
+    return GeminiAnswerer(
+        api_key,
+        s.gemini_model,
+        base_url=s.gemini_url,
         temperature=s.generation_temperature,
         max_tokens=s.generation_max_tokens,
+        timeout=s.gemini_timeout_seconds,
     )
 
 
 @lru_cache(maxsize=1)
-def get_groq_answerer() -> GroqAnswerer | OllamaAnswerer:
-    # Local trial: route answers to Ollama instead of Groq.
+def get_answerer() -> GeminiAnswerer:
     return build_answerer(settings)
 
 
@@ -140,7 +150,7 @@ async def lifespan(app: FastAPI):
     get_keyword_matcher()
     get_dense_embedder()
     get_sparse_embedder()
-    get_groq_answerer()
+    get_answerer()
     yield
 
 
@@ -168,7 +178,7 @@ def query(
     dense_embedder: Embedder = Depends(get_dense_embedder),
     sparse_embedder: SparseEmbedder = Depends(get_sparse_embedder),
     client: QdrantClient = Depends(get_qdrant_client),
-    answerer: GroqAnswerer = Depends(get_groq_answerer),
+    answerer: GeminiAnswerer = Depends(get_answerer),
     engine: Engine = Depends(get_db_engine),
     rules_index: RulesIndex = Depends(get_rules_index),
 ) -> QueryResponse:
@@ -298,7 +308,7 @@ def query(
         try:
             answer = answerer.generate(request.query, context)
         except Exception as exc:
-            logger.exception("Groq answer generation failed")
+            logger.exception("Answer generation failed (%s)", generator_label(s))
             error = str(exc)
 
     # Must run before the results are dumped for history: it sets each
@@ -318,7 +328,7 @@ def query(
                 query=request.query,
                 answer=answer,
                 results=[r.model_dump() for r in all_results],
-                model=s.ollama_model,
+                model=s.gemini_model,
                 error=error,
                 citations=[c.model_dump() for c in citations],
                 citation_stats=citation_stats.model_dump(),
@@ -332,7 +342,7 @@ def query(
         eval_fields = {
             "context_hash": hashlib.sha256(context.encode("utf-8")).hexdigest(),
             "prompt_version": PROMPT_VERSION,
-            "generator": f"ollama:{s.ollama_model}",
+            "generator": generator_label(s),
         }
 
     return QueryResponse(
@@ -387,12 +397,11 @@ def get_query_history(
 
 
 # What GET /api/v1/config may show. An explicit allowlist, never a dump of
-# Settings, so a secret (groq_api_key, the password in postgres_dsn) can
+# Settings, so a secret (the API keys, the password in postgres_dsn) can
 # never leak through a newly added setting.
 CONFIG_EXPOSED_SETTINGS = OVERRIDABLE_SETTINGS + (
     "dense_model_name",
     "sparse_model_name",
-    "ollama_url",
 )
 
 
@@ -417,7 +426,7 @@ def get_config(client: QdrantClient = Depends(get_qdrant_client)) -> dict:
         collection["error"] = str(exc)
     return {
         "settings": {key: getattr(settings, key) for key in CONFIG_EXPOSED_SETTINGS},
-        "generator": f"ollama:{settings.ollama_model}",
+        "generator": generator_label(settings),
         "prompt_version": PROMPT_VERSION,
         "collection": collection,
         "data_files": {

@@ -27,12 +27,12 @@ by a single `docker-compose.yml`.
         Qdrant (6333)      |         |  redis    |  postgres (5433)
         vector store       |         |  (Celery  |  query_history
                            v         |   broker) |  (query/answer/
-                      card matcher   |   + worker|   results, via Groq)
+                      card matcher   |   + worker|   results, answers)
                       (Aho-Corasick) |           v
                                      |      celery tasks:
                                      v      mtg_worker.ingest -> mtg-ingestion
-                              Groq API      mtg_worker.embed  -> mtg-embed
-                              (openai/gpt-oss-120b)
+                              Gemini API    mtg_worker.embed  -> mtg-embed
+                              (gemini-3.5-flash)
 ```
 
 ### Components
@@ -40,7 +40,7 @@ by a single `docker-compose.yml`.
 | Directory | What it is |
 |---|---|
 | `mtg-web/` | SvelteKit SPA frontend. A search page that shows the generated answer with inline citations (hover/focus previews, links to rules and Scryfall), a numbered Sources list and the other retrieved results; a `/rules/[id]` page; and `/history`. Static build served by nginx on port 3000. |
-| `mtg-api/` | FastAPI backend. Query endpoint (retrieval + Groq answer generation), history endpoint, Celery task triggers, task status. Port 8000. |
+| `mtg-api/` | FastAPI backend. Query endpoint (retrieval + Gemini answer generation), history endpoint, Celery task triggers, task status. Port 8000. |
 | `mtg-worker/` | Celery worker. Registers `mtg_worker.ingest` and `mtg_worker.embed`, which delegate to the two packages below. |
 | `mtg-worker/mtg-ingestion/` | Fetch + parse stage. Pulls the Comprehensive Rules, Scryfall `oracle_cards` and `rulings` bulk data, writes JSONL to `data/parsed/`. |
 | `mtg-worker/mtg-embed/` | Embedding stage. Reads parsed JSONL, embeds chunks (dense + sparse), upserts into the Qdrant `mtg_rules` collection. |
@@ -66,8 +66,8 @@ by a single `docker-compose.yml`.
    the query with both models, runs independent dense and sparse Qdrant
    searches, normalizes and fuses the two score lists (weighted sum), builds
    a text context from the exact matches followed by the top vector hits, and
-   sends that context and the query to the answer model (Groq
-   `openai/gpt-oss-120b`, or a local Ollama model) for a synthesized answer.
+   sends that context and the query to the answer model (Google
+   Gemini, `gemini-3.5-flash` by default) for a synthesized answer.
 4. **Cite** — every context block is numbered (`[1] Rule 702.11b: …`,
    `[2] Card — Lightning Bolt: …`, `[3] Ruling — X (2018-01-19): …`) and the
    model is told to cite claims with those numbers only. The server owns the
@@ -88,10 +88,10 @@ by a single `docker-compose.yml`.
 Requires Docker with Compose v2 and BuildKit support (Docker Desktop 23+
 or recent Docker Engine — the Dockerfiles rely on BuildKit cache mounts).
 
-Copy [`.env.example`](.env.example) to `.env` and set `MTG_API_GROQ_API_KEY`
-to a real [Groq](https://console.groq.com/keys) API key — `docker compose up`
-fails fast with a clear error if it's missing, since the backend needs it to
-generate answers.
+Copy [`.env.example`](.env.example) to `.env` and set `MTG_API_GEMINI_API_KEY`
+to a real [Gemini](https://aistudio.google.com/apikey) API key — `docker compose up`
+fails fast with a clear error if it's missing, and the backend refuses to
+start without it.
 
 ```bash
 docker compose up --build
@@ -178,8 +178,9 @@ file; copy it to `.env` to override.
 | `MTG_API_QDRANT_HOST` / `MTG_API_QDRANT_PORT` | `qdrant` / `6333` | mtg-api |
 | `MTG_API_CORS_ORIGINS` | `["http://localhost:3000"]` | mtg-api |
 | `MTG_API_BROKER_URL` / `MTG_API_RESULT_BACKEND` | `redis://redis:6379/0` | mtg-api, mtg-worker |
-| `MTG_API_GROQ_API_KEY` | *(required, no default)* | mtg-api |
-| `MTG_API_GROQ_MODEL` | `openai/gpt-oss-120b` | mtg-api |
+| `MTG_API_GEMINI_API_KEY` | *(required, no default)* | mtg-api |
+| `MTG_API_GEMINI_MODEL` | `gemini-3.5-flash` | mtg-api |
+| `MTG_API_GEMINI_URL` / `MTG_API_GEMINI_TIMEOUT_SECONDS` | `https://generativelanguage.googleapis.com` / `60` | mtg-api |
 | `MTG_API_POSTGRES_DSN` | `postgresql+psycopg://mtg:mtg@postgres:5432/mtg` | mtg-api |
 | `MTG_WORKER_BROKER_URL` / `MTG_WORKER_RESULT_BACKEND` | `redis://redis:6379/0` | mtg-worker |
 | `MTG_INGEST_DATA_DIR` | `data` | mtg-ingestion |
@@ -340,7 +341,7 @@ if the pre-run checks failed or the command was used wrong.
 
 Experiments live in `evals/experiments/<name>.yaml` as `description` +
 `overrides`. The API accepts only these override keys: the `hybrid_*`
-settings, `rules_top_k`, `card_ruling_limit`, `collection_name`, `ollama_model`,
+settings, `rules_top_k`, `card_ruling_limit`, `collection_name`, `gemini_model`,
 `generation_temperature` and `generation_max_tokens`. Any other key gets
 a 422.
 

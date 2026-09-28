@@ -45,10 +45,8 @@ services:
       MTG_API_BROKER_URL: redis://redis:6379/0
       MTG_API_RESULT_BACKEND: redis://redis:6379/0
       MTG_API_PARSED_DIR: /app/data/parsed
-      MTG_API_GROQ_API_KEY: ${MTG_API_GROQ_API_KEY:?Set MTG_API_GROQ_API_KEY in your .env file}
-      MTG_API_GROQ_MODEL: openai/gpt-oss-120b
-      MTG_API_OLLAMA_URL: http://host.docker.internal:11434
-      MTG_API_OLLAMA_MODEL: phi4
+      MTG_API_GEMINI_API_KEY: ${MTG_API_GEMINI_API_KEY:?Set MTG_API_GEMINI_API_KEY in your .env file}
+      MTG_API_GEMINI_MODEL: ${MTG_API_GEMINI_MODEL:-gemini-3.5-flash}
       MTG_API_POSTGRES_DSN: postgresql+psycopg://mtg:mtg@postgres:5432/mtg
       # Eval-only API surface (overrides, /api/v1/config). Off unless set in .env.
       MTG_API_EVAL_MODE: ${MTG_API_EVAL_MODE:-false}

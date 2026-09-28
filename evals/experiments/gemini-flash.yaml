@@ -1,0 +1,3 @@
+description: "Answer with Google's gemini-3.5-flash (full mode only; retrieval is unaffected)."
+overrides:
+  gemini_model: gemini-3.5-flash

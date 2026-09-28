@@ -10,7 +10,7 @@ def test_lifespan_warms_all_caches(monkeypatch):
     monkeypatch.setattr("mtg_api.main.get_keyword_matcher", lambda: calls.append("keyword_matcher"))
     monkeypatch.setattr("mtg_api.main.get_dense_embedder", lambda: calls.append("dense_embedder"))
     monkeypatch.setattr("mtg_api.main.get_sparse_embedder", lambda: calls.append("sparse_embedder"))
-    monkeypatch.setattr("mtg_api.main.get_groq_answerer", lambda: calls.append("groq_answerer"))
+    monkeypatch.setattr("mtg_api.main.get_answerer", lambda: calls.append("answerer"))
 
     async def _run():
         async with lifespan(app):
@@ -24,5 +24,5 @@ def test_lifespan_warms_all_caches(monkeypatch):
         "keyword_matcher",
         "dense_embedder",
         "sparse_embedder",
-        "groq_answerer",
+        "answerer",
     }

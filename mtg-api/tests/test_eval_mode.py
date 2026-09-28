@@ -3,11 +3,12 @@ import hashlib
 import pytest
 from conftest import memory_engine
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 from test_query import _FakeAnswerer, _FakeHit, _override
 
 from mtg_api import main
 from mtg_api.history import list_history
-from mtg_api.llm import PROMPT_VERSION, build_context
+from mtg_api.llm import PROMPT_VERSION, GeminiAnswerer, build_context
 from mtg_api.main import app
 from mtg_api.models import QueryResult
 
@@ -68,9 +69,9 @@ def test_empty_overrides_are_fine_when_eval_mode_off():
 
 def test_unknown_override_key_is_422(eval_mode):
     _override()
-    resp = _post({"query": "trample", "overrides": {"groq_api_key": "x", "hybrid_top_k": 1}})
+    resp = _post({"query": "trample", "overrides": {"gemini_api_key": "x", "hybrid_top_k": 1}})
     assert resp.status_code == 422
-    assert "groq_api_key" in resp.json()["detail"]
+    assert "gemini_api_key" in resp.json()["detail"]
 
 
 def test_bad_override_type_is_422(eval_mode):
@@ -139,14 +140,33 @@ def test_eval_fields_present_in_eval_mode(eval_mode):
     _override()
     body = _post({"query": "q", "generate": False}).json()
     assert body["prompt_version"] == PROMPT_VERSION
-    assert body["generator"] == f"ollama:{main.settings.ollama_model}"
+    assert body["generator"] == f"gemini:{main.settings.gemini_model}"
 
 
 def test_generator_reflects_model_override(eval_mode, monkeypatch):
     monkeypatch.setattr(main, "build_answerer", lambda s: _FakeAnswerer())
     _override()
-    body = _post({"query": "q", "overrides": {"ollama_model": "llama3"}}).json()
-    assert body["generator"] == "ollama:llama3"
+    body = _post({"query": "q", "overrides": {"gemini_model": "gemini-x"}}).json()
+    assert body["generator"] == "gemini:gemini-x"
+
+
+def test_build_answerer_requires_a_key():
+    s = main.settings.model_copy(update={"gemini_api_key": SecretStr("")})
+    with pytest.raises(RuntimeError, match="MTG_API_GEMINI_API_KEY"):
+        main.build_answerer(s)
+
+
+def test_build_answerer_builds_gemini():
+    s = main.settings.model_copy(update={"gemini_api_key": SecretStr("k")})
+    assert isinstance(main.build_answerer(s), GeminiAnswerer)
+
+
+def test_history_records_the_answering_model(monkeypatch):
+    monkeypatch.setattr(main.settings, "gemini_model", "gemini-x")
+    engine = memory_engine()
+    _override(engine=engine)
+    _post({"query": "q"})
+    assert list_history(engine)[0]["model"] == "gemini-x"
 
 
 def test_context_hash_is_stable_and_hashes_the_llm_context(eval_mode):
@@ -208,8 +228,8 @@ def test_config_reports_settings_collection_and_data_files(eval_mode, monkeypatc
     body = TestClient(app).get("/api/v1/config").json()
 
     assert body["settings"]["hybrid_top_k"] == main.settings.hybrid_top_k
-    assert body["settings"]["ollama_model"] == main.settings.ollama_model
-    assert body["generator"] == f"ollama:{main.settings.ollama_model}"
+    assert body["settings"]["gemini_model"] == main.settings.gemini_model
+    assert body["generator"] == f"gemini:{main.settings.gemini_model}"
     assert body["prompt_version"] == PROMPT_VERSION
     assert body["collection"] == {"name": main.settings.collection_name, "points_count": 4321}
     assert body["data_files"] == {
@@ -232,7 +252,7 @@ def test_config_reports_qdrant_failure_instead_of_crashing(eval_mode, monkeypatc
 
 def test_config_never_includes_secrets(eval_mode, monkeypatch, tmp_path):
     monkeypatch.setattr(main.settings, "parsed_dir", _parsed_dir(tmp_path))
-    monkeypatch.setattr(main.settings, "groq_api_key", "gsk-very-secret")
+    monkeypatch.setattr(main.settings, "gemini_api_key", SecretStr("AIza-very-secret"))
     monkeypatch.setattr(
         main.settings, "postgres_dsn", "postgresql+psycopg://mtg:hunter2@postgres:5432/mtg"
     )
@@ -240,5 +260,5 @@ def test_config_never_includes_secrets(eval_mode, monkeypatch, tmp_path):
 
     text = TestClient(app).get("/api/v1/config").text
 
-    for secret in ["gsk-very-secret", "hunter2", "groq_api_key", "postgres_dsn", "broker_url"]:
+    for secret in ["AIza-very-secret", "hunter2", "gemini_api_key", "postgres_dsn", "broker_url"]:
         assert secret not in text

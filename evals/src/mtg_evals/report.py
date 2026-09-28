@@ -213,7 +213,7 @@ def render(
     if mode == "full" and new["metadata"].get("judge_model"):
         generator = new["metadata"]["api_config"].get("generator", "")
         judge = new["metadata"]["judge_model"]
-        if judge in (generator, generator.removeprefix("ollama:")):
+        if judge in (generator, generator.partition(":")[2]):
             lines.append(f"WARNING: the judge ({judge}) is the generator model; grades are biased.")
 
     now = new["aggregates"]

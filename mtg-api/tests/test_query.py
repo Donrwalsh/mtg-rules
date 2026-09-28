@@ -8,10 +8,10 @@ from mtg_api.history import list_history
 from mtg_api.keyword_matcher import KeywordMatcher
 from mtg_api.main import (
     app,
+    get_answerer,
     get_card_matcher,
     get_db_engine,
     get_dense_embedder,
-    get_groq_answerer,
     get_keyword_matcher,
     get_qdrant_client,
     get_rules_index,
@@ -104,7 +104,7 @@ def _override(
     app.dependency_overrides[get_qdrant_client] = lambda: _FakeQdrantClient(
         dense_points, sparse_points, scroll_points
     )
-    app.dependency_overrides[get_groq_answerer] = lambda: answerer or _FakeAnswerer()
+    app.dependency_overrides[get_answerer] = lambda: answerer or _FakeAnswerer()
     app.dependency_overrides[get_db_engine] = lambda: engine or memory_engine()
 
 
@@ -340,7 +340,7 @@ def test_query_returns_generated_answer_on_success():
     assert resp.json()["answer"] == "Trample carries excess damage over."
 
 
-def test_query_returns_null_answer_when_groq_fails():
+def test_query_returns_null_answer_when_generation_fails():
     _override(answerer=_FakeAnswerer(raises=RuntimeError("rate limited")))
     try:
         resp = TestClient(app).post("/api/v1/query", json={"query": "how does trample work"})

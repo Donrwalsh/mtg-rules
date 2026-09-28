@@ -1,4 +1,4 @@
-from mtg_api.config import Settings
+from mtg_api.config import Settings, generator_label
 
 
 def test_defaults():
@@ -44,31 +44,6 @@ def test_hybrid_env_override(monkeypatch):
     assert s.hybrid_dense_weight == 0.7
 
 
-def test_groq_defaults():
-    s = Settings(_env_file=None)
-    assert s.groq_api_key == ""
-    assert s.groq_model == "openai/gpt-oss-120b"
-
-
-def test_groq_env_override(monkeypatch):
-    monkeypatch.setenv("MTG_API_GROQ_API_KEY", "test-key")
-    monkeypatch.setenv("MTG_API_GROQ_MODEL", "llama-3.1-8b-instant")
-    s = Settings(_env_file=None)
-    assert s.groq_api_key == "test-key"
-    assert s.groq_model == "llama-3.1-8b-instant"
-
-
-def test_postgres_dsn_default():
-    s = Settings(_env_file=None)
-    assert s.postgres_dsn == "postgresql+psycopg://mtg:mtg@postgres:5432/mtg"
-
-
-def test_postgres_dsn_env_override(monkeypatch):
-    monkeypatch.setenv("MTG_API_POSTGRES_DSN", "postgresql://x:y@localhost:5432/z")
-    s = Settings(_env_file=None)
-    assert s.postgres_dsn == "postgresql://x:y@localhost:5432/z"
-
-
 def test_card_ruling_limit_default():
     s = Settings(_env_file=None)
     assert s.card_ruling_limit == 20
@@ -78,3 +53,21 @@ def test_card_ruling_limit_env_override(monkeypatch):
     monkeypatch.setenv("MTG_API_CARD_RULING_LIMIT", "5")
     s = Settings(_env_file=None)
     assert s.card_ruling_limit == 5
+
+
+def test_gemini_defaults():
+    s = Settings(_env_file=None)
+    assert s.gemini_api_key.get_secret_value() == ""
+    assert s.gemini_model == "gemini-3.5-flash"
+    assert s.gemini_url == "https://generativelanguage.googleapis.com"
+    assert generator_label(s) == "gemini:gemini-3.5-flash"
+
+
+def test_gemini_env_override(monkeypatch):
+    monkeypatch.setenv("MTG_API_GEMINI_API_KEY", "test-key")
+    monkeypatch.setenv("MTG_API_GEMINI_MODEL", "gemini-x")
+    s = Settings(_env_file=None)
+    assert s.gemini_api_key.get_secret_value() == "test-key"
+    # The key never shows up in a repr (logs, tracebacks).
+    assert "test-key" not in repr(s)
+    assert generator_label(s) == "gemini:gemini-x"

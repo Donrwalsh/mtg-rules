@@ -21,7 +21,7 @@ from mtg_evals.scoring import parse_verdict, score_citations, score_retrieval
 # Overrides that change the answer without changing the retrieved context
 # (mirrors mtg_api.config.GENERATION_SETTINGS). Only these join the answer
 # cache key; retrieval overrides are already captured by context_hash.
-GENERATION_KEYS = frozenset({"ollama_model", "generation_temperature", "generation_max_tokens"})
+GENERATION_KEYS = frozenset({"gemini_model", "generation_temperature", "generation_max_tokens"})
 
 DEFAULT_CONCURRENCY = {"retrieval": 4, "full": 1}
 
