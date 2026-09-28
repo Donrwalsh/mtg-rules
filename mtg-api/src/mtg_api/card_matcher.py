@@ -20,14 +20,23 @@ class CardMatcher:
         if not self._cards_by_key:
             return []
         query_lower = query.lower()
-        matched_keys: set[str] = set()
+        spans: list[tuple[int, int, str]] = []
         for end_index, key in self._automaton.iter(query_lower):
             start_index = end_index - len(key) + 1
             before_ok = start_index == 0 or not query_lower[start_index - 1].isalnum()
             after_index = end_index + 1
             after_ok = after_index == len(query_lower) or not query_lower[after_index].isalnum()
             if before_ok and after_ok:
-                matched_keys.add(key)
+                spans.append((start_index, end_index, key))
+        # A name inside a longer matched name ("Lightning" in "Lightning Bolt")
+        # is part of that card, not a mention of its own.
+        matched_keys = {
+            key
+            for start, end, key in spans
+            if not any(
+                s <= start and end <= e and (s, e) != (start, end) for s, e, _ in spans
+            )
+        }
         return [self._cards_by_key[key] for key in matched_keys]
 
 

@@ -21,6 +21,27 @@ def test_finds_multi_word_match():
     assert "Lightning Bolt" in names
 
 
+def test_name_inside_a_longer_match_is_dropped():
+    matcher = CardMatcher(CARDS)
+    matches = matcher.find_matches("how good is Lightning Bolt")
+    names = {c["name"] for c in matches}
+    assert names == {"Lightning Bolt"}
+
+
+def test_same_name_elsewhere_in_query_is_kept():
+    matcher = CardMatcher(CARDS)
+    matches = matcher.find_matches("is Bolt better than Lightning Bolt")
+    names = {c["name"] for c in matches}
+    assert names == {"Bolt", "Lightning Bolt"}
+
+
+def test_separate_cards_are_all_matched():
+    matcher = CardMatcher(CARDS)
+    matches = matcher.find_matches("Lightning Bolt in response to Counterspell")
+    names = {c["name"] for c in matches}
+    assert names == {"Lightning Bolt", "Counterspell"}
+
+
 def test_case_insensitive():
     matcher = CardMatcher(CARDS)
     matches = matcher.find_matches("COUNTERSPELL rules?")
