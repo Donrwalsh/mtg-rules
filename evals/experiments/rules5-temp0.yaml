@@ -1,0 +1,4 @@
+description: "Add the top 5 hits from a rules-only hybrid search, with generation at temperature 0."
+overrides:
+  rules_top_k: 5
+  generation_temperature: 0

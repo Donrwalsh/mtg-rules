@@ -1,25 +1,34 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from celery import Celery
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import TypeAdapter, ValidationError
 from qdrant_client import QdrantClient
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
-from mtg_api.card_matcher import CardMatcher, load_card_matcher
+from mtg_api.card_matcher import CardMatcher, load_card_matcher, ordinary_words
 from mtg_api.celery_client import get_celery_client
 from mtg_api.citations import cite_answer
-from mtg_api.config import settings
+from mtg_api.config import GENERATION_SETTINGS, OVERRIDABLE_SETTINGS, Settings, settings
 from mtg_api.embedder import Embedder, load_sentence_transformer_embedder
 from mtg_api.history import list_history, save_history
 from mtg_api.keyword_matcher import KeywordMatcher
-from mtg_api.llm import GroqAnswerer, OllamaAnswerer, build_context, load_groq_answerer
+from mtg_api.llm import (
+    PROMPT_VERSION,
+    GroqAnswerer,
+    OllamaAnswerer,
+    build_context,
+    load_groq_answerer,
+)
 from mtg_api.models import (
     CitationStats,
     EmbedRequest,
@@ -49,7 +58,7 @@ def _latest(directory: Path, pattern: str) -> Path:
 @lru_cache(maxsize=1)
 def get_card_matcher() -> CardMatcher:
     cards_path = _latest(settings.parsed_dir, "cards_*.jsonl")
-    return load_card_matcher(cards_path)
+    return load_card_matcher(cards_path, ordinary_words(get_rules_index().rules))
 
 
 @lru_cache(maxsize=1)
@@ -78,10 +87,47 @@ def get_db_engine() -> Engine:
     return create_engine(settings.postgres_dsn)
 
 
+def build_answerer(s: Settings) -> OllamaAnswerer:
+    return OllamaAnswerer(
+        s.ollama_url,
+        s.ollama_model,
+        temperature=s.generation_temperature,
+        max_tokens=s.generation_max_tokens,
+    )
+
+
 @lru_cache(maxsize=1)
 def get_groq_answerer() -> GroqAnswerer | OllamaAnswerer:
     # Local trial: route answers to Ollama instead of Groq.
-    return OllamaAnswerer(settings.ollama_url, settings.ollama_model)
+    return build_answerer(settings)
+
+
+def resolve_settings(overrides: dict[str, Any]) -> Settings:
+    """The settings one request runs with: the global settings, or a copy
+    with this request's validated overrides applied. Never mutates the
+    global object, so an override cannot leak into the next request."""
+    if not overrides:
+        return settings
+    if not settings.eval_mode:
+        raise HTTPException(
+            status_code=403, detail="overrides are only accepted when MTG_API_EVAL_MODE is on"
+        )
+    unknown = sorted(set(overrides) - set(OVERRIDABLE_SETTINGS))
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"unknown override keys: {', '.join(unknown)}")
+    # model_copy(update=) does no validation, so coerce each value against
+    # its field's type first.
+    validated = {}
+    for key, value in overrides.items():
+        try:
+            validated[key] = TypeAdapter(Settings.model_fields[key].annotation).validate_python(
+                value
+            )
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=422, detail=f"invalid override {key}: {exc.errors()[0]['msg']}"
+            ) from exc
+    return settings.model_copy(update=validated)
 
 
 @asynccontextmanager
@@ -126,6 +172,10 @@ def query(
     engine: Engine = Depends(get_db_engine),
     rules_index: RulesIndex = Depends(get_rules_index),
 ) -> QueryResponse:
+    s = resolve_settings(request.overrides)
+    if GENERATION_SETTINGS & request.overrides.keys():
+        answerer = build_answerer(s)
+
     card_results = [
         QueryResult(
             source="card",
@@ -142,7 +192,7 @@ def query(
     matched_oracle_ids = {r.oracle_id for r in card_results if r.oracle_id}
 
     card_ruling_hits = fetch_card_rulings(
-        client, settings.collection_name, list(matched_oracle_ids), settings.card_ruling_limit
+        client, s.collection_name, list(matched_oracle_ids), s.card_ruling_limit
     )
     card_ruling_results = [
         QueryResult(
@@ -177,14 +227,14 @@ def query(
     sparse_vector = sparse_embedder.encode([request.query])[0]
     hits = hybrid_search(
         client,
-        settings.collection_name,
+        s.collection_name,
         dense_vector,
         sparse_vector,
-        settings.hybrid_per_branch_limit,
-        settings.hybrid_dense_weight,
-        settings.hybrid_sparse_weight,
-        settings.hybrid_score_threshold,
-        settings.hybrid_top_k,
+        s.hybrid_per_branch_limit,
+        s.hybrid_dense_weight,
+        s.hybrid_sparse_weight,
+        s.hybrid_score_threshold,
+        s.hybrid_top_k,
     )
 
     vector_results = []
@@ -209,15 +259,47 @@ def query(
             )
         )
 
-    all_results = card_results + card_ruling_results + keyword_results + vector_results
+    rule_search_results = []
+    if s.rules_top_k > 0:
+        seen_rule_ids = matched_rule_ids | {r.rule_id for r in vector_results if r.rule_id}
+        rule_hits = hybrid_search(
+            client,
+            s.collection_name,
+            dense_vector,
+            sparse_vector,
+            s.hybrid_per_branch_limit,
+            s.hybrid_dense_weight,
+            s.hybrid_sparse_weight,
+            s.hybrid_score_threshold,
+            s.rules_top_k,
+            source_type="rule",
+        )
+        for _point_id, score, payload in rule_hits:
+            if payload.get("rule_id") in seen_rule_ids:
+                continue
+            rule_search_results.append(
+                QueryResult(
+                    source="rule",
+                    title=payload.get("rule_id", ""),
+                    text=payload.get("text", ""),
+                    score=score,
+                    match_type="rule_vector_hit",
+                    rule_id=payload.get("rule_id"),
+                )
+            )
+
+    all_results = (
+        card_results + card_ruling_results + keyword_results + rule_search_results + vector_results
+    )
     context, sources = build_context(all_results)
-    try:
-        answer = answerer.generate(request.query, context)
-        error = None
-    except Exception as exc:
-        logger.exception("Groq answer generation failed")
-        answer = None
-        error = str(exc)
+    answer = None
+    error = None
+    if request.generate:
+        try:
+            answer = answerer.generate(request.query, context)
+        except Exception as exc:
+            logger.exception("Groq answer generation failed")
+            error = str(exc)
 
     # Must run before the results are dumped for history: it sets each
     # cited result's `cited` flag.
@@ -228,20 +310,30 @@ def query(
     rule_references = cited.rule_references if cited else []
     citation_stats = cited.stats if cited else CitationStats()
 
-    try:
-        save_history(
-            engine,
-            query=request.query,
-            answer=answer,
-            results=[r.model_dump() for r in all_results],
-            model=settings.ollama_model,
-            error=error,
-            citations=[c.model_dump() for c in citations],
-            citation_stats=citation_stats.model_dump(),
-            rule_references=rule_references,
-        )
-    except Exception:
-        logger.exception("Failed to persist query history")
+    # Eval runs are not user queries: keep them out of history entirely.
+    if request.source != "eval":
+        try:
+            save_history(
+                engine,
+                query=request.query,
+                answer=answer,
+                results=[r.model_dump() for r in all_results],
+                model=s.ollama_model,
+                error=error,
+                citations=[c.model_dump() for c in citations],
+                citation_stats=citation_stats.model_dump(),
+                rule_references=rule_references,
+            )
+        except Exception:
+            logger.exception("Failed to persist query history")
+
+    eval_fields = {}
+    if settings.eval_mode:
+        eval_fields = {
+            "context_hash": hashlib.sha256(context.encode("utf-8")).hexdigest(),
+            "prompt_version": PROMPT_VERSION,
+            "generator": f"ollama:{s.ollama_model}",
+        }
 
     return QueryResponse(
         query=request.query,
@@ -250,6 +342,7 @@ def query(
         citations=citations,
         rule_references=rule_references,
         citation_stats=citation_stats,
+        **eval_fields,
     )
 
 
@@ -291,6 +384,46 @@ def get_query_history(
     engine: Engine = Depends(get_db_engine),
 ) -> list[dict]:
     return list_history(engine, limit=limit, offset=offset)
+
+
+# What GET /api/v1/config may show. An explicit allowlist, never a dump of
+# Settings, so a secret (groq_api_key, the password in postgres_dsn) can
+# never leak through a newly added setting.
+CONFIG_EXPOSED_SETTINGS = OVERRIDABLE_SETTINGS + (
+    "dense_model_name",
+    "sparse_model_name",
+    "ollama_url",
+)
+
+
+def _latest_name(pattern: str) -> str | None:
+    try:
+        return _latest(settings.parsed_dir, pattern).name
+    except FileNotFoundError:
+        return None
+
+
+@app.get("/api/v1/config")
+def get_config(client: QdrantClient = Depends(get_qdrant_client)) -> dict:
+    if not settings.eval_mode:
+        raise HTTPException(status_code=404, detail="Not Found")
+    collection: dict = {"name": settings.collection_name}
+    try:
+        collection["points_count"] = client.count(
+            collection_name=settings.collection_name, exact=True
+        ).count
+    except Exception as exc:
+        collection["points_count"] = None
+        collection["error"] = str(exc)
+    return {
+        "settings": {key: getattr(settings, key) for key in CONFIG_EXPOSED_SETTINGS},
+        "generator": f"ollama:{settings.ollama_model}",
+        "prompt_version": PROMPT_VERSION,
+        "collection": collection,
+        "data_files": {
+            kind: _latest_name(f"{kind}_*.jsonl") for kind in ("rules", "cards", "rulings")
+        },
+    }
 
 
 def _rule_summary(rule: dict) -> dict:

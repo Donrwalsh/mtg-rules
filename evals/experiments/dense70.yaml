@@ -1,0 +1,4 @@
+description: "Lean on dense (semantic) retrieval: 0.7 dense / 0.3 sparse instead of 0.5 / 0.5."
+overrides:
+  hybrid_dense_weight: 0.7
+  hybrid_sparse_weight: 0.3

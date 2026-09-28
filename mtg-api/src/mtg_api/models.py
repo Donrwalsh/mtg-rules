@@ -1,10 +1,18 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel, Field, model_validator
 
 
 class QueryRequest(BaseModel):
     query: str
+    # False: retrieval only, the LLM is never called.
+    generate: bool = True
+    # Per-request setting overrides; only honoured in eval mode.
+    overrides: dict[str, Any] = Field(default_factory=dict)
+    # Free-form caller label. "eval" requests are not saved to history.
+    source: str | None = None
 
 
 class QueryResult(BaseModel):
@@ -20,6 +28,13 @@ class QueryResult(BaseModel):
     scryfall_uri: str | None = None
     # Set when the generated answer cites this result's context block.
     cited: bool = False
+    # Same value as `source`, under the name the embed payloads use.
+    source_type: str | None = None
+
+    @model_validator(mode="after")
+    def _mirror_source(self) -> QueryResult:
+        self.source_type = self.source
+        return self
 
 
 class Citation(BaseModel):
@@ -49,6 +64,10 @@ class QueryResponse(BaseModel):
     # Rule numbers mentioned in the answer's prose that exist in the rules.
     rule_references: list[str] = Field(default_factory=list)
     citation_stats: CitationStats = Field(default_factory=CitationStats)
+    # Eval mode only (None otherwise).
+    context_hash: str | None = None
+    prompt_version: int | None = None
+    generator: str | None = None
 
 
 class EmbedRequest(BaseModel):

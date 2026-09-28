@@ -1,0 +1,3 @@
+description: "Add the top 5 hits from a rules-only hybrid search."
+overrides:
+  rules_top_k: 5

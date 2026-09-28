@@ -1,6 +1,7 @@
 from conftest import memory_engine
 from fastapi.testclient import TestClient
 
+from mtg_api import main
 from mtg_api.card_matcher import CardMatcher
 from mtg_api.embedder import Embedder
 from mtg_api.history import list_history
@@ -56,8 +57,11 @@ class _FakeQdrantClient:
         self._sparse_points = sparse_points or []
         self._scroll_points = scroll_points or []
 
-    def query_points(self, collection_name, using, query, limit, with_payload):
+    def query_points(self, collection_name, using, query, limit, with_payload, query_filter=None):
         points = self._dense_points if using == "dense" else self._sparse_points
+        if query_filter is not None:
+            (condition,) = query_filter.must
+            points = [p for p in points if p.payload.get(condition.key) == condition.match.value]
         return _FakeQueryResult(points[:limit])
 
     def scroll(self, collection_name, scroll_filter, limit, with_payload):
@@ -502,3 +506,48 @@ def test_query_failed_generation_has_empty_citations():
     assert body["rule_references"] == []
     assert body["citation_stats"] == {"cited_count": 0, "invalid_count": 0, "uncited_answer": False}
     assert list_history(engine)[0]["citations"] == []
+
+
+def _ruling_hits_and_one_rule():
+    # The rule scores lowest overall, as rules do among thousands of rulings.
+    return [
+        _FakeHit("r1", 0.9, {"source_type": "ruling", "card_name": "A", "text": "Ruling A."}),
+        _FakeHit("r2", 0.8, {"source_type": "ruling", "card_name": "B", "text": "Ruling B."}),
+        _FakeHit(
+            "p1", 0.1, {"source_type": "rule", "rule_id": "704.5b", "text": "Draw from empty."}
+        ),
+    ]
+
+
+def _post_query(query):
+    try:
+        return TestClient(app).post("/api/v1/query", json={"query": query}).json()
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_rules_search_is_off_at_zero(monkeypatch):
+    monkeypatch.setattr(main.settings, "hybrid_top_k", 2)
+    monkeypatch.setattr(main.settings, "rules_top_k", 0)
+    _override(dense_points=_ruling_hits_and_one_rule())
+    body = _post_query("draw from an empty library")
+    assert [r["match_type"] for r in body["results"]] == ["vector_hit", "vector_hit"]
+
+
+def test_rules_search_adds_rules_the_main_search_missed(monkeypatch):
+    monkeypatch.setattr(main.settings, "hybrid_top_k", 2)
+    monkeypatch.setattr(main.settings, "rules_top_k", 1)
+    _override(dense_points=_ruling_hits_and_one_rule())
+    body = _post_query("draw from an empty library")
+    rule_hits = [r for r in body["results"] if r["match_type"] == "rule_vector_hit"]
+    assert [r["rule_id"] for r in rule_hits] == ["704.5b"]
+    assert rule_hits[0]["source_type"] == "rule"
+
+
+def test_rules_search_skips_rules_already_in_the_results(monkeypatch):
+    monkeypatch.setattr(main.settings, "rules_top_k", 1)
+    _override(dense_points=_ruling_hits_and_one_rule())
+    body = _post_query("draw from an empty library")
+    rule_ids = [r["rule_id"] for r in body["results"] if r["rule_id"]]
+    assert rule_ids == ["704.5b"]
+    assert body["results"][-1]["match_type"] == "vector_hit"

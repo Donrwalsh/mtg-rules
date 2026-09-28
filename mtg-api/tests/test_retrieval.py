@@ -20,10 +20,12 @@ class _FakeClient:
         self._sparse_points = sparse_points
         self._scroll_points = scroll_points or []
         self.calls: list[tuple[str, int]] = []
+        self.filters: list = []
         self.scroll_calls: list[dict] = []
 
-    def query_points(self, collection_name, using, query, limit, with_payload):
+    def query_points(self, collection_name, using, query, limit, with_payload, query_filter=None):
         self.calls.append((using, limit))
+        self.filters.append(query_filter)
         points = self._dense_points if using == "dense" else self._sparse_points
         return _FakeQueryResult(points[:limit])
 
@@ -128,6 +130,37 @@ def test_hybrid_search_uses_per_branch_limit():
     )
 
     assert client.calls == [("dense", 2), ("sparse", 2)]
+
+
+def _search(client, **kwargs):
+    return hybrid_search(
+        client,
+        "test_collection",
+        [0.1] * 4,
+        SparseVector(indices=[0], values=[1.0]),
+        per_branch_limit=10,
+        dense_weight=0.5,
+        sparse_weight=0.5,
+        score_threshold=0.0,
+        top_k=10,
+        **kwargs,
+    )
+
+
+def test_hybrid_search_sends_no_filter_by_default():
+    client = _FakeClient([], [])
+    _search(client)
+    assert client.filters == [None, None]
+
+
+def test_hybrid_search_filters_both_branches_by_source_type():
+    client = _FakeClient([], [])
+    _search(client, source_type="rule")
+    assert len(client.filters) == 2
+    for query_filter in client.filters:
+        (condition,) = query_filter.must
+        assert condition.key == "source_type"
+        assert condition.match.value == "rule"
 
 
 def test_fetch_card_rulings_returns_empty_for_no_oracle_ids():

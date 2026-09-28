@@ -1,6 +1,13 @@
 import pytest
 
-from mtg_api.llm import _SYSTEM_PROMPT, GroqAnswerer, build_context, source_label
+from mtg_api.llm import (
+    _SYSTEM_PROMPT,
+    PROMPT_VERSION,
+    GroqAnswerer,
+    OllamaAnswerer,
+    build_context,
+    source_label,
+)
 from mtg_api.models import QueryResult
 
 
@@ -122,3 +129,44 @@ def test_generate_propagates_client_exceptions():
     answerer = GroqAnswerer(_RaisingClient(), "openai/gpt-oss-120b")
     with pytest.raises(RuntimeError, match="rate limited"):
         answerer.generate("q", "ctx")
+
+
+def _capture_ollama_request(monkeypatch):
+    import httpx
+
+    sent = {}
+
+    class _Response:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"message": {"content": "ok"}}
+
+    def fake_post(url, json, timeout):
+        sent.update(json)
+        return _Response()
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    return sent
+
+
+def test_ollama_answerer_omits_unset_generation_options(monkeypatch):
+    sent = _capture_ollama_request(monkeypatch)
+    OllamaAnswerer("http://ollama", "phi4").generate("q", "ctx")
+    assert sent["model"] == "phi4"
+    assert sent["options"] == {"num_ctx": 16384}
+
+
+def test_ollama_answerer_sends_temperature_and_max_tokens(monkeypatch):
+    sent = _capture_ollama_request(monkeypatch)
+    OllamaAnswerer("http://ollama", "phi4", temperature=0.0, max_tokens=256).generate("q", "ctx")
+    assert sent["options"] == {"num_ctx": 16384, "temperature": 0.0, "num_predict": 256}
+
+
+def test_ollama_answerer_exposes_its_model():
+    assert OllamaAnswerer("http://ollama", "phi4").model == "phi4"
+
+
+def test_prompt_version_is_an_int():
+    assert isinstance(PROMPT_VERSION, int)

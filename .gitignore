@@ -31,3 +31,7 @@ Thumbs.db
 
 # Subagent-driven-development scratch workspace
 .superpowers/
+
+# Eval harness: run output and answer/judge caches (baselines are committed)
+evals/runs/
+evals/.cache/

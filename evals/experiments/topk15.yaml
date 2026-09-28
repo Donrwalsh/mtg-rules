@@ -1,0 +1,3 @@
+description: "Return 15 hybrid-search hits instead of 10."
+overrides:
+  hybrid_top_k: 15
