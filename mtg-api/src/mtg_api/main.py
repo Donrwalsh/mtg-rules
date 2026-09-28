@@ -25,7 +25,7 @@ from mtg_api.config import (
     generator_label,
     settings,
 )
-from mtg_api.embedder import Embedder, load_sentence_transformer_embedder
+from mtg_api.embedder import Embedder, load_fastembed_embedder
 from mtg_api.history import list_history, save_history
 from mtg_api.keyword_matcher import KeywordMatcher
 from mtg_api.llm import (
@@ -78,12 +78,12 @@ def get_keyword_matcher() -> KeywordMatcher:
 
 @lru_cache(maxsize=1)
 def get_dense_embedder() -> Embedder:
-    return load_sentence_transformer_embedder(settings.dense_model_name, batch_size=1)
+    return load_fastembed_embedder(settings.dense_model_name, threads=settings.embed_threads)
 
 
 @lru_cache(maxsize=1)
 def get_sparse_embedder() -> SparseEmbedder:
-    return load_bm25_sparse_embedder(settings.sparse_model_name)
+    return load_bm25_sparse_embedder(settings.sparse_model_name, threads=settings.embed_threads)
 
 
 @lru_cache(maxsize=1)

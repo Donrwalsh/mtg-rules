@@ -27,9 +27,9 @@ class SparseEmbedder:
         ]
 
 
-def load_bm25_sparse_embedder(model_name: str) -> SparseEmbedder:
+def load_bm25_sparse_embedder(model_name: str, threads: int | None = None) -> SparseEmbedder:
     """Real-model factory. Imports fastembed lazily so importing this
     module never requires that dependency unless this factory is called."""
-    from fastembed import SparseTextEmbedding
+    import fastembed
 
-    return SparseEmbedder(SparseTextEmbedding(model_name=model_name))
+    return SparseEmbedder(fastembed.SparseTextEmbedding(model_name=model_name, threads=threads))

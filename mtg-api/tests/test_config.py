@@ -71,3 +71,12 @@ def test_gemini_env_override(monkeypatch):
     # The key never shows up in a repr (logs, tracebacks).
     assert "test-key" not in repr(s)
     assert generator_label(s) == "gemini:gemini-x"
+
+
+def test_embed_threads_defaults_to_onnx_runtime_choice():
+    assert Settings(_env_file=None).embed_threads is None
+
+
+def test_embed_threads_env_override(monkeypatch):
+    monkeypatch.setenv("MTG_API_EMBED_THREADS", "1")
+    assert Settings(_env_file=None).embed_threads == 1

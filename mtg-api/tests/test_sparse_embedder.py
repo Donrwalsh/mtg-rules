@@ -1,4 +1,4 @@
-from mtg_api.sparse_embedder import SparseEmbedder, SparseVector
+from mtg_api.sparse_embedder import SparseEmbedder, SparseVector, load_bm25_sparse_embedder
 
 
 class _FakeSparseEmbedding:
@@ -33,3 +33,17 @@ def test_encode_empty_list_returns_empty_list_without_calling_the_model():
     embedder = SparseEmbedder(model)
     assert embedder.encode([]) == []
     assert model.calls == []
+
+
+def test_load_bm25_sparse_embedder_passes_threads(monkeypatch):
+    import fastembed
+
+    created: list[dict] = []
+
+    def fake_sparse_text_embedding(**kwargs):
+        created.append(kwargs)
+        return FakeSparseModel()
+
+    monkeypatch.setattr(fastembed, "SparseTextEmbedding", fake_sparse_text_embedding)
+    load_bm25_sparse_embedder("Qdrant/bm25", threads=2)
+    assert created == [{"model_name": "Qdrant/bm25", "threads": 2}]

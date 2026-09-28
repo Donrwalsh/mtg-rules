@@ -98,8 +98,9 @@ docker compose up --build
 ```
 
 This starts `qdrant`, `redis`, `postgres`, `worker`, `backend` (port 8000),
-and `frontend` (port 3000). The first build pulls torch (multi-GB) once per
-Python image; afterward `docker compose up` reuses the cached layers, and
+and `frontend` (port 3000). The first worker build pulls torch (multi-GB)
+once; the backend has no torch (it embeds queries with fastembed / ONNX
+Runtime). Afterward `docker compose up` reuses the cached layers, and
 only cached-model wipe (`docker compose down -v`) triggers re-downloads.
 Backend/worker model weights live in a named `hf_cache` volume
 (`/root/.cache/huggingface`), so they persist across normal `up`/`down`
@@ -193,7 +194,13 @@ Additional knobs (query side): `MTG_API_DENSE_MODEL_NAME`,
 `MTG_API_HYBRID_SPARSE_WEIGHT` (default 0.5 each), `MTG_API_HYBRID_TOP_K`,
 `MTG_API_HYBRID_SCORE_THRESHOLD`, `MTG_API_RULES_TOP_K` (default 5: extra
 hits from a rules-only search; 0 disables it), `MTG_API_GENERATION_TEMPERATURE`
-(default 0) / `MTG_API_GENERATION_MAX_TOKENS` (unset: the model's default).
+(default 0) / `MTG_API_GENERATION_MAX_TOKENS` (unset: the model's default),
+`MTG_API_EMBED_THREADS` (ONNX Runtime threads per query-embedding model;
+unset uses every core, so cap it on a host shared with other apps).
+
+The worker indexes with `sentence-transformers` while the backend embeds
+queries with fastembed's ONNX export of the same model; the two agree to
+cosine 1.0000 on the eval questions.
 
 Model weights download from HuggingFace on first use.
 
