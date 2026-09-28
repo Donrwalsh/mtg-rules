@@ -1,4 +1,6 @@
-const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000';
+// Same-origin: nginx (Docker) and the Vite dev server (npm run dev) proxy
+// /api to the backend.
+const API_URL = '';
 
 export interface QueryResult {
   source: string;

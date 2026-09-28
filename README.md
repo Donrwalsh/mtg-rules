@@ -187,7 +187,6 @@ file; copy it to `.env` to override.
 | `MTG_INGEST_DATA_DIR` | `data` | mtg-ingestion |
 | `MTG_EMBED_PARSED_DIR` | `../mtg-ingestion/data/parsed` | mtg-embed |
 | `MTG_EMBED_QDRANT_HOST` / `PORT` | `localhost` / `6333` | mtg-embed |
-| `PUBLIC_API_URL` | `http://localhost:8000` | mtg-web build ARG |
 
 Additional knobs (query side): `MTG_API_DENSE_MODEL_NAME`,
 `MTG_API_SPARSE_MODEL_NAME`, `MTG_API_HYBRID_DENSE_WEIGHT` /
@@ -352,6 +351,78 @@ settings, `rules_top_k`, `card_ruling_limit`, `collection_name`, `gemini_model`,
 `generation_temperature` and `generation_max_tokens`. Any other key gets
 a 422.
 
+## Production deployment
+
+Production runs on [Coolify](https://coolify.io) (Docker Compose build pack)
+on a small host shared with other apps (target: a 4 GB, 2 vCPU VM, where
+Coolify itself takes roughly 0.5–0.8 GB). The stack is
+[`docker-compose.prod.yml`](docker-compose.prod.yml). It is standalone, not
+an override of the dev compose file.
+
+- **Services:** `qdrant`, `postgres`, `backend`, `frontend`. There is no
+  worker or redis: ingest and embed run on a dev machine (a GPU makes
+  embedding fast), and the results are copied to the server.
+- **Networking:** no published ports. Coolify's Traefik terminates TLS and
+  routes the frontend's domain to nginx on port 80. nginx serves the SPA
+  and proxies `/api` and `/health` to the backend, so the browser only ever
+  talks to one origin (no CORS).
+- **Limits:** memory caps (backend 900m, qdrant 512m, postgres 256m,
+  frontend 64m), a 1-CPU cap and one ONNX thread per model on the backend,
+  and log rotation (3 × 10 MB per container). Measured at idle after a
+  query: about 950 MB for the whole stack.
+- **Builds:** Coolify builds both images from the repo on each deploy. The
+  backend has no torch, so both builds are light.
+
+### Coolify setup
+
+1. New resource → your Git repository → build pack **Docker Compose**,
+   compose file `/docker-compose.prod.yml`, and the branch to deploy.
+2. On the `frontend` service, set the domain (e.g. `https://rules.example.com`).
+   Leave the other services without domains.
+3. Environment variables: set `MTG_API_GEMINI_API_KEY`. Coolify generates
+   `SERVICE_PASSWORD_POSTGRES` itself. Optional: `MTG_API_GEMINI_MODEL`,
+   `MTG_API_EMBED_THREADS` (default 1).
+4. Deploy. The backend stays unhealthy on the first deploy until the data
+   is seeded (below), because it refuses to start without the parsed rules
+   and cards.
+
+### Seeding the data
+
+Coolify prefixes volume and network names with the resource's UUID, so look
+them up on the server first:
+
+```bash
+docker volume ls --filter name=parsed_data     # <uuid>_parsed-data or similar
+docker network ls                              # the network named <uuid>
+```
+
+```bash
+# 1. On the dev machine: snapshot the embedded collection.
+curl -X POST localhost:6333/collections/mtg_rules/snapshots   # note "name"
+curl -o mtg_rules.snapshot localhost:6333/collections/mtg_rules/snapshots/<name>
+# Copy mtg_rules.snapshot plus the latest cards_*.jsonl and rules_*.jsonl
+# (from mtg-worker/mtg-ingestion/data/parsed/) to the server.
+
+# 2. On the server: restore the collection into qdrant. It has no host
+#    port, so upload from a throwaway container on the stack's network.
+docker run --rm --network <network> -v "$PWD:/s" curlimages/curl \
+  -X POST "http://qdrant:6333/collections/mtg_rules/snapshots/upload?priority=snapshot" \
+  -F "snapshot=@/s/mtg_rules.snapshot"
+
+# 3. Copy the parsed JSONL into the parsed_data volume.
+docker run --rm -v <parsed_data volume>:/d -v "$PWD:/s:ro" alpine \
+  sh -c 'cp /s/cards_*.jsonl /s/rules_*.jsonl /d/'
+```
+
+Then restart the backend from Coolify. To refresh the data later, repeat
+the same steps: the backend loads the parsed files only at startup.
+
+### Host preparation
+
+Hetzner images come without swap. Add a 2 GB swapfile as a safety net on a
+4 GB box, and keep the Hetzner Cloud Firewall to ports 22, 80 and 443
+(Docker's published ports bypass `ufw`).
+
 ## Known limitations
 
 - The rules parser stops before the Glossary section.
@@ -359,8 +430,8 @@ a 422.
 - The diff/persistence stage (comparing parsed JSONL to the store by
   `content_hash`, scheduling re-syncs) is not yet built; re-running embed is
   idempotent for unchanged content.
-- No auth, CI, or production TLS — the compose file targets a Coolify-style
-  single-host deployment with the edge handled upstream.
+- No auth or CI. Production TLS is handled by Coolify's proxy (see
+  "Production deployment").
 - Citations are validated for existence only: a cited `[n]` is guaranteed to
   be a source that was in the context, not that it supports the sentence.
 - A raw rule number in the answer that exists in the rules is linked even if

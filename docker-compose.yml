@@ -61,10 +61,7 @@ services:
       - postgres
 
   frontend:
-    build:
-      context: ./mtg-web
-      args:
-        PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+    build: ./mtg-web
     ports:
       - "3000:80"
     depends_on:
