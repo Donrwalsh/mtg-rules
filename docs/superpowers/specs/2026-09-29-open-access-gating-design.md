@@ -302,3 +302,7 @@ It alerts; it does not cap.
 - Usage-row retention: **re-evaluate before 2026-10-29**.
 - Semantic (near-duplicate) answer caching.
 - Tuning thinking level beyond `low` based on eval results.
+- Consider lowering MTG_API_IP_DAILY_LLM_LIMIT (about 5–10) and capping
+  matched cards/keyword rules in the context: at $1.50/$9.00 per 1M
+  tokens, $1/day buys roughly 40–80 answers, so 20 per IP lets 2–3
+  visitors exhaust the day.

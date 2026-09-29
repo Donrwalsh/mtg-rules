@@ -3008,6 +3008,14 @@ This task is done together with the user: it touches the live server and Coolify
   - `/api/v1/queries` and `/api/v1/admin/usage` without the admin cookie return 401.
   - A 501-character query returns 422. Rapid-fire curls return 429.
   - After another `sync_data.py` run, a previously cached question is generated fresh.
+  - IPv6: `curl -6` a question from an IPv6 client, then confirm the Usage
+    page shows the client's real /64, not a private Docker gateway address
+    (Coolify's Traefik behind Docker's userland proxy can make every IPv6
+    visitor appear as the bridge gateway, putting all of them in one quota
+    bucket). Repeat the spoofed X-Forwarded-For check over both IPv4 and
+    IPv6.
+  - Confirm the admin login response carries `Set-Cookie: ...; Secure` in
+    production.
 - [ ] **Step 5:** The user creates the Google Cloud billing budget alert (~$30/month) on the Gemini project.
 
 ---
