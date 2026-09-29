@@ -1,28 +1,27 @@
-from conftest import memory_engine
-from fastapi.testclient import TestClient
+from conftest import admin_client, memory_engine
 
 from mtg_api.history import save_history
 from mtg_api.main import app, get_db_engine
 
 
-def test_returns_empty_list_when_no_history():
+def test_returns_empty_list_when_no_history(monkeypatch):
     engine = memory_engine()
     app.dependency_overrides[get_db_engine] = lambda: engine
     try:
-        resp = TestClient(app).get("/api/v1/queries")
+        resp = admin_client(monkeypatch).get("/api/v1/queries")
     finally:
         app.dependency_overrides.clear()
     assert resp.status_code == 200
     assert resp.json() == []
 
 
-def test_returns_saved_rows_newest_first():
+def test_returns_saved_rows_newest_first(monkeypatch):
     engine = memory_engine()
     save_history(engine, query="first", answer="a1", results=[], model="m", error=None)
     save_history(engine, query="second", answer="a2", results=[], model="m", error=None)
     app.dependency_overrides[get_db_engine] = lambda: engine
     try:
-        resp = TestClient(app).get("/api/v1/queries")
+        resp = admin_client(monkeypatch).get("/api/v1/queries")
     finally:
         app.dependency_overrides.clear()
     assert resp.status_code == 200
@@ -30,13 +29,13 @@ def test_returns_saved_rows_newest_first():
     assert [row["query"] for row in body] == ["second", "first"]
 
 
-def test_respects_limit_and_offset_query_params():
+def test_respects_limit_and_offset_query_params(monkeypatch):
     engine = memory_engine()
     for i in range(3):
         save_history(engine, query=f"q{i}", answer=None, results=[], model="m", error=None)
     app.dependency_overrides[get_db_engine] = lambda: engine
     try:
-        resp = TestClient(app).get("/api/v1/queries?limit=1&offset=1")
+        resp = admin_client(monkeypatch).get("/api/v1/queries?limit=1&offset=1")
     finally:
         app.dependency_overrides.clear()
     body = resp.json()
@@ -44,7 +43,7 @@ def test_respects_limit_and_offset_query_params():
     assert body[0]["query"] == "q1"
 
 
-def test_returns_citation_fields():
+def test_returns_citation_fields(monkeypatch):
     engine = memory_engine()
     save_history(
         engine,
@@ -59,7 +58,7 @@ def test_returns_citation_fields():
     )
     app.dependency_overrides[get_db_engine] = lambda: engine
     try:
-        body = TestClient(app).get("/api/v1/queries").json()
+        body = admin_client(monkeypatch).get("/api/v1/queries").json()
     finally:
         app.dependency_overrides.clear()
     assert body[0]["citations"][0]["url"] == "/rules/702.11b"

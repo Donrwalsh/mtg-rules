@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
@@ -13,6 +14,8 @@ class QueryRequest(BaseModel):
     overrides: dict[str, Any] = Field(default_factory=dict)
     # Free-form caller label. "eval" requests are not saved to history.
     source: str | None = None
+    # Admin only: skip the answer cache and replace its entry.
+    fresh: bool = False
 
 
 class QueryResult(BaseModel):
@@ -64,10 +67,18 @@ class QueryResponse(BaseModel):
     # Rule numbers mentioned in the answer's prose that exist in the rules.
     rule_references: list[str] = Field(default_factory=list)
     citation_stats: CitationStats = Field(default_factory=CitationStats)
+    # Set when this answer came from the answer cache: when it was generated.
+    cached_at: datetime | None = None
+    # Why no answer was generated: "ip_quota" or "global_budget".
+    degraded: str | None = None
+    # LLM answers this visitor has left today (null when not gated, or admin).
+    answers_remaining: int | None = None
     # Eval mode only (None otherwise).
     context_hash: str | None = None
     prompt_version: int | None = None
     generator: str | None = None
+    # Eval mode only: this request's Gemini token counts.
+    usage: dict[str, int] | None = None
 
 
 class EmbedRequest(BaseModel):

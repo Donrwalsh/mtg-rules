@@ -11,6 +11,7 @@ def test_lifespan_warms_all_caches(monkeypatch):
     monkeypatch.setattr("mtg_api.main.get_dense_embedder", lambda: calls.append("dense_embedder"))
     monkeypatch.setattr("mtg_api.main.get_sparse_embedder", lambda: calls.append("sparse_embedder"))
     monkeypatch.setattr("mtg_api.main.get_answerer", lambda: calls.append("answerer"))
+    monkeypatch.setattr("mtg_api.main.get_data_version", lambda: calls.append("data_version"))
 
     async def _run():
         async with lifespan(app):
@@ -25,6 +26,7 @@ def test_lifespan_warms_all_caches(monkeypatch):
         "dense_embedder",
         "sparse_embedder",
         "answerer",
+        "data_version",
     }
 
 
@@ -55,3 +57,19 @@ def test_embedders_load_through_fastembed_with_configured_threads(monkeypatch):
         ("dense", main.settings.dense_model_name, 2),
         ("sparse", main.settings.sparse_model_name, 2),
     ]
+
+
+def test_lifespan_refuses_gating_without_prices(monkeypatch):
+    import pytest
+
+    from mtg_api import main
+
+    monkeypatch.setattr(main.settings, "gating_enabled", True)
+    monkeypatch.setattr(main.settings, "gemini_input_price_per_mtok", 0.0)
+
+    async def _run():
+        async with lifespan(app):
+            pass
+
+    with pytest.raises(RuntimeError, match="PRICE"):
+        asyncio.run(_run())

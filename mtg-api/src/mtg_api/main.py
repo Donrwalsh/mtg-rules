@@ -3,18 +3,28 @@ from __future__ import annotations
 import hashlib
 import logging
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from celery import Celery
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import TypeAdapter, ValidationError
 from qdrant_client import QdrantClient
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
+from mtg_api.admin_auth import has_admin_marker, is_admin, require_admin
+from mtg_api.admin_auth import router as auth_router
+from mtg_api.answer_cache import (
+    cache_key,
+    get_cached,
+    normalize_query,
+    put_cached,
+    read_data_version,
+)
 from mtg_api.card_matcher import CardMatcher, load_card_matcher, ordinary_words
 from mtg_api.celery_client import get_celery_client
 from mtg_api.citations import cite_answer
@@ -44,6 +54,15 @@ from mtg_api.qdrant_check import check_qdrant
 from mtg_api.retrieval import fetch_card_rulings, hybrid_search
 from mtg_api.rules_index import RulesIndex, load_rules_index
 from mtg_api.sparse_embedder import SparseEmbedder, load_bm25_sparse_embedder
+from mtg_api.usage import (
+    Gate,
+    check_gate,
+    check_gating_config,
+    cost_usd,
+    ip_bucket,
+    record_usage,
+    usage_summary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +110,11 @@ def get_db_engine() -> Engine:
     return create_engine(settings.postgres_dsn)
 
 
+@lru_cache(maxsize=1)
+def get_data_version() -> str:
+    return read_data_version(settings.parsed_dir)
+
+
 def build_answerer(s: Settings) -> GeminiAnswerer:
     api_key = s.gemini_api_key.get_secret_value()
     if not api_key:
@@ -103,6 +127,7 @@ def build_answerer(s: Settings) -> GeminiAnswerer:
         base_url=s.gemini_url,
         temperature=s.generation_temperature,
         max_tokens=s.generation_max_tokens,
+        thinking_level=s.generation_thinking_level,
         timeout=s.gemini_timeout_seconds,
     )
 
@@ -142,6 +167,8 @@ def resolve_settings(overrides: dict[str, Any]) -> Settings:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Refuse to serve with gating on but no prices: every answer would look free.
+    check_gating_config(settings)
     # Warm the rules index, the card and keyword automatons, and both models
     # at container startup, not on the first request -- moves the ~20s cold-load cost
     # from the first query to `docker compose up` instead.
@@ -151,6 +178,7 @@ async def lifespan(app: FastAPI):
     get_dense_embedder()
     get_sparse_embedder()
     get_answerer()
+    get_data_version()
     yield
 
 
@@ -163,6 +191,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
+
 
 @app.get("/health")
 def health(client: QdrantClient = Depends(get_qdrant_client)) -> dict:
@@ -170,9 +200,71 @@ def health(client: QdrantClient = Depends(get_qdrant_client)) -> dict:
     return {"status": "ok", "qdrant": qdrant_status}
 
 
+_DEGRADED_OUTCOMES = {"ip_quota": "degraded_ip", "global_budget": "degraded_global"}
+# Fields that describe one request, not the cached answer.
+_PER_REQUEST_FIELDS = {
+    "query",
+    "cached_at",
+    "degraded",
+    "answers_remaining",
+    "context_hash",
+    "prompt_version",
+    "generator",
+    "usage",
+}
+
+
+def _gate(engine: Engine, s: Settings, bucket: str, now: datetime) -> Gate:
+    try:
+        return check_gate(engine, s, bucket, now)
+    except Exception:
+        # Fail closed: without the usage table there's no way to know the spend.
+        logger.exception("Usage gate unavailable; answering retrieval-only")
+        return Gate("global_budget", 0)
+
+
+def _record(engine: Engine, **fields) -> None:
+    try:
+        record_usage(engine, **fields)
+    except Exception:
+        logger.exception("Failed to record LLM usage")
+
+
+def _cache_get(engine: Engine, key: str) -> tuple[dict, datetime] | None:
+    try:
+        return get_cached(engine, key)
+    except Exception:
+        logger.exception("Answer cache lookup failed")
+        return None
+
+
+def _cache_put(engine: Engine, key: str, query: str, response: QueryResponse, now: datetime):
+    try:
+        put_cached(
+            engine,
+            key,
+            normalized_query=normalize_query(query),
+            response=response.model_dump(mode="json", exclude=_PER_REQUEST_FIELDS),
+            now=now,
+        )
+    except Exception:
+        logger.exception("Failed to store answer in cache")
+
+
+def _save(engine: Engine, s: Settings, request: QueryRequest, **fields) -> None:
+    # Eval runs are not user queries, but only eval mode may say so.
+    if settings.eval_mode and request.source == "eval":
+        return
+    try:
+        save_history(engine, query=request.query, model=s.gemini_model, **fields)
+    except Exception:
+        logger.exception("Failed to persist query history")
+
+
 @app.post("/api/v1/query", response_model=QueryResponse)
 def query(
     request: QueryRequest,
+    http_request: Request,
     matcher: CardMatcher = Depends(get_card_matcher),
     keyword_matcher: KeywordMatcher = Depends(get_keyword_matcher),
     dense_embedder: Embedder = Depends(get_dense_embedder),
@@ -181,10 +273,65 @@ def query(
     answerer: GeminiAnswerer = Depends(get_answerer),
     engine: Engine = Depends(get_db_engine),
     rules_index: RulesIndex = Depends(get_rules_index),
+    data_version: str = Depends(get_data_version),
 ) -> QueryResponse:
     s = resolve_settings(request.overrides)
     if GENERATION_SETTINGS & request.overrides.keys():
         answerer = build_answerer(s)
+
+    if len(request.query) > s.max_query_chars:
+        raise HTTPException(
+            status_code=422, detail=f"query is longer than {s.max_query_chars} characters"
+        )
+    admin = is_admin(http_request)
+    if request.fresh and not (admin and has_admin_marker(http_request)):
+        raise HTTPException(status_code=403, detail="fresh answers are admin-only")
+
+    now = datetime.now(UTC)
+    bucket = ip_bucket(http_request.client.host if http_request.client else "unknown")
+    tracked = request.generate and not settings.eval_mode
+    record = {"now": now, "ip_bucket": bucket, "is_admin": admin, "model": s.gemini_model}
+
+    gate = Gate(None, 0)
+    remaining = None
+    if tracked and s.gating_enabled and not admin:
+        gate = _gate(engine, s, bucket, now)
+        remaining = gate.answers_remaining
+
+    key = cache_key(request.query, s, data_version) if tracked and s.answer_cache_enabled else None
+    hit = _cache_get(engine, key) if key and not request.fresh else None
+    if hit is not None:
+        stored, generated_at = hit
+        # The global budget being exhausted applies to the next new
+        # question too, so don't promise answers a cache hit didn't use.
+        cache_remaining = 0 if gate.degraded == "global_budget" else remaining
+        try:
+            cached_response = QueryResponse(
+                **stored,
+                query=request.query,
+                cached_at=generated_at,
+                answers_remaining=cache_remaining,
+            )
+        except Exception:
+            # A row from an older schema (or otherwise malformed): fall
+            # through to a normal retrieval + generation below, which
+            # overwrites this entry via _cache_put.
+            logger.exception("Malformed answer-cache row for key %s; treating as a miss", key)
+        else:
+            _record(engine, outcome="cached", **record)
+            _save(
+                engine,
+                s,
+                request,
+                answer=cached_response.answer,
+                results=[r.model_dump() for r in cached_response.results],
+                error=None,
+                citations=[c.model_dump() for c in cached_response.citations],
+                citation_stats=cached_response.citation_stats.model_dump(),
+                rule_references=cached_response.rule_references,
+                cached=True,
+            )
+            return cached_response
 
     card_results = [
         QueryResult(
@@ -304,12 +451,28 @@ def query(
     context, sources = build_context(all_results)
     answer = None
     error = None
-    if request.generate:
+    generation = None
+    if request.generate and gate.degraded is None:
         try:
-            answer = answerer.generate(request.query, context)
+            generation = answerer.generate(request.query, context)
+            answer = generation.text
         except Exception as exc:
             logger.exception("Answer generation failed (%s)", generator_label(s))
             error = str(exc)
+
+    if tracked:
+        if gate.degraded:
+            _record(engine, outcome=_DEGRADED_OUTCOMES[gate.degraded], **record)
+        else:
+            _record(
+                engine,
+                outcome="error" if error else "generated",
+                generation=generation,
+                cost=cost_usd(generation, s) if generation else 0.0,
+                **record,
+            )
+            if remaining is not None:
+                remaining = max(0, remaining - 1)
 
     # Must run before the results are dumped for history: it sets each
     # cited result's `cited` flag.
@@ -320,22 +483,17 @@ def query(
     rule_references = cited.rule_references if cited else []
     citation_stats = cited.stats if cited else CitationStats()
 
-    # Eval runs are not user queries: keep them out of history entirely.
-    if request.source != "eval":
-        try:
-            save_history(
-                engine,
-                query=request.query,
-                answer=answer,
-                results=[r.model_dump() for r in all_results],
-                model=s.gemini_model,
-                error=error,
-                citations=[c.model_dump() for c in citations],
-                citation_stats=citation_stats.model_dump(),
-                rule_references=rule_references,
-            )
-        except Exception:
-            logger.exception("Failed to persist query history")
+    _save(
+        engine,
+        s,
+        request,
+        answer=answer,
+        results=[r.model_dump() for r in all_results],
+        error=error,
+        citations=[c.model_dump() for c in citations],
+        citation_stats=citation_stats.model_dump(),
+        rule_references=rule_references,
+    )
 
     eval_fields = {}
     if settings.eval_mode:
@@ -343,17 +501,23 @@ def query(
             "context_hash": hashlib.sha256(context.encode("utf-8")).hexdigest(),
             "prompt_version": PROMPT_VERSION,
             "generator": generator_label(s),
+            "usage": generation.usage() if generation else None,
         }
 
-    return QueryResponse(
+    response = QueryResponse(
         query=request.query,
         results=all_results,
         answer=answer,
         citations=citations,
         rule_references=rule_references,
         citation_stats=citation_stats,
+        degraded=gate.degraded,
+        answers_remaining=remaining,
         **eval_fields,
     )
+    if key and answer and generation and generation.finish_reason == "STOP":
+        _cache_put(engine, key, request.query, response, now)
+    return response
 
 
 def require_task_endpoints() -> None:
@@ -392,13 +556,18 @@ def get_task_status(task_id: str, client: Celery = Depends(get_celery_client)) -
     }
 
 
-@app.get("/api/v1/queries")
+@app.get("/api/v1/queries", dependencies=[Depends(require_admin)])
 def get_query_history(
     limit: int = 50,
     offset: int = 0,
     engine: Engine = Depends(get_db_engine),
 ) -> list[dict]:
     return list_history(engine, limit=limit, offset=offset)
+
+
+@app.get("/api/v1/admin/usage", dependencies=[Depends(require_admin)])
+def get_usage(engine: Engine = Depends(get_db_engine)) -> dict:
+    return usage_summary(engine, settings, datetime.now(UTC))
 
 
 # What GET /api/v1/config may show. An explicit allowlist, never a dump of

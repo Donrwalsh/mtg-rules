@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -40,12 +41,32 @@ class Settings(BaseSettings):
     # Temperature 0 so the same question and context give the same answer.
     generation_temperature: float | None = 0.0
     generation_max_tokens: int | None = None
+    # Gemini 3.x thinkingConfig.thinkingLevel. None means "don't send it":
+    # the model's default thinking applies. A typo here would otherwise
+    # turn every generate call into a Gemini 400, burning visitor quota.
+    generation_thinking_level: Literal["minimal", "low", "medium", "high"] | None = None
     # Enables per-request overrides, eval response fields and
     # GET /api/v1/config. Never on in production.
     eval_mode: bool = False
     # Enables POST /api/v1/ingest, POST /api/v1/embed and GET /api/v1/tasks.
     # Off in production, which runs no Celery worker.
     task_endpoints: bool = True
+    # Longest question accepted by POST /api/v1/query (422 above it).
+    max_query_chars: int = 500
+    # Per-IP quotas and the global daily cap on Gemini spend. Off in dev;
+    # production turns it on (and must then set both prices).
+    gating_enabled: bool = False
+    daily_budget_usd: float = 1.0
+    # USD per million tokens; thinking tokens bill as output.
+    gemini_input_price_per_mtok: float = 0.0
+    gemini_output_price_per_mtok: float = 0.0
+    ip_daily_llm_limit: int = 20
+    ip_window_llm_limit: int = 5
+    ip_window_minutes: int = 10
+    # Reuse answers to identical questions. Always bypassed in eval mode.
+    answer_cache_enabled: bool = True
+    # Unlocks the admin login. Empty disables it.
+    admin_password: SecretStr = SecretStr("")
 
 
 settings = Settings()
@@ -63,15 +84,25 @@ OVERRIDABLE_SETTINGS: tuple[str, ...] = (
     "gemini_model",
     "generation_temperature",
     "generation_max_tokens",
+    "generation_thinking_level",
 )
 
 # The subset that changes the generated answer (not the retrieved context).
 GENERATION_SETTINGS: frozenset[str] = frozenset(
-    {"gemini_model", "generation_temperature", "generation_max_tokens"}
+    {
+        "gemini_model",
+        "generation_temperature",
+        "generation_max_tokens",
+        "generation_thinking_level",
+    }
 )
 
 
 def generator_label(s: Settings) -> str:
-    """Provider-qualified model, e.g. "gemini:gemini-3.5-flash". Eval
-    answer caches are keyed on it."""
-    return f"gemini:{s.gemini_model}"
+    """Provider-qualified model, e.g. "gemini:gemini-3.5-flash", plus the
+    thinking level when one is set. Eval answer caches and the production
+    answer cache are keyed on it."""
+    label = f"gemini:{s.gemini_model}"
+    if s.generation_thinking_level:
+        label += f":think={s.generation_thinking_level}"
+    return label

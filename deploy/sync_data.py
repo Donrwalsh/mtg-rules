@@ -2,15 +2,15 @@
 deployment" -> "Seeding the data").
 
 Takes a snapshot of the local Qdrant collection and the latest parsed
-cards_*.jsonl / rules_*.jsonl, and loads them into the Coolify-deployed
-stack over SSH:
+cards_*.jsonl / rules_*.jsonl, and a data_version marker, and loads them
+into the Coolify-deployed stack over SSH:
 
     python deploy/sync_data.py --host root@your-server
 
 Nothing is staged on the server's disk. The snapshot streams into the qdrant
-container (`docker cp -`) and is recovered from there, the JSONL streams
-into the parsed-data volume through a throwaway alpine container, and then
-the backend is restarted (it loads the parsed files only at startup).
+container (`docker cp -`) and is recovered from there, the JSONL and marker
+stream into the parsed-data volume through a throwaway alpine container, and
+then the backend is restarted (it loads the parsed files only at startup).
 
 Coolify prefixes container, volume and network names with a generated
 UUID, so the target is discovered instead of configured: the backend is
@@ -34,6 +34,7 @@ import tempfile
 import time
 import urllib.request
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO, Any
 
@@ -43,6 +44,9 @@ SERVICE_LABEL = "com.docker.compose.service"
 SNAPSHOT_NAME = "mtg-sync.snapshot"
 QDRANT_SNAPSHOT_DIR = "/qdrant/snapshots"
 DEFAULT_PARSED_DIR = Path(__file__).resolve().parent.parent / "mtg-worker/mtg-ingestion/data/parsed"
+# Must match mtg_api.answer_cache.DATA_VERSION_FILE: the backend keys its
+# answer cache on this file, so every sync invalidates cached answers.
+DATA_VERSION_FILE = "data_version"
 
 
 class SyncError(Exception):
@@ -57,6 +61,12 @@ class Target:
     parsed_volume: str
     # Every container in the stack, started at the end.
     containers: tuple[str, ...]
+
+
+def write_data_version(directory: Path, now: datetime) -> Path:
+    path = directory / DATA_VERSION_FILE
+    path.write_text(now.astimezone(UTC).isoformat(timespec="seconds") + "\n", encoding="utf-8")
+    return path
 
 
 def latest_parsed_files(parsed_dir: Path) -> list[Path]:
@@ -276,14 +286,17 @@ def sync(
         raise SyncError(f"server has {remote_count} points after recovery, expected {local_count}")
     print(f"  {remote_count} points")
 
-    print(f"Copying {', '.join(p.name for p in files)}...")
-    server.run_with_tar(
-        [
-            "docker", "run", "-i", "--rm", "-v", f"{target.parsed_volume}:/d", "alpine",
-            "sh", "-c", "rm -f /d/cards_*.jsonl /d/rules_*.jsonl && tar x -C /d",
-        ],
-        files,
-    )  # fmt: skip
+    print(f"Copying {', '.join(p.name for p in files)} and a new {DATA_VERSION_FILE}...")
+    with tempfile.TemporaryDirectory() as tmp:
+        marker = write_data_version(Path(tmp), datetime.now(UTC))
+        server.run_with_tar(
+            [
+                "docker", "run", "-i", "--rm", "-v", f"{target.parsed_volume}:/d", "alpine",
+                "sh", "-c",
+                f"rm -f /d/cards_*.jsonl /d/rules_*.jsonl /d/{DATA_VERSION_FILE} && tar x -C /d",
+            ],
+            [*files, marker],
+        )  # fmt: skip
 
     print("Restarting the backend...")
     server.run(["docker", "restart", target.backend])

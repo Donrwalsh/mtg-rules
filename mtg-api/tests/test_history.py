@@ -107,3 +107,18 @@ def test_citation_fields_default_to_none():
     assert row["citations"] is None
     assert row["citation_stats"] is None
     assert row["rule_references"] is None
+
+
+def test_cached_flag_defaults_false_and_round_trips():
+    engine = memory_engine()
+    save_history(engine, query="a", answer="x", results=[], model="m", error=None)
+    save_history(engine, query="b", answer="x", results=[], model="m", error=None, cached=True)
+    rows = {row["query"]: row["cached"] for row in list_history(engine)}
+    assert rows == {"a": False, "b": True}
+
+
+def test_memory_engine_creates_usage_and_cache_tables():
+    from sqlalchemy import inspect
+
+    names = set(inspect(memory_engine()).get_table_names())
+    assert {"query_history", "llm_usage", "answer_cache"} <= names

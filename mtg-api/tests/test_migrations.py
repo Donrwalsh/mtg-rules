@@ -26,6 +26,14 @@ def _columns(dsn: str) -> set[str]:
         engine.dispose()
 
 
+def _tables(dsn: str) -> set[str]:
+    engine = create_engine(dsn)
+    try:
+        return set(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+
+
 def test_0002_adds_and_removes_citation_columns(tmp_path, monkeypatch):
     dsn = f"sqlite:///{(tmp_path / 'history.db').as_posix()}"
     monkeypatch.setattr(settings, "postgres_dsn", dsn)
@@ -40,3 +48,21 @@ def test_0002_adds_and_removes_citation_columns(tmp_path, monkeypatch):
     command.downgrade(cfg, "0001")
     assert not CITATION_COLUMNS & _columns(dsn)
     assert {"id", "query", "answer", "results"} <= _columns(dsn)
+
+
+def test_0003_adds_usage_cache_and_cached_flag(tmp_path, monkeypatch):
+    dsn = f"sqlite:///{(tmp_path / 'history.db').as_posix()}"
+    monkeypatch.setattr(settings, "postgres_dsn", dsn)
+    cfg = _config()
+
+    command.upgrade(cfg, "0002")
+    assert not {"llm_usage", "answer_cache"} & _tables(dsn)
+    assert "cached" not in _columns(dsn)
+
+    command.upgrade(cfg, "head")
+    assert {"llm_usage", "answer_cache"} <= _tables(dsn)
+    assert "cached" in _columns(dsn)
+
+    command.downgrade(cfg, "0002")
+    assert not {"llm_usage", "answer_cache"} & _tables(dsn)
+    assert "cached" not in _columns(dsn)

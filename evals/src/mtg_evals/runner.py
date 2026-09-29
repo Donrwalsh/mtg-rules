@@ -21,7 +21,14 @@ from mtg_evals.scoring import parse_verdict, score_citations, score_retrieval
 # Overrides that change the answer without changing the retrieved context
 # (mirrors mtg_api.config.GENERATION_SETTINGS). Only these join the answer
 # cache key; retrieval overrides are already captured by context_hash.
-GENERATION_KEYS = frozenset({"gemini_model", "generation_temperature", "generation_max_tokens"})
+GENERATION_KEYS = frozenset(
+    {
+        "gemini_model",
+        "generation_temperature",
+        "generation_max_tokens",
+        "generation_thinking_level",
+    }
+)
 
 DEFAULT_CONCURRENCY = {"retrieval": 4, "full": 1}
 
@@ -111,6 +118,7 @@ def _full(
             "answer": response["answer"],
             "citations": response.get("citations") or [],
             "citation_stats": response.get("citation_stats") or {},
+            "usage": response.get("usage"),
         }
         # Retrieval is deterministic; a different context between the two
         # calls means the answer doesn't belong to the scored context.
@@ -134,6 +142,7 @@ def _full(
         "citations": score_citations(case, entry["citations"], entry["citation_stats"]),
         "generate_ms": generate_ms,
         "judge_ms": judge_ms,
+        "usage": entry.get("usage"),
     }
 
 

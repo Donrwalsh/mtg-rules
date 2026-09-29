@@ -152,8 +152,12 @@ Or open http://localhost:3000, type a question, and submit.
 | Endpoint | Method | Body | Description |
 |---|---|---|---|
 | `/health` | GET | — | Service health + Qdrant reachability |
-| `/api/v1/query` | POST | `{"query": str}` | Hybrid search results plus a generated answer (`null` if generation failed) with validated citations; persists a `query_history` row. See below. |
-| `/api/v1/queries` | GET | — | Past query/answer/result records including `citations`, `citation_stats` and `rule_references` (`null` for rows saved before citations), newest first (`?limit=&offset=`, default `limit=50, offset=0`) |
+| `/api/v1/query` | POST | `{"query": str, "fresh": bool}` | Hybrid search results plus a generated answer (`null` if generation failed or gating degraded the request) with validated citations; persists a `query_history` row. See below. `fresh` (admin only, otherwise 403) skips the answer cache and replaces its entry. |
+| `/api/v1/queries` | GET | — | **Admin only** (401/403 otherwise). Past query/answer/result records including `citations`, `citation_stats` and `rule_references` (`null` for rows saved before citations), newest first (`?limit=&offset=`, default `limit=50, offset=0`) |
+| `/api/v1/admin/usage` | GET | — | **Admin only.** Spend and outcome counts per UTC day, today's cache hit rate, today's busiest IP buckets. |
+| `/api/v1/auth/login` | POST | `{"password": str}` | Log in as admin; sets a signed session cookie. |
+| `/api/v1/auth/logout` | POST | — | Clear the admin session cookie. |
+| `/api/v1/auth/me` | GET | — | `{"is_admin": bool}` for the current session. |
 | `/api/v1/rules/{rule_id}` | GET | — | One Comprehensive Rules entry: `rule_id`, `text`, `ancestors` (top-level first), direct `subrules`, `rules_ingested_at`. Case-insensitive, tolerates a trailing `.`; 404 for unknown IDs |
 | `/api/v1/ingest` | POST | — | Trigger `mtg_worker.ingest`; returns `{"task_id"}` |
 | `/api/v1/embed` | POST | `{"limit": "all" \| int}` | Trigger `mtg_worker.embed`; returns `{"task_id"}` |
@@ -173,6 +177,12 @@ Or open http://localhost:3000, type a question, and submit.
   the rules (unknown ones stay plain text and are logged).
 - `citation_stats` — `{cited_count, invalid_count, uncited_answer}`;
   `uncited_answer` is true when an answer was generated but cites nothing.
+- `cached_at` — set when this answer came from the answer cache: when it
+  was first generated. `null` for a freshly generated answer.
+- `degraded` — why no answer was generated when cost gating is on:
+  `"ip_quota"` or `"global_budget"`; `null` otherwise (see "Cost gating").
+- `answers_remaining` — AI answers this visitor has left today; `null`
+  when gating is off or the caller is admin.
 
 ## Configuration
 
@@ -323,9 +333,10 @@ curl localhost:8000/api/v1/config     # 404 means eval mode is still off
 
 With eval mode off, a request with non-empty `overrides` gets a 403 and
 `/api/v1/config` returns 404. Requests the harness sends carry
-`"source": "eval"`, and the API never saves those to query history. This
-applies with or without eval mode, so eval runs never show up in
-`GET /api/v1/queries` or the History page.
+`"source": "eval"`; the API skips saving those to query history, but only
+in eval mode. Outside eval mode a `"source": "eval"` request is saved,
+gated and metered like any other query, so it only stays out of
+`GET /api/v1/queries` and the History page while eval mode is on.
 
 ### Running
 
@@ -415,9 +426,13 @@ an override of the dev compose file.
 2. On the `frontend` service, set the domain (e.g. `https://rules.example.com`).
    Leave the other services without domains.
 3. Environment variables: set `MTG_API_GEMINI_API_KEY`. Coolify generates
-   `SERVICE_PASSWORD_POSTGRES` and `SERVICE_PASSWORD_WEB` itself. Optional:
-   `MTG_WEB_AUTH_USER` (default `admin`), `MTG_API_GEMINI_MODEL`,
-   `MTG_API_EMBED_THREADS` (default 1).
+   `SERVICE_PASSWORD_POSTGRES`, `SERVICE_PASSWORD_WEB` and
+   `SERVICE_PASSWORD_ADMIN` itself. Optional: `MTG_WEB_AUTH_USER` (default
+   `admin`), `MTG_API_GEMINI_MODEL`, `MTG_API_EMBED_THREADS` (default 1),
+   `MTG_API_DAILY_BUDGET_USD` (default $1), the `MTG_API_IP_DAILY_LLM_LIMIT` /
+   `MTG_API_IP_WINDOW_LLM_LIMIT` per-visitor limits, and the
+   `MTG_API_GEMINI_INPUT_PRICE_PER_MTOK` / `MTG_API_GEMINI_OUTPUT_PRICE_PER_MTOK`
+   price overrides (see "Cost gating").
 4. Deploy. On the first deploy the backend crash-loops and the frontend
    doesn't start until the data is seeded (below): the backend refuses to
    start without the parsed rules and cards.
@@ -436,17 +451,40 @@ The backend also runs with `MTG_API_TASK_ENDPOINTS=false`, so `/ingest`,
 `/embed` and `/tasks` return 404 (production has no Celery worker), and
 with eval mode off.
 
-To open the site to the public, remove `MTG_WEB_AUTH_PASSWORD` from the
-frontend in `docker-compose.prod.yml`. Before you do, add rate limiting on
-`/api/v1/query` (every query is a paid Gemini call), and restrict
-`/api/v1/queries`, which shows every visitor's questions.
+### Cost gating
+
+Every AI answer is a paid Gemini call, so the backend meters them
+(`MTG_API_GATING_ENABLED=true` in production):
+
+- **Global cap:** once today's recorded spend (UTC day) reaches
+  `MTG_API_DAILY_BUDGET_USD` (default $1), answers pause until UTC midnight.
+  Spend is Gemini's real token counts × the configured prices, stored per
+  call in the `llm_usage` table.
+- **Per visitor:** 20 AI answers per UTC day and at most 5 per 10 minutes
+  per IP (IPv6 grouped by /64). nginx also limits `/api` to about 1 request
+  per second per address (burst 5, 2 at once) and the login to 5 per minute.
+- **Over a limit** the visitor still gets the matching rules, rulings and
+  cards; only the AI answer is skipped, with a note saying why.
+- **Answer cache:** a repeated question (ignoring case, spacing and
+  trailing punctuation) is served from `answer_cache` with a "Cached
+  answer" badge and costs nothing. Every `deploy/sync_data.py` run writes a
+  new `data_version` marker, so no cached answer survives a data update.
+- **Admin:** `/login` (not linked anywhere) with `SERVICE_PASSWORD_ADMIN`
+  shows History and Usage, offers "Get a fresh answer" on cached answers,
+  and is exempt from the limits (admin usage still counts toward the day's
+  spend).
+- **Backstop:** a Google Cloud billing budget alert (~$30/month) on the
+  Gemini project. It alerts but does not stop spending.
+
+Usage rows keep raw IP buckets and have no retention limit yet.
 
 ### Seeding the data
 
 [`deploy/sync_data.py`](deploy/sync_data.py) copies this machine's data into
 the deployed stack over SSH. It sends the local Qdrant collection (as a
-snapshot) and the latest `cards_*.jsonl` / `rules_*.jsonl`, restarts the
-backend, and starts the rest of the stack:
+snapshot) and the latest `cards_*.jsonl` / `rules_*.jsonl`, writes a fresh
+`data_version` marker (see "Cost gating" — this invalidates the answer
+cache), restarts the backend, and starts the rest of the stack:
 
 ```bash
 make sync-prod HOST=root@your-server     # or: python deploy/sync_data.py --host root@your-server
@@ -486,9 +524,10 @@ Hetzner images come without swap. Add a 2 GB swapfile as a safety net on a
 - Only oracle-level card identity is modeled — no per-printing/set data.
 - Data refreshes are manual: re-ingest, re-embed (which prunes stale points),
   then `make sync-prod`. Nothing schedules them.
-- No user accounts or rate limiting. Production is private behind
-  basic auth, and TLS is handled by Coolify's proxy (see "Production
-  deployment").
+- No user accounts. AI answers are rate limited per IP and by a global
+  daily budget (see "Cost gating"); nginx also caps `/api` request rate per
+  address. Production is private behind basic auth, and TLS is handled by
+  Coolify's proxy (see "Production deployment").
 - Citations are validated for existence only: a cited `[n]` is guaranteed to
   be a source that was in the context, not that it supports the sentence.
 - A raw rule number in the answer that exists in the rules is linked even if

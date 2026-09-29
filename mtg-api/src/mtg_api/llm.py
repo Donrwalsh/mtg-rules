@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from mtg_api.models import QueryResult
 
 # Bump by hand whenever _SYSTEM_PROMPT or the user-message template changes:
@@ -54,6 +56,27 @@ def build_context(results: list[QueryResult]) -> tuple[str, dict[int, QueryResul
     return "\n\n".join(blocks), sources
 
 
+@dataclass(frozen=True)
+class Generation:
+    """An answer and what it cost. Thinking tokens bill as output tokens."""
+
+    text: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    thinking_tokens: int = 0
+    # Gemini's candidates[0].finishReason: "STOP" for a complete answer,
+    # "MAX_TOKENS" / "SAFETY" / "RECITATION" / ... for a truncated or
+    # blocked one. None when the API didn't send one.
+    finish_reason: str | None = None
+
+    def usage(self) -> dict[str, int]:
+        return {
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "thinking_tokens": self.thinking_tokens,
+        }
+
+
 class GeminiAnswerer:
     """Answerer via the Gemini API's generateContent."""
 
@@ -64,6 +87,7 @@ class GeminiAnswerer:
         base_url: str = "https://generativelanguage.googleapis.com",
         temperature: float | None = None,
         max_tokens: int | None = None,
+        thinking_level: str | None = None,
         timeout: float = 60.0,
     ):
         self._api_key = api_key
@@ -71,13 +95,14 @@ class GeminiAnswerer:
         self._base_url = base_url.rstrip("/")
         self._temperature = temperature
         self._max_tokens = max_tokens
+        self._thinking_level = thinking_level
         self._timeout = timeout
 
     @property
     def model(self) -> str:
         return self._model
 
-    def generate(self, query: str, context: str) -> str:
+    def generate(self, query: str, context: str) -> Generation:
         import httpx
 
         body: dict = {
@@ -95,6 +120,8 @@ class GeminiAnswerer:
         if self._max_tokens is not None:
             # Gemini counts thinking tokens against this limit too.
             config["maxOutputTokens"] = self._max_tokens
+        if self._thinking_level is not None:
+            config["thinkingConfig"] = {"thinkingLevel": self._thinking_level}
         if config:
             body["generationConfig"] = config
         response = httpx.post(
@@ -111,5 +138,12 @@ class GeminiAnswerer:
             reason = data.get("promptFeedback", {}).get("blockReason", "no candidates")
             raise RuntimeError(f"Gemini returned no answer: {reason}")
         parts = candidates[0].get("content", {}).get("parts", [])
+        usage = data.get("usageMetadata") or {}
         # Skip thought-summary parts; keep only the answer text.
-        return "".join(p.get("text", "") for p in parts if not p.get("thought"))
+        return Generation(
+            text="".join(p.get("text", "") for p in parts if not p.get("thought")),
+            input_tokens=usage.get("promptTokenCount", 0),
+            output_tokens=usage.get("candidatesTokenCount", 0),
+            thinking_tokens=usage.get("thoughtsTokenCount", 0),
+            finish_reason=candidates[0].get("finishReason"),
+        )

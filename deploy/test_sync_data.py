@@ -4,6 +4,7 @@ import tarfile
 
 import pytest
 
+import sync_data
 from sync_data import (
     SyncError,
     find_target,
@@ -181,3 +182,14 @@ def test_write_tar_stores_files_under_their_base_names(tmp_path):
     with tarfile.open(fileobj=buf) as tar:
         assert tar.getnames() == ["cards_2026-09-26.jsonl"]
         assert tar.extractfile("cards_2026-09-26.jsonl").read() == b"card\n"
+
+
+# --- write_data_version -------------------------------------------------------
+
+
+def test_write_data_version_writes_an_iso_timestamp(tmp_path):
+    from datetime import UTC, datetime
+
+    path = sync_data.write_data_version(tmp_path, datetime(2026, 9, 29, 15, 0, 7, tzinfo=UTC))
+    assert path == tmp_path / "data_version"
+    assert path.read_text(encoding="utf-8") == "2026-09-29T15:00:07+00:00\n"

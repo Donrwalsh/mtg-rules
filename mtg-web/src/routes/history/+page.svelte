@@ -64,7 +64,7 @@
       {#each rows as row (row.id)}
         <tr on:click={() => toggle(row.id)} style="cursor: pointer">
           <td>{row.id}</td>
-          <td>{row.query}</td>
+          <td>{row.query} {#if row.cached}<span class="note">(cached)</span>{/if}</td>
           <td>{truncate(row.answer)}</td>
           <td>{row.model}</td>
           <td>{row.error ?? ''}</td>
