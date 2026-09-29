@@ -103,6 +103,7 @@ def build_answerer(s: Settings) -> GeminiAnswerer:
         base_url=s.gemini_url,
         temperature=s.generation_temperature,
         max_tokens=s.generation_max_tokens,
+        thinking_level=s.generation_thinking_level,
         timeout=s.gemini_timeout_seconds,
     )
 
@@ -304,9 +305,11 @@ def query(
     context, sources = build_context(all_results)
     answer = None
     error = None
+    generation = None
     if request.generate:
         try:
-            answer = answerer.generate(request.query, context)
+            generation = answerer.generate(request.query, context)
+            answer = generation.text
         except Exception as exc:
             logger.exception("Answer generation failed (%s)", generator_label(s))
             error = str(exc)
@@ -343,6 +346,7 @@ def query(
             "context_hash": hashlib.sha256(context.encode("utf-8")).hexdigest(),
             "prompt_version": PROMPT_VERSION,
             "generator": generator_label(s),
+            "usage": generation.usage() if generation else None,
         }
 
     return QueryResponse(

@@ -4,6 +4,7 @@ from mtg_api.llm import (
     _SYSTEM_PROMPT,
     PROMPT_VERSION,
     GeminiAnswerer,
+    Generation,
     build_context,
     source_label,
 )
@@ -87,7 +88,7 @@ def test_gemini_answerer_posts_generate_content(monkeypatch):
         base_url="https://generativelanguage.googleapis.com/",
         timeout=30.0,
     ).generate("q", "ctx")
-    assert answer == "Trample carries over [1]."
+    assert answer.text == "Trample carries over [1]."
     assert sent["url"] == (
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
     )
@@ -112,7 +113,7 @@ def test_gemini_answerer_skips_thought_parts(monkeypatch):
         {"text": "[1]."},
     ]
     _capture_gemini_request(monkeypatch, {"candidates": [{"content": {"parts": parts}}]})
-    assert GeminiAnswerer("k", "m").generate("q", "ctx") == "Yes [1]."
+    assert GeminiAnswerer("k", "m").generate("q", "ctx").text == "Yes [1]."
 
 
 def test_gemini_answerer_raises_when_blocked(monkeypatch):
@@ -135,3 +136,38 @@ def test_gemini_answerer_exposes_its_model():
 
 def test_prompt_version_is_an_int():
     assert isinstance(PROMPT_VERSION, int)
+
+
+def test_gemini_answerer_sends_thinking_level(monkeypatch):
+    sent = _capture_gemini_request(monkeypatch)
+    GeminiAnswerer("k", "m", max_tokens=2048, thinking_level="low").generate("q", "ctx")
+    assert sent["json"]["generationConfig"] == {
+        "maxOutputTokens": 2048,
+        "thinkingConfig": {"thinkingLevel": "low"},
+    }
+
+
+def test_gemini_answerer_returns_token_usage(monkeypatch):
+    _capture_gemini_request(
+        monkeypatch,
+        {
+            "candidates": [{"content": {"parts": [{"text": "ok"}]}}],
+            "usageMetadata": {
+                "promptTokenCount": 1200,
+                "candidatesTokenCount": 150,
+                "thoughtsTokenCount": 300,
+                "totalTokenCount": 1650,
+            },
+        },
+    )
+    result = GeminiAnswerer("k", "m").generate("q", "ctx")
+    assert result == Generation(
+        text="ok", input_tokens=1200, output_tokens=150, thinking_tokens=300
+    )
+    assert result.usage() == {"input_tokens": 1200, "output_tokens": 150, "thinking_tokens": 300}
+
+
+def test_gemini_answerer_usage_defaults_to_zero(monkeypatch):
+    _capture_gemini_request(monkeypatch)  # no usageMetadata
+    result = GeminiAnswerer("k", "m").generate("q", "ctx")
+    assert (result.input_tokens, result.output_tokens, result.thinking_tokens) == (0, 0, 0)

@@ -8,7 +8,7 @@ from test_query import _FakeAnswerer, _FakeHit, _override
 
 from mtg_api import main
 from mtg_api.history import list_history
-from mtg_api.llm import PROMPT_VERSION, GeminiAnswerer, build_context
+from mtg_api.llm import PROMPT_VERSION, GeminiAnswerer, Generation, build_context
 from mtg_api.main import app
 from mtg_api.models import QueryResult
 
@@ -30,7 +30,7 @@ class _RecordingAnswerer:
 
     def generate(self, query, context):
         self.calls.append(query)
-        return "An answer."
+        return Generation(text="An answer.")
 
 
 def _two_rule_hits():
@@ -262,3 +262,21 @@ def test_config_never_includes_secrets(eval_mode, monkeypatch, tmp_path):
 
     for secret in ["AIza-very-secret", "hunter2", "gemini_api_key", "postgres_dsn", "broker_url"]:
         assert secret not in text
+
+
+def test_eval_fields_include_token_usage(eval_mode):
+    _override()
+    body = _post({"query": "q"}).json()
+    assert body["usage"] == {"input_tokens": 1000, "output_tokens": 100, "thinking_tokens": 200}
+
+
+def test_usage_is_null_outside_eval_mode():
+    _override()
+    assert _post({"query": "q"}).json()["usage"] is None
+
+
+def test_build_answerer_passes_the_thinking_level():
+    s = main.settings.model_copy(
+        update={"gemini_api_key": SecretStr("k"), "generation_thinking_level": "low"}
+    )
+    assert main.build_answerer(s)._thinking_level == "low"

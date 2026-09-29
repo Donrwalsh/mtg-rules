@@ -6,6 +6,7 @@ from mtg_api.card_matcher import CardMatcher
 from mtg_api.embedder import Embedder
 from mtg_api.history import list_history
 from mtg_api.keyword_matcher import KeywordMatcher
+from mtg_api.llm import Generation
 from mtg_api.main import (
     app,
     get_answerer,
@@ -76,7 +77,9 @@ class _FakeAnswerer:
     def generate(self, query, context):
         if self._raises:
             raise self._raises
-        return self._answer
+        return Generation(
+            text=self._answer, input_tokens=1000, output_tokens=100, thinking_tokens=200
+        )
 
 
 class _FailingEngine:

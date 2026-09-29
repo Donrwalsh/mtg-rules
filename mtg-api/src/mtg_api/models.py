@@ -68,6 +68,8 @@ class QueryResponse(BaseModel):
     context_hash: str | None = None
     prompt_version: int | None = None
     generator: str | None = None
+    # Eval mode only: this request's Gemini token counts.
+    usage: dict[str, int] | None = None
 
 
 class EmbedRequest(BaseModel):
