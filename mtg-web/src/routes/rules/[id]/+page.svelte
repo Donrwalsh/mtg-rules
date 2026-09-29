@@ -1,15 +1,18 @@
 <script lang="ts">
+  import { page } from '$app/state';
   import AppHeader from '$lib/AppHeader.svelte';
-  import { page } from '$app/stores';
   import { fetchRule, NotFoundError, type RuleDetail } from '$lib/api';
 
-  let rule: RuleDetail | null = null;
-  let notFound = false;
-  let error = '';
-  let loading = false;
+  let rule = $state<RuleDetail | null>(null);
+  let notFound = $state(false);
+  let error = $state('');
+  let loading = $state(false);
 
-  $: id = $page.params.id ?? '';
-  $: load(id);
+  const id = $derived(page.params.id ?? '');
+
+  $effect(() => {
+    load(id);
+  });
 
   async function load(ruleId: string) {
     loading = true;
@@ -33,11 +36,11 @@
   function parentGuess(ruleId: string): string | null {
     const sub = ruleId.match(/^(\d{3}\.\d+)[a-z]$/);
     if (sub) return sub[1];
-    const rule = ruleId.match(/^(\d{3})\.\d+$/);
-    return rule ? rule[1] : null;
+    const top = ruleId.match(/^(\d{3})\.\d+$/);
+    return top ? top[1] : null;
   }
 
-  $: parent = parentGuess(id);
+  const parent = $derived(parentGuess(id));
 </script>
 
 <svelte:head>
@@ -46,72 +49,55 @@
 
 <AppHeader />
 
-<main>
-  <p><a href="/">&larr; Back to search</a></p>
+<main class="mx-auto flex max-w-4xl flex-col gap-4 px-4 py-8 sm:px-8">
+  <p class="m-0 text-sm"><a href="/">&larr; Back to search</a></p>
 
   {#if loading}
-    <p>Loading rule {id}…</p>
+    <p class="m-0 text-sm text-fg-muted">Loading rule {id}…</p>
   {:else if notFound}
-    <h1>No rule {id}</h1>
-    <p>There's no rule {id} in the Comprehensive Rules loaded here.</p>
+    <h1 class="m-0 font-mono text-2xl font-medium">No rule {id}</h1>
+    <p class="m-0 text-fg-body">There's no rule {id} in the Comprehensive Rules loaded here.</p>
     {#if parent}
-      <p>Try <a href="/rules/{parent}">rule {parent}</a> instead.</p>
+      <p class="m-0 text-fg-body">Try <a href="/rules/{parent}">rule {parent}</a> instead.</p>
     {/if}
   {:else if error}
-    <p style="color: red">{error}</p>
+    <p role="alert" class="m-0 text-danger">{error}</p>
   {:else if rule}
     {#if rule.ancestors.length}
       <nav aria-label="Rule hierarchy">
-        <ol class="crumbs">
-          {#each rule.ancestors as ancestor}
-            <li><a href="/rules/{ancestor.rule_id}">{ancestor.rule_id} {ancestor.text}</a></li>
+        <ol class="m-0 flex list-none flex-wrap gap-1.5 p-0 font-mono text-[13px]">
+          {#each rule.ancestors as ancestor, i (ancestor.rule_id)}
+            <li class="flex gap-1.5">
+              <a href="/rules/{ancestor.rule_id}">{ancestor.rule_id} {ancestor.text}</a>
+              {#if i < rule.ancestors.length - 1}
+                <span aria-hidden="true" class="text-fg-muted">›</span>
+              {/if}
+            </li>
           {/each}
         </ol>
       </nav>
     {/if}
 
-    <h1>Rule {rule.rule_id}</h1>
-    <p class="rule-text">{rule.text}</p>
+    <h1 class="m-0 font-mono text-2xl font-medium">Rule {rule.rule_id}</h1>
+    <p class="m-0 text-[17px] leading-7 whitespace-pre-wrap text-fg-body">{rule.text}</p>
 
     {#if rule.subrules.length}
-      <h2>Subrules</h2>
-      <ul class="subrules">
-        {#each rule.subrules as subrule}
-          <li><a href="/rules/{subrule.rule_id}">{subrule.rule_id}</a> {subrule.text}</li>
+      <h2 class="mt-4 mb-0 text-lg font-medium">Subrules</h2>
+      <ul class="m-0 flex list-none flex-col gap-2 p-0">
+        {#each rule.subrules as subrule (subrule.rule_id)}
+          <li
+            class="rounded-[10px] border border-line bg-card px-4 py-3 text-sm leading-normal text-fg-body"
+          >
+            <a class="mr-2 font-mono" href="/rules/{subrule.rule_id}">{subrule.rule_id}</a>{subrule.text}
+          </li>
         {/each}
       </ul>
     {/if}
 
     {#if rule.rules_ingested_at}
-      <p class="meta">Comprehensive Rules as ingested {rule.rules_ingested_at}.</p>
+      <p class="text-[13px] text-fg-muted">
+        Comprehensive Rules as ingested {rule.rules_ingested_at}.
+      </p>
     {/if}
   {/if}
 </main>
-
-<style>
-  .crumbs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    list-style: none;
-    padding: 0;
-    margin: 0 0 0.5rem;
-    font-size: 0.9rem;
-  }
-  .crumbs li:not(:last-child)::after {
-    content: '›';
-    margin-left: 0.4rem;
-    color: #888;
-  }
-  .rule-text {
-    white-space: pre-wrap;
-    font-size: 1.05rem;
-  }
-  .subrules li {
-    margin-bottom: 0.4rem;
-  }
-  .meta {
-    color: #666;
-    font-size: 0.85rem;
-  }
-</style>
