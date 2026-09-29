@@ -15,10 +15,13 @@
   let loading = false;
 
   async function ask(fresh = false) {
+    // A fresh request must regenerate the question whose cached answer is
+    // on screen, not whatever is currently sitting in the input box.
+    const q = fresh && response ? response.query : query;
     error = '';
     loading = true;
     try {
-      response = await submitQuery(query, { fresh });
+      response = await submitQuery(q, { fresh });
     } catch (e) {
       error = e instanceof RateLimitedError ? e.message : String(e);
     } finally {
