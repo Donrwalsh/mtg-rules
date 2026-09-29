@@ -5,7 +5,7 @@ from pathlib import Path
 import typer
 
 from mtg_embed.config import settings
-from mtg_embed.pipeline import RunSummary, embed_and_store
+from mtg_embed.pipeline import RunSummary, embed_and_store, prune_stale
 from mtg_embed.sources.cards import load_card_chunks
 from mtg_embed.sources.rules import load_rule_chunks
 from mtg_embed.sources.rulings import load_ruling_chunks
@@ -22,11 +22,15 @@ def _latest(directory: Path, pattern: str) -> Path:
     return matches[-1]
 
 
-def _format_summary_line(source_name: str, summary: RunSummary) -> str:
+def _format_summary_line(
+    source_name: str, summary: RunSummary, pruned_skipped: bool = False
+) -> str:
     """Format a summary line for display, using source_name even when summary.source_type is empty."""
+    pruned = "skipped" if pruned_skipped else summary.pruned
     return (
         f"  {source_name}: embedded={summary.embedded} payload_updated={summary.payload_updated} "
-        f"skipped_unchanged={summary.skipped_unchanged} total_seen={summary.total_seen}"
+        f"skipped_unchanged={summary.skipped_unchanged} pruned={pruned} "
+        f"total_seen={summary.total_seen}"
     )
 
 
@@ -62,58 +66,48 @@ def run(
 
     summaries = []
     skipped_no_card = 0
+    # A --limit run sees only the first rows of each source; pruning then
+    # would delete everything after them.
+    prune = limit is None
+
+    def process(name: str, chunks: list) -> None:
+        summary = embed_and_store(
+            chunks, store, embedder, sparse_embedder, settings.retrieve_batch_size
+        )
+        if prune:
+            summary.pruned = prune_stale(chunks, store)
+        summaries.append((name, summary))
 
     if "rules" in sources:
         rules_path = _latest(settings.parsed_dir, "rules_*.jsonl")
-        chunks = load_rule_chunks(rules_path, limit=limit)
-        summaries.append(
-            (
-                "rules",
-                embed_and_store(
-                    chunks, store, embedder, sparse_embedder, settings.retrieve_batch_size
-                ),
-            )
-        )
+        process("rules", load_rule_chunks(rules_path, limit=limit))
 
     if "cards" in sources:
         cards_path = _latest(settings.parsed_dir, "cards_*.jsonl")
-        chunks = load_card_chunks(cards_path, limit=limit)
-        summaries.append(
-            (
-                "cards",
-                embed_and_store(
-                    chunks, store, embedder, sparse_embedder, settings.retrieve_batch_size
-                ),
-            )
-        )
+        process("cards", load_card_chunks(cards_path, limit=limit))
 
     if "rulings" in sources:
         rulings_path = _latest(settings.parsed_dir, "rulings_*.jsonl")
         cards_path = _latest(settings.parsed_dir, "cards_*.jsonl")
         chunks, skipped_no_card = load_ruling_chunks(rulings_path, cards_path, limit=limit)
-        summaries.append(
-            (
-                "rulings",
-                embed_and_store(
-                    chunks, store, embedder, sparse_embedder, settings.retrieve_batch_size
-                ),
-            )
-        )
+        process("rulings", chunks)
 
     typer.echo("")
     typer.echo("Embedding summary:")
-    grand_total = grand_embedded = grand_skipped = grand_repayloaded = 0
+    grand_total = grand_embedded = grand_skipped = grand_repayloaded = grand_pruned = 0
     for source_name, s in summaries:
-        typer.echo(_format_summary_line(source_name, s))
+        typer.echo(_format_summary_line(source_name, s, pruned_skipped=not prune))
         grand_total += s.total_seen
         grand_embedded += s.embedded
         grand_skipped += s.skipped_unchanged
         grand_repayloaded += s.payload_updated
+        grand_pruned += s.pruned
     if skipped_no_card:
         typer.echo(f"  rulings skipped (no matching card): {skipped_no_card}")
     typer.echo(
         f"  TOTAL: embedded={grand_embedded} payload_updated={grand_repayloaded} "
-        f"skipped_unchanged={grand_skipped} total_seen={grand_total}"
+        f"skipped_unchanged={grand_skipped} pruned={grand_pruned if prune else 'skipped'} "
+        f"total_seen={grand_total}"
     )
 
 

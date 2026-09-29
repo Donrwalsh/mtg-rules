@@ -59,6 +59,12 @@ by a single `docker-compose.yml`.
    `payload_hash`; when only metadata changed (same `content_hash`, different
    payload — e.g. a new field such as `scryfall_uri` or a ruling's
    `published_at`), the payload is overwritten in place without re-embedding.
+   Finally it **prunes** each source: points of that `source_type` that the
+   current files no longer produce are deleted. Examples are a card dropped
+   from Scryfall's data (the Alchemy `A-` cards in 2026-09), a rule removed
+   from the Comprehensive Rules, or a card's last ruling when it now has
+   fewer. Without the prune they would stay searchable. A `--limit` run
+   skips pruning, since it only sees part of each source.
 3. **Query** — `POST /api/v1/query` finds exact card names in the query with an
    Aho-Corasick `CardMatcher` (plus each matched card's own rulings, fetched
    from Qdrant by `oracle_id`) and keyword abilities with a `KeywordMatcher`
@@ -516,13 +522,12 @@ Hetzner images come without swap. Add a 2 GB swapfile as a safety net on a
 
 - The rules parser stops before the Glossary section.
 - Only oracle-level card identity is modeled — no per-printing/set data.
-- The diff/persistence stage (comparing parsed JSONL to the store by
-  `content_hash`, scheduling re-syncs) is not yet built; re-running embed is
-  idempotent for unchanged content.
-- No user accounts or CI. AI answers are rate limited per IP and by a
-  global daily budget (see "Cost gating"); nginx also caps `/api` request
-  rate per address. Production is private behind basic auth, and TLS is
-  handled by Coolify's proxy (see "Production deployment").
+- Data refreshes are manual: re-ingest, re-embed (which prunes stale points),
+  then `make sync-prod`. Nothing schedules them.
+- No user accounts. AI answers are rate limited per IP and by a global
+  daily budget (see "Cost gating"); nginx also caps `/api` request rate per
+  address. Production is private behind basic auth, and TLS is handled by
+  Coolify's proxy (see "Production deployment").
 - Citations are validated for existence only: a cited `[n]` is guaranteed to
   be a source that was in the context, not that it supports the sentence.
 - A raw rule number in the answer that exists in the rules is linked even if
