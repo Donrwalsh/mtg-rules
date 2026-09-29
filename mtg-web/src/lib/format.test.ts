@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calendarDate, resetTime, shortDate } from './format';
+import { calendarDate, historyTime, resetTime, shortDate } from './format';
 
 // ICU may use U+202F before AM/PM; compare with plain spaces.
 const plain = (s: string) => s.replace(/\s/g, ' ');
@@ -17,5 +17,11 @@ describe('format', () => {
     const now = new Date('2026-09-29T15:00:00Z');
     expect(plain(resetTime(now, 'en-US', 'America/New_York'))).toBe('8:00 PM');
     expect(plain(resetTime(now, 'en-US', 'UTC'))).toBe('12:00 AM');
+  });
+});
+
+describe('historyTime', () => {
+  it('gives date and 24-hour time', () => {
+    expect(historyTime('2026-09-29T14:02:00Z', 'en-US', 'UTC')).toBe('Sep 29 · 14:02');
   });
 });
