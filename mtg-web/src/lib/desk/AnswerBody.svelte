@@ -55,7 +55,7 @@
      The paragraphs are pre-wrap, so the snippet only breaks lines inside tags. -->
 {#snippet run(list: Piece[])}{#each list as p, i (i)}{#if p.kind === 'text'}{#if p.sentence === marked && p.text.trim()}{p.text.slice(0, leadingSpace(p.text))}<mark
           class={[
-            'rounded-[3px] px-[3px]',
+            'rounded-[2px]',
             markRuling ? 'bg-teal-mark text-teal-mark-fg' : 'bg-gold-mark text-gold-hover'
           ]}>{p.text.slice(leadingSpace(p.text))}</mark
         >{:else}{p.text}{/if}{:else if p.kind === 'rule'}<RuleLink

@@ -1,135 +1,197 @@
 <script lang="ts">
-  import { MAX_QUERY_CHARS, RateLimitedError, submitQuery, type QueryResponse } from '$lib/api';
+  import { onMount } from 'svelte';
+  import { MediaQuery } from 'svelte/reactivity';
+  import { page } from '$app/state';
   import { admin } from '$lib/admin.svelte';
+  import { RateLimitedError, submitQuery, type QueryResponse } from '$lib/api';
   import AppHeader from '$lib/AppHeader.svelte';
-  import CitedAnswer from '$lib/CitedAnswer.svelte';
-  import SourcesList from '$lib/SourcesList.svelte';
+  import AnswerBody from '$lib/desk/AnswerBody.svelte';
+  import EmptyState from '$lib/desk/EmptyState.svelte';
+  import ErrorState from '$lib/desk/ErrorState.svelte';
+  import EvidencePanel from '$lib/desk/EvidencePanel.svelte';
+  import Icon from '$lib/desk/Icon.svelte';
+  import LoadingState from '$lib/desk/LoadingState.svelte';
+  import MatchingSources from '$lib/desk/MatchingSources.svelte';
+  import RulesReferenced from '$lib/desk/RulesReferenced.svelte';
+  import SearchForm from '$lib/desk/SearchForm.svelte';
+  import SourceSheet from '$lib/desk/SourceSheet.svelte';
+  import StatusChips from '$lib/desk/StatusChips.svelte';
+  import StatusNotice from '$lib/desk/StatusNotice.svelte';
+  import { fromCitation, type EvidenceItem } from '$lib/evidence';
+  import { loadMeta, meta } from '$lib/meta.svelte';
+  import type { Selection } from '$lib/selection';
+  import { noticeFor } from '$lib/status';
+
+  type View = 'idle' | 'loading' | 'result' | 'failed';
 
   let query = $state('');
+  let view = $state<View>('idle');
   let response = $state<QueryResponse | null>(null);
-  let error = $state('');
-  let loading = $state(false);
+  let failure = $state('');
+  let rateLimited = $state('');
+  let selection = $state<Selection | null>(null);
+  let sheetItems = $state<EvidenceItem[]>([]);
+  let sheetIndex = $state(0);
+  let sheetOpen = $state(false);
+
+  const phone = new MediaQuery('max-width: 639px');
+  const desk = new MediaQuery('min-width: 1100px');
+  const hover = new MediaQuery('hover: hover');
+
+  const notice = $derived(response ? noticeFor(response) : null);
+  const citedItems = $derived(response ? response.citations.map(fromCitation) : []);
+
+  onMount(loadMeta);
+
+  // Dev only: ?mock=<fixture> answers from src/lib/fixtures (see the spec).
+  const mock = import.meta.env.DEV ? page.url.searchParams.get('mock') : null;
+
+  async function run(q: string, fresh: boolean): Promise<QueryResponse> {
+    if (import.meta.env.DEV && mock) return (await import('$lib/fixtures')).mockQuery(mock);
+    return submitQuery(q, { fresh });
+  }
 
   async function ask(fresh = false) {
     // A fresh request must regenerate the question whose cached answer is
     // on screen, not whatever is currently sitting in the input box.
-    const q = fresh && response ? response.query : query;
-    error = '';
-    loading = true;
+    const q = fresh && response ? response.query : query.trim();
+    if (!q) return;
+    const previous: View = response ? 'result' : 'idle';
+    rateLimited = '';
+    selection = null;
+    sheetOpen = false;
+    view = 'loading';
     try {
-      response = await submitQuery(q, { fresh });
+      response = await run(q, fresh);
+      view = 'result';
     } catch (e) {
-      error = e instanceof RateLimitedError ? e.message : String(e);
-    } finally {
-      loading = false;
+      if (e instanceof RateLimitedError) {
+        rateLimited = e.message;
+        view = previous;
+      } else {
+        failure = e instanceof Error ? e.message : String(e);
+        view = 'failed';
+      }
     }
   }
 
-  function onSubmit(event: SubmitEvent) {
-    event.preventDefault();
-    ask();
+  function openSheet(items: EvidenceItem[], index: number) {
+    sheetItems = items;
+    sheetIndex = Math.max(0, index);
+    sheetOpen = true;
   }
 
-  function formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  function select(number: number, occurrence: number) {
+    if (phone.current) {
+      selection = { number, occurrence };
+      openSheet(
+        citedItems,
+        citedItems.findIndex((i) => i.number === number)
+      );
+      return;
+    }
+    const same = selection?.number === number && selection.occurrence === occurrence;
+    selection = same ? null : { number, occurrence };
   }
 
-  // Quotas and the budget reset at UTC midnight; show it in local time.
-  function resetTime(): string {
-    const now = new Date();
-    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
-    return next.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  // Paging through cited sources in the sheet moves the highlight with it.
+  function onSheetChange(item: EvidenceItem) {
+    if (item.number === null) return;
+    if (selection?.number !== item.number) selection = { number: item.number, occurrence: null };
+  }
+
+  function onWindowKey(event: KeyboardEvent) {
+    if (event.key === 'Escape' && !sheetOpen) selection = null;
   }
 </script>
 
-<AppHeader />
+<svelte:head>
+  <title>MTG Rules</title>
+</svelte:head>
 
-<main class="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8 sm:px-8">
-  <h1 class="m-0 text-2xl font-medium">Ask a rules question</h1>
-  <form
-    class="flex items-center gap-3 rounded-[10px] border border-line-strong bg-field py-1.5 pr-1.5 pl-4"
-    onsubmit={onSubmit}
-  >
-    <label for="q" class="font-mono text-[13px] text-fg-muted">Q</label>
-    <input
-      id="q"
-      type="text"
-      class="min-h-8 min-w-0 flex-1 border-0 bg-transparent text-base text-fg outline-none"
-      bind:value={query}
-      maxlength={MAX_QUERY_CHARS}
-      placeholder="Ask a rules question"
-    />
-    <button
-      type="submit"
-      class="min-h-10 cursor-pointer rounded-[7px] border-0 bg-gold px-[18px] text-sm font-semibold text-gold-ink disabled:cursor-default disabled:bg-gold-off disabled:text-gold-off-fg"
-      disabled={loading}>{loading ? 'Searching…' : 'Search'}</button
+<svelte:window onkeydown={onWindowKey} />
+
+{#snippet headerForm()}
+  <SearchForm
+    bind:value={query}
+    loading={view === 'loading'}
+    retrievalOnly={!!response?.degraded}
+    maxChars={meta.max_query_chars}
+    error={rateLimited}
+    onsubmit={() => ask()}
+  />
+{/snippet}
+
+<AppHeader center={view === 'idle' ? undefined : headerForm} />
+
+{#if view === 'idle'}
+  <EmptyState
+    bind:query
+    error={rateLimited}
+    onsubmit={() => ask()}
+    onexample={(q) => {
+      query = q;
+      ask();
+    }}
+  />
+{:else if view === 'loading'}
+  <LoadingState />
+{:else if view === 'failed'}
+  <ErrorState message={failure} onretry={() => ask()} />
+{:else if response && notice}
+  <main class="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-6 sm:px-8 desk:px-12 desk:py-9">
+    <StatusNotice kind={notice} remaining={response.answers_remaining} />
+    <MatchingSources results={response.results} phone={phone.current} onopen={openSheet} />
+  </main>
+{:else if response?.answer}
+  <div class="desk:grid desk:grid-cols-[minmax(0,1fr)_460px] desk:items-start">
+    <main
+      class="flex flex-col gap-5 border-line px-[18px] py-5 max-desk:border-b sm:px-9 sm:py-8 desk:min-h-[calc(100vh-70px)] desk:border-r desk:px-12 desk:py-9"
     >
-  </form>
-  {#if query.length > MAX_QUERY_CHARS - 100}
-    <p class="m-0 text-right font-mono text-xs text-fg-muted">{query.length} / {MAX_QUERY_CHARS}</p>
-  {/if}
-
-  {#if error}
-    <p role="alert" class="m-0 text-sm text-danger">{error}</p>
-  {/if}
-
-  {#if response}
-    {#if response.degraded}
-      <p
-        role="status"
-        class="m-0 rounded-[10px] border border-notice-line bg-notice px-4 py-3 text-sm text-notice-fg"
-      >
-        {#if response.degraded === 'global_budget'}
-          AI answers are paused for today. They resume at {resetTime()}. Here are the matching
-          rules, rulings and cards.
-        {:else if response.answers_remaining}
-          You're asking quickly, so AI answers pause for a few minutes. Here are the matching
-          rules, rulings and cards.
-        {:else}
-          You've used today's AI answers. They reset at {resetTime()}. Here are the matching
-          rules, rulings and cards.
-        {/if}
-      </p>
-    {/if}
-
-    {#if response.answer}
-      <section class="flex flex-col gap-2">
-        {#if response.cached_at}
-          <p class="m-0 flex items-center gap-3 font-mono text-xs text-fg-muted">
-            <span class="rounded bg-chip px-2 py-0.5"
-              >cached · first generated {formatDate(response.cached_at)}</span
-            >
-            {#if admin.isAdmin}
-              <button
-                type="button"
-                class="min-h-9 cursor-pointer rounded-[7px] border border-line-strong bg-transparent px-3 font-sans text-sm text-gold"
-                onclick={() => ask(true)}
-                disabled={loading}>Get a fresh answer</button
-              >
-            {/if}
+      <StatusChips
+        {response}
+        isAdmin={admin.isAdmin}
+        loading={false}
+        compact={phone.current}
+        onfresh={() => ask(true)}
+      />
+      <AnswerBody
+        answer={response.answer}
+        citations={response.citations}
+        ruleReferences={response.rule_references}
+        {selection}
+        canHover={hover.current}
+        onselect={select}
+      />
+      {#if response.citation_stats.uncited_answer}
+        <div
+          class="flex items-start gap-3 rounded-[10px] border border-caution-line bg-caution-bg px-4 py-3.5"
+        >
+          <Icon name="info" class="mt-0.5 shrink-0 text-caution" />
+          <p class="m-0 text-sm leading-normal text-caution-fg">
+            This answer didn't point to any sources, so treat it with care. Check it against the
+            passages {desk.current ? 'on the right' : 'below'}, which were retrieved for your
+            question.
           </p>
-        {/if}
-        <CitedAnswer
-          answer={response.answer}
-          citations={response.citations}
-          ruleReferences={response.rule_references}
-        />
-        {#if response.citation_stats.uncited_answer}
-          <p class="m-0 text-sm text-caution">No sources cited</p>
-        {/if}
-      </section>
-    {/if}
+        </div>
+      {/if}
+      <RulesReferenced ruleIds={response.rule_references} boxed={desk.current} />
+    </main>
+    <div class="desk:sticky desk:top-0 desk:max-h-screen desk:overflow-y-auto">
+      <EvidencePanel
+        citations={response.citations}
+        results={response.results}
+        selectedNumber={selection?.number ?? null}
+        layout={desk.current ? 'side' : phone.current ? 'list' : 'grid'}
+        onopen={openSheet}
+      />
+    </div>
+  </div>
+{/if}
 
-    {#if response.answers_remaining !== null && !response.degraded}
-      <p class="m-0 font-mono text-xs text-fg-muted">
-        {response.answers_remaining} AI answer{response.answers_remaining === 1 ? '' : 's'} left today
-      </p>
-    {/if}
-
-    <SourcesList
-      citations={response.citations}
-      results={response.results}
-      expanded={!response.answer}
-    />
-  {/if}
-</main>
+<SourceSheet
+  items={sheetItems}
+  bind:index={sheetIndex}
+  bind:open={sheetOpen}
+  onchange={onSheetChange}
+/>
