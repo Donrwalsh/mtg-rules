@@ -14,7 +14,7 @@
   }
 </script>
 
-<span class="relative inline-block"
+<span class="relative"
   ><a
     href="/rules/{ruleId}"
     class="font-mono text-[0.9em]"
