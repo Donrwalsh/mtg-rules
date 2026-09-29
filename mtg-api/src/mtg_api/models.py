@@ -5,6 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
+from mtg_api.card_details import CardDetails
+
 
 class QueryRequest(BaseModel):
     query: str
@@ -31,6 +33,10 @@ class QueryResult(BaseModel):
     scryfall_uri: str | None = None
     # Set when the generated answer cites this result's context block.
     cited: bool = False
+    # Display data filled in just before responding (see mtg_api.enrich);
+    # never part of the LLM context.
+    card: CardDetails | None = None
+    heading: str | None = None
     # Same value as `source`, under the name the embed payloads use.
     source_type: str | None = None
 
@@ -50,6 +56,9 @@ class Citation(BaseModel):
     text: str
     url: str | None = None
     published_at: str | None = None
+    # Display data filled in just before responding (see mtg_api.enrich).
+    card: CardDetails | None = None
+    heading: str | None = None
 
 
 class CitationStats(BaseModel):

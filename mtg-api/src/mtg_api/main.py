@@ -36,6 +36,7 @@ from mtg_api.config import (
     settings,
 )
 from mtg_api.embedder import Embedder, load_fastembed_embedder
+from mtg_api.enrich import enrich_citations, enrich_results
 from mtg_api.history import list_history, save_history
 from mtg_api.keyword_matcher import KeywordMatcher
 from mtg_api.llm import (
@@ -318,6 +319,9 @@ def query(
             # overwrites this entry via _cache_put.
             logger.exception("Malformed answer-cache row for key %s; treating as a miss", key)
         else:
+            # Rows cached before enrichment existed lack card/heading.
+            enrich_results(cached_response.results, matcher, rules_index)
+            enrich_citations(cached_response.citations, matcher, rules_index)
             _record(engine, outcome="cached", **record)
             _save(
                 engine,
@@ -449,6 +453,8 @@ def query(
         card_results + card_ruling_results + keyword_results + rule_search_results + vector_results
     )
     context, sources = build_context(all_results)
+    # After build_context: display data must never reach the LLM.
+    enrich_results(all_results, matcher, rules_index)
     answer = None
     error = None
     generation = None
@@ -482,6 +488,7 @@ def query(
     citations = cited.citations if cited else []
     rule_references = cited.rule_references if cited else []
     citation_stats = cited.stats if cited else CitationStats()
+    enrich_citations(citations, matcher, rules_index)
 
     _save(
         engine,
