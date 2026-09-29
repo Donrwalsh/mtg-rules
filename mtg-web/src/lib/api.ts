@@ -2,6 +2,13 @@
 // /api to the backend.
 const API_URL = '';
 
+// Keep in step with the backend's MTG_API_MAX_QUERY_CHARS.
+export const MAX_QUERY_CHARS = 500;
+// Required on cookie-authenticated admin calls (see mtg_api/admin_auth.py).
+export const ADMIN_HEADER = 'X-Admin-Request';
+
+export class RateLimitedError extends Error {}
+
 export interface QueryResult {
   source: string;
   title: string;
@@ -42,18 +49,41 @@ export interface QueryResponse {
   citations: Citation[];
   rule_references: string[];
   citation_stats: CitationStats;
+  // Set when the answer came from the cache: when it was first generated.
+  cached_at: string | null;
+  // Why there's no answer: this visitor's quota, or the site's daily budget.
+  degraded: 'ip_quota' | 'global_budget' | null;
+  // AI answers this visitor has left today; null when unlimited.
+  answers_remaining: number | null;
 }
 
-export async function submitQuery(query: string): Promise<QueryResponse> {
+export async function submitQuery(
+  query: string,
+  { fresh = false }: { fresh?: boolean } = {}
+): Promise<QueryResponse> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (fresh) headers[ADMIN_HEADER] = '1';
   const resp = await fetch(`${API_URL}/api/v1/query`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query })
+    headers,
+    body: JSON.stringify(fresh ? { query, fresh } : { query })
   });
+  if (resp.status === 429) {
+    throw new RateLimitedError('Too many requests. Wait a few seconds and try again.');
+  }
   if (!resp.ok) {
     throw new Error(`query failed: ${resp.status}`);
   }
   return resp.json();
+}
+
+export async function fetchAdminStatus(): Promise<boolean> {
+  try {
+    const resp = await fetch(`${API_URL}/api/v1/auth/me`);
+    return resp.ok && (await resp.json()).is_admin === true;
+  } catch {
+    return false;
+  }
 }
 
 export interface QueryHistoryRow {
