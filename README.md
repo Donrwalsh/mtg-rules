@@ -409,9 +409,13 @@ an override of the dev compose file.
 2. On the `frontend` service, set the domain (e.g. `https://rules.example.com`).
    Leave the other services without domains.
 3. Environment variables: set `MTG_API_GEMINI_API_KEY`. Coolify generates
-   `SERVICE_PASSWORD_POSTGRES` and `SERVICE_PASSWORD_WEB` itself. Optional:
-   `MTG_WEB_AUTH_USER` (default `admin`), `MTG_API_GEMINI_MODEL`,
-   `MTG_API_EMBED_THREADS` (default 1).
+   `SERVICE_PASSWORD_POSTGRES`, `SERVICE_PASSWORD_WEB` and
+   `SERVICE_PASSWORD_ADMIN` itself. Optional: `MTG_WEB_AUTH_USER` (default
+   `admin`), `MTG_API_GEMINI_MODEL`, `MTG_API_EMBED_THREADS` (default 1),
+   `MTG_API_DAILY_BUDGET_USD` (default $1), the `MTG_API_IP_DAILY_LLM_LIMIT` /
+   `MTG_API_IP_WINDOW_LLM_LIMIT` per-visitor limits, and the
+   `MTG_API_GEMINI_INPUT_PRICE_PER_MTOK` / `MTG_API_GEMINI_OUTPUT_PRICE_PER_MTOK`
+   price overrides (see "Cost gating").
 4. Deploy. On the first deploy the backend crash-loops and the frontend
    doesn't start until the data is seeded (below): the backend refuses to
    start without the parsed rules and cards.
@@ -430,17 +434,40 @@ The backend also runs with `MTG_API_TASK_ENDPOINTS=false`, so `/ingest`,
 `/embed` and `/tasks` return 404 (production has no Celery worker), and
 with eval mode off.
 
-To open the site to the public, remove `MTG_WEB_AUTH_PASSWORD` from the
-frontend in `docker-compose.prod.yml`. Before you do, add rate limiting on
-`/api/v1/query` (every query is a paid Gemini call), and restrict
-`/api/v1/queries`, which shows every visitor's questions.
+### Cost gating
+
+Every AI answer is a paid Gemini call, so the backend meters them
+(`MTG_API_GATING_ENABLED=true` in production):
+
+- **Global cap:** once today's recorded spend (UTC day) reaches
+  `MTG_API_DAILY_BUDGET_USD` (default $1), answers pause until UTC midnight.
+  Spend is Gemini's real token counts × the configured prices, stored per
+  call in the `llm_usage` table.
+- **Per visitor:** 20 AI answers per UTC day and at most 5 per 10 minutes
+  per IP (IPv6 grouped by /64). nginx also limits `/api` to about 1 request
+  per second per address (burst 5, 2 at once) and the login to 5 per minute.
+- **Over a limit** the visitor still gets the matching rules, rulings and
+  cards; only the AI answer is skipped, with a note saying why.
+- **Answer cache:** a repeated question (ignoring case, spacing and
+  trailing punctuation) is served from `answer_cache` with a "Cached
+  answer" badge and costs nothing. Every `deploy/sync_data.py` run writes a
+  new `data_version` marker, so no cached answer survives a data update.
+- **Admin:** `/login` (not linked anywhere) with `SERVICE_PASSWORD_ADMIN`
+  shows History and Usage, offers "Get a fresh answer" on cached answers,
+  and is exempt from the limits (admin usage still counts toward the day's
+  spend).
+- **Backstop:** a Google Cloud billing budget alert (~$30/month) on the
+  Gemini project. It alerts but does not stop spending.
+
+Usage rows keep raw IP buckets and have no retention limit yet.
 
 ### Seeding the data
 
 [`deploy/sync_data.py`](deploy/sync_data.py) copies this machine's data into
 the deployed stack over SSH. It sends the local Qdrant collection (as a
-snapshot) and the latest `cards_*.jsonl` / `rules_*.jsonl`, restarts the
-backend, and starts the rest of the stack:
+snapshot) and the latest `cards_*.jsonl` / `rules_*.jsonl`, writes a fresh
+`data_version` marker (see "Cost gating" — this invalidates the answer
+cache), restarts the backend, and starts the rest of the stack:
 
 ```bash
 make sync-prod HOST=root@your-server     # or: python deploy/sync_data.py --host root@your-server
