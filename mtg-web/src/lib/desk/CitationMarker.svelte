@@ -33,7 +33,7 @@
   }
 </script>
 
-<span class="relative inline-block"
+<span class="relative"
   ><a
     href="#source-{citation.number}"
     aria-current={active ? 'true' : undefined}
@@ -45,7 +45,9 @@
     onblur={() => (open = false)}
     onkeydown={(e) => e.key === 'Escape' && (open = false)}
     class={[
-      'inline-flex items-center rounded-[5px] border px-[5px] py-px font-mono text-xs leading-none no-underline max-sm:min-h-8 max-sm:px-2 max-sm:text-[13px]',
+      // Plain inline, not inline-block/flex: an atomic inline lets the line
+      // break between the marker and the full stop after it.
+      'rounded-[5px] border px-[5px] py-px font-mono text-xs leading-none no-underline [box-decoration-break:clone] max-sm:px-2 max-sm:py-1.5 max-sm:text-[13px]',
       active && ruling && 'border-teal bg-teal text-gold-ink hover:text-gold-ink',
       active && !ruling && 'border-gold bg-gold text-gold-ink hover:text-gold-ink',
       !active && 'border-line-muted text-fg-body hover:text-fg'
