@@ -64,6 +64,10 @@ class Generation:
     input_tokens: int = 0
     output_tokens: int = 0
     thinking_tokens: int = 0
+    # Gemini's candidates[0].finishReason: "STOP" for a complete answer,
+    # "MAX_TOKENS" / "SAFETY" / "RECITATION" / ... for a truncated or
+    # blocked one. None when the API didn't send one.
+    finish_reason: str | None = None
 
     def usage(self) -> dict[str, int]:
         return {
@@ -141,4 +145,5 @@ class GeminiAnswerer:
             input_tokens=usage.get("promptTokenCount", 0),
             output_tokens=usage.get("candidatesTokenCount", 0),
             thinking_tokens=usage.get("thoughtsTokenCount", 0),
+            finish_reason=candidates[0].get("finishReason"),
         )

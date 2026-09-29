@@ -501,7 +501,7 @@ def query(
         answers_remaining=remaining,
         **eval_fields,
     )
-    if key and answer:
+    if key and answer and generation and generation.finish_reason == "STOP":
         _cache_put(engine, key, request.query, response, now)
     return response
 

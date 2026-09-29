@@ -14,16 +14,21 @@ from mtg_api.usage import llm_usage, record_usage
 
 
 class _CountingAnswerer:
-    def __init__(self, raises=None):
+    def __init__(self, raises=None, finish_reason="STOP"):
         self.calls = 0
         self._raises = raises
+        self._finish_reason = finish_reason
 
     def generate(self, query, context):
         self.calls += 1
         if self._raises:
             raise self._raises
         return Generation(
-            text="Yes [1].", input_tokens=1_000_000, output_tokens=0, thinking_tokens=0
+            text="Yes [1].",
+            input_tokens=1_000_000,
+            output_tokens=0,
+            thinking_tokens=0,
+            finish_reason=self._finish_reason,
         )
 
 
@@ -146,6 +151,16 @@ def test_repeat_question_is_served_from_cache(gated):
     assert second["answers_remaining"] == 2  # cache hits are free
     assert _outcomes(engine) == ["generated", "cached"]
     assert [row["cached"] for row in list_history(engine)] == [True, False]
+
+
+def test_truncated_answer_is_returned_but_not_cached(gated):
+    engine, answerer = _setup(answerer=_CountingAnswerer(finish_reason="MAX_TOKENS"))
+    first = _post({"query": "trample"}).json()
+    assert first["answer"] == "Yes [1]."
+    second = _post({"query": "trample"}).json()
+    assert answerer.calls == 2
+    assert second["cached_at"] is None
+    assert second["answer"] == "Yes [1]."
 
 
 def test_failed_answers_are_not_cached():

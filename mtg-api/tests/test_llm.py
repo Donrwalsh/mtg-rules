@@ -171,3 +171,24 @@ def test_gemini_answerer_usage_defaults_to_zero(monkeypatch):
     _capture_gemini_request(monkeypatch)  # no usageMetadata
     result = GeminiAnswerer("k", "m").generate("q", "ctx")
     assert (result.input_tokens, result.output_tokens, result.thinking_tokens) == (0, 0, 0)
+
+
+def test_gemini_answerer_parses_finish_reason(monkeypatch):
+    _capture_gemini_request(
+        monkeypatch,
+        {
+            "candidates": [
+                {"content": {"parts": [{"text": "cut off"}]}, "finishReason": "MAX_TOKENS"}
+            ]
+        },
+    )
+    result = GeminiAnswerer("k", "m").generate("q", "ctx")
+    assert result.finish_reason == "MAX_TOKENS"
+
+
+def test_gemini_answerer_finish_reason_defaults_to_none_when_absent(monkeypatch):
+    _capture_gemini_request(
+        monkeypatch, {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}
+    )
+    result = GeminiAnswerer("k", "m").generate("q", "ctx")
+    assert result.finish_reason is None
