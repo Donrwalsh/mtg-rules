@@ -215,10 +215,6 @@ unset uses every core, so cap it on a host shared with other apps),
 `MTG_API_TASK_ENDPOINTS` (default true; false makes `/ingest`, `/embed`
 and `/tasks` return 404, for deployments without a worker).
 
-The frontend container reads `MTG_WEB_AUTH_PASSWORD` / `MTG_WEB_AUTH_USER`
-(default `admin`) at startup. With a password set, the whole site requires
-basic auth. Unset (the dev stack), it's open.
-
 The worker indexes with `sentence-transformers` while the backend embeds
 queries with fastembed's ONNX export of the same model; the two agree to
 cosine 1.0000 on the eval questions.
@@ -426,9 +422,8 @@ an override of the dev compose file.
 2. On the `frontend` service, set the domain (e.g. `https://rules.example.com`).
    Leave the other services without domains.
 3. Environment variables: set `MTG_API_GEMINI_API_KEY`. Coolify generates
-   `SERVICE_PASSWORD_POSTGRES`, `SERVICE_PASSWORD_WEB` and
-   `SERVICE_PASSWORD_ADMIN` itself. Optional: `MTG_WEB_AUTH_USER` (default
-   `admin`), `MTG_API_GEMINI_MODEL`, `MTG_API_EMBED_THREADS` (default 1),
+   `SERVICE_PASSWORD_POSTGRES` and `SERVICE_PASSWORD_ADMIN` itself.
+   Optional: `MTG_API_GEMINI_MODEL`, `MTG_API_EMBED_THREADS` (default 1),
    `MTG_API_DAILY_BUDGET_USD` (default $1), the `MTG_API_IP_DAILY_LLM_LIMIT` /
    `MTG_API_IP_WINDOW_LLM_LIMIT` per-visitor limits, and the
    `MTG_API_GEMINI_INPUT_PRICE_PER_MTOK` / `MTG_API_GEMINI_OUTPUT_PRICE_PER_MTOK`
@@ -439,13 +434,11 @@ an override of the dev compose file.
 
 ### Access
 
-The site is private while it's being tested. The frontend's nginx puts the
-whole site behind HTTP basic auth: every page and every `/api` call. Log in
-as `MTG_WEB_AUTH_USER` (default `admin`), with the `SERVICE_PASSWORD_WEB`
-value from the resource's environment variables in Coolify (you can replace
-it with your own). The browser sends the credentials with the SPA's
-same-origin API calls automatically. `/health` stays open for uptime
-monitoring.
+The site is public: anyone can search and ask questions, and AI answers are
+metered as described in "Cost gating". The one admin account logs in at
+`/login` (not linked anywhere) with the `SERVICE_PASSWORD_ADMIN` value from
+the resource's environment variables in Coolify, which unlocks History and
+Usage. `/health` is open for uptime monitoring.
 
 The backend also runs with `MTG_API_TASK_ENDPOINTS=false`, so `/ingest`,
 `/embed` and `/tasks` return 404 (production has no Celery worker), and
@@ -526,8 +519,8 @@ Hetzner images come without swap. Add a 2 GB swapfile as a safety net on a
   then `make sync-prod`. Nothing schedules them.
 - No user accounts. AI answers are rate limited per IP and by a global
   daily budget (see "Cost gating"); nginx also caps `/api` request rate per
-  address. Production is private behind basic auth, and TLS is handled by
-  Coolify's proxy (see "Production deployment").
+  address. Production is public, and TLS is handled by Coolify's proxy
+  (see "Production deployment").
 - Citations are validated for existence only: a cited `[n]` is guaranteed to
   be a source that was in the context, not that it supports the sentence.
 - A raw rule number in the answer that exists in the rules is linked even if

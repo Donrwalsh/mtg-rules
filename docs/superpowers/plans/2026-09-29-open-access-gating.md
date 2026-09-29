@@ -3026,9 +3026,9 @@ This task is done together with the user: it touches the live server and Coolify
 - Modify: `docker-compose.prod.yml`, `mtg-web/nginx.conf`, `mtg-web/Dockerfile`, `README.md`
 - Delete: `mtg-web/40-basic-auth.sh`
 
-- [ ] **Step 1:** In `docker-compose.prod.yml`, remove `MTG_WEB_AUTH_USER` / `MTG_WEB_AUTH_PASSWORD` from the frontend and the basic-auth bullet (and `SERVICE_PASSWORD_WEB`) from the header comment.
-- [ ] **Step 2:** In `nginx.conf`, remove the `include /etc/nginx/auth.conf;` line with its comment, and `auth_basic off;` in `location = /health`.
-- [ ] **Step 3:** In `mtg-web/Dockerfile`, remove the `COPY --chmod=755 40-basic-auth.sh …` line. Run `git rm mtg-web/40-basic-auth.sh`.
-- [ ] **Step 4:** README: rewrite "Access" to say the site is public, gated as described in "Cost gating", with admin access at `/login`. Drop the basic-auth instructions and the `SERVICE_PASSWORD_WEB` mention in Coolify setup.
-- [ ] **Step 5:** Verify: `cd mtg-web && docker build .` succeeds; `docker compose up -d --build frontend && docker compose exec frontend nginx -t` reports ok; http://localhost:3000 loads with no password prompt.
+- [x] **Step 1:** In `docker-compose.prod.yml`, remove `MTG_WEB_AUTH_USER` / `MTG_WEB_AUTH_PASSWORD` from the frontend and the basic-auth bullet (and `SERVICE_PASSWORD_WEB`) from the header comment.
+- [x] **Step 2:** In `nginx.conf`, remove the `include /etc/nginx/auth.conf;` line with its comment, and `auth_basic off;` in `location = /health`.
+- [x] **Step 3:** In `mtg-web/Dockerfile`, remove the `COPY --chmod=755 40-basic-auth.sh …` line. Run `git rm mtg-web/40-basic-auth.sh`.
+- [x] **Step 4:** README: rewrite "Access" to say the site is public, gated as described in "Cost gating", with admin access at `/login`. Drop the basic-auth instructions and the `SERVICE_PASSWORD_WEB` mention in Coolify setup.
+- [x] **Step 5:** Verify: `cd mtg-web && docker build .` succeeds; `docker compose up -d --build frontend && docker compose exec frontend nginx -t` reports ok; http://localhost:3000 loads with no password prompt.
 - [ ] **Step 6:** Commit (`feat: open the site to the public`), push, and PR with user approval. After deploy, confirm the site loads without a prompt and the Usage page keeps counting.

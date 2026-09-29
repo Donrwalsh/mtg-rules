@@ -10,14 +10,10 @@
 #   the SPA and proxies /api to the backend over the private network.
 # - Memory/CPU caps so this app can't starve its neighbours, bounded logs,
 #   healthchecks and restart policies.
-# - The whole site is behind HTTP basic auth (user MTG_WEB_AUTH_USER,
-#   default "admin"; password SERVICE_PASSWORD_WEB) while it's being tested.
-#   To open it to the public, remove MTG_WEB_AUTH_PASSWORD below.
-# - SERVICE_PASSWORD_POSTGRES, SERVICE_PASSWORD_WEB and SERVICE_PASSWORD_ADMIN
-#   are Coolify magic variables: Coolify generates them on first deploy and
-#   shows them in the resource's environment variables. The only variable to
-#   set by hand is MTG_API_GEMINI_API_KEY (the backend refuses to start
-#   without it).
+# - SERVICE_PASSWORD_POSTGRES and SERVICE_PASSWORD_ADMIN are Coolify magic
+#   variables: Coolify generates them on first deploy and shows them in the
+#   resource's environment variables. The only variable to set by hand is
+#   MTG_API_GEMINI_API_KEY (the backend refuses to start without it).
 
 x-logging: &logging
   driver: json-file
@@ -128,9 +124,6 @@ services:
   frontend:
     build: ./mtg-web
     restart: unless-stopped
-    environment:
-      MTG_WEB_AUTH_USER: ${MTG_WEB_AUTH_USER:-admin}
-      MTG_WEB_AUTH_PASSWORD: ${SERVICE_PASSWORD_WEB}
     depends_on:
       backend:
         condition: service_healthy
