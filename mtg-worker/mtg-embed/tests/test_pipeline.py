@@ -3,7 +3,7 @@ from qdrant_client.http import models as qmodels
 
 from mtg_embed.embedder import Embedder
 from mtg_embed.models import EmbeddableChunk
-from mtg_embed.pipeline import embed_and_store
+from mtg_embed.pipeline import embed_and_store, prune_stale
 from mtg_embed.qdrant_store import QdrantStore
 from mtg_embed.sparse_embedder import SparseEmbedder
 
@@ -247,3 +247,62 @@ def test_point_stored_without_payload_hash_gets_payload_rewritten_once():
     assert model.encode_calls == 0
     assert (first.embedded, first.payload_updated, first.skipped_unchanged) == (0, 1, 0)
     assert (second.embedded, second.payload_updated, second.skipped_unchanged) == (0, 0, 1)
+
+
+def _stored(store: QdrantStore, chunks: list[EmbeddableChunk]) -> None:
+    embed_and_store(chunks, store, Embedder(FakeModel()), SparseEmbedder(FakeSparseModel()))
+
+
+def _source_chunk(point_id: str, source_type: str) -> EmbeddableChunk:
+    return EmbeddableChunk(
+        point_id=point_id,
+        source_type=source_type,
+        text_to_embed=f"text for {point_id}",
+        content_hash="h",
+        payload={"source_type": source_type, "content_hash": "h", "text": "x"},
+    )
+
+
+ID_1 = "11111111-1111-1111-1111-111111111111"
+ID_2 = "22222222-2222-2222-2222-222222222222"
+ID_3 = "33333333-3333-3333-3333-333333333333"
+
+
+def test_prune_deletes_points_the_source_no_longer_produces():
+    # e.g. a card dropped from Scryfall's data, or a rule removed from the CR.
+    store = _fresh_store()
+    _stored(store, [_chunk(ID_1, "h1"), _chunk(ID_2, "h2")])
+
+    pruned = prune_stale([_chunk(ID_1, "h1")], store)
+
+    assert pruned == 1
+    assert store.point_ids("rule") == {ID_1}
+
+
+def test_prune_leaves_other_source_types_alone():
+    # A rules-only run must never delete cards or rulings.
+    store = _fresh_store()
+    _stored(store, [_source_chunk(ID_1, "rule"), _source_chunk(ID_2, "rule")])
+    _stored(store, [_source_chunk(ID_3, "oracle")])
+
+    pruned = prune_stale([_source_chunk(ID_1, "rule")], store)
+
+    assert pruned == 1
+    assert store.point_ids("oracle") == {ID_3}
+
+
+def test_prune_with_no_chunks_deletes_nothing():
+    # An empty source file must not wipe out the whole source.
+    store = _fresh_store()
+    _stored(store, [_chunk(ID_1, "h1")])
+
+    assert prune_stale([], store) == 0
+    assert store.point_ids("rule") == {ID_1}
+
+
+def test_prune_with_nothing_stale_deletes_nothing():
+    store = _fresh_store()
+    _stored(store, [_chunk(ID_1, "h1")])
+
+    assert prune_stale([_chunk(ID_1, "h1")], store) == 0
+    assert store.point_ids("rule") == {ID_1}

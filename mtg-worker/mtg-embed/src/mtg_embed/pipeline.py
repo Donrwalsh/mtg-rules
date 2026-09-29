@@ -15,6 +15,7 @@ class RunSummary:
     embedded: int
     skipped_unchanged: int
     payload_updated: int = 0
+    pruned: int = 0
 
 
 def _batched(items: list[EmbeddableChunk], size: int) -> list[list[EmbeddableChunk]]:
@@ -67,3 +68,21 @@ def embed_and_store(
         skipped_unchanged=skipped,
         payload_updated=payload_updated,
     )
+
+
+def prune_stale(chunks: list[EmbeddableChunk], store: QdrantStore) -> int:
+    """Delete stored points of this source that the current chunks no longer
+    produce: a card dropped from Scryfall's data, a rule removed from the CR,
+    a card's last ruling when it now has fewer. embed_and_store only visits
+    the current chunks, so without this those points would stay searchable.
+
+    Only touches points of the chunks' own source_type, and does nothing for
+    an empty chunk list, so a missing or empty source file can't wipe a
+    source. The caller must pass the source's complete chunk list (not a
+    --limit sample). Returns the number of points deleted.
+    """
+    if not chunks:
+        return 0
+    stale = store.point_ids(chunks[0].source_type) - {c.point_id for c in chunks}
+    store.delete(sorted(stale))
+    return len(stale)

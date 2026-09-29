@@ -41,3 +41,16 @@ def test_format_summary_line_preserves_source_name_on_zero_chunks():
     assert "skipped_unchanged=0" in line
     assert "payload_updated=0" in line
     assert "total_seen=0" in line
+
+
+def test_format_summary_line_reports_pruned_points():
+    summary = RunSummary(
+        source_type="oracle", total_seen=10, embedded=1, skipped_unchanged=9, pruned=216
+    )
+    assert "pruned=216" in _format_summary_line("cards", summary)
+
+
+def test_format_summary_line_says_when_prune_was_skipped():
+    # --limit runs see only part of each source, so they must not prune.
+    summary = RunSummary(source_type="rule", total_seen=5, embedded=5, skipped_unchanged=0)
+    assert "pruned=skipped" in _format_summary_line("rules", summary, pruned_skipped=True)
