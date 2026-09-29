@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import JSON, Column, DateTime, Integer, MetaData, Table, Text, func, select
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, MetaData, Table, Text, func, select
 from sqlalchemy.engine import Engine
 
 metadata = MetaData()
@@ -17,6 +17,7 @@ query_history = Table(
     Column("citations", JSON, nullable=True),
     Column("citation_stats", JSON, nullable=True),
     Column("rule_references", JSON, nullable=True),
+    Column("cached", Boolean, nullable=False, server_default="0"),
     Column("created_at", DateTime(timezone=True), nullable=False, server_default=func.now()),
 )
 
@@ -32,6 +33,7 @@ def save_history(
     citations: list[dict] | None = None,
     citation_stats: dict | None = None,
     rule_references: list[str] | None = None,
+    cached: bool = False,
 ) -> None:
     with engine.begin() as conn:
         conn.execute(
@@ -44,6 +46,7 @@ def save_history(
                 citations=citations,
                 citation_stats=citation_stats,
                 rule_references=rule_references,
+                cached=cached,
             )
         )
 

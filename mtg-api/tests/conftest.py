@@ -6,6 +6,10 @@ from sqlalchemy.pool import StaticPool
 
 from mtg_api.history import metadata as history_metadata
 
+# Side-effect imports to register tables on metadata
+_answer_cache = __import__("mtg_api.answer_cache", fromlist=[""])
+_usage = __import__("mtg_api.usage", fromlist=[""])
+
 
 def memory_engine() -> Engine:
     """A fresh in-memory SQLite engine with the query_history schema created.
