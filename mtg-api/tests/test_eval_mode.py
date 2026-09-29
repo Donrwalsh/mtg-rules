@@ -120,7 +120,7 @@ def test_retrieval_override_keeps_the_shared_answerer(eval_mode, monkeypatch):
     assert built == []
 
 
-def test_eval_source_is_not_saved_to_history():
+def test_eval_source_is_not_saved_to_history(eval_mode):
     engine = memory_engine()
     _override(engine=engine)
     _post({"query": "an eval question", "source": "eval"})
