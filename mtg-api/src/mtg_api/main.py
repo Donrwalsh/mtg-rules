@@ -620,6 +620,25 @@ def _rule_summary(rule: dict) -> dict:
     return {"rule_id": rule["rule_id"], "text": rule["text"]}
 
 
+@app.get("/api/v1/meta")
+def get_meta(rules_index: RulesIndex = Depends(get_rules_index)) -> dict:
+    """Public facts the UI states: the daily answer limit (null when not
+    gated) and how current the rules are."""
+    return {
+        "answers_per_day": settings.ip_daily_llm_limit if settings.gating_enabled else None,
+        "max_query_chars": settings.max_query_chars,
+        "rules_as_of": rules_index.ingested_at,
+    }
+
+
+@app.get("/api/v1/rules")
+def list_rules(rules_index: RulesIndex = Depends(get_rules_index)) -> dict:
+    return {
+        "sections": rules_index.table_of_contents(),
+        "rules_as_of": rules_index.ingested_at,
+    }
+
+
 @app.get("/api/v1/rules/{rule_id}")
 def get_rule(rule_id: str, rules_index: RulesIndex = Depends(get_rules_index)) -> dict:
     # Tolerate how people type rule numbers: "702.11B", "702.11b." in prose.
@@ -629,6 +648,7 @@ def get_rule(rule_id: str, rules_index: RulesIndex = Depends(get_rules_index)) -
         raise HTTPException(status_code=404, detail="Rule not found")
     return {
         **_rule_summary(rule),
+        "heading": rules_index.heading(normalized),
         "ancestors": [_rule_summary(r) for r in rules_index.ancestors(normalized)],
         "subrules": [_rule_summary(r) for r in rules_index.children(normalized)],
         "rules_ingested_at": rules_index.ingested_at,
