@@ -88,6 +88,14 @@
   const section = $derived(sectionOf(id));
   const rulesDate = $derived(entry?.rules_ingested_at ?? meta.rules_as_of);
 
+  // One string: {#if} blocks trim the spaces between these clauses.
+  const notFoundNote = $derived(
+    `It isn't in the Comprehensive Rules loaded here` +
+      (meta.rules_as_of ? ` (as of ${calendarDate(meta.rules_as_of)})` : '') +
+      '.' +
+      (suggestion ? ' The closest rule that exists is its parent.' : '')
+  );
+
   const isTitle = (text: string) => text.length <= 60 && !/[.:)]$/.test(text.trim());
   const label = (r: RuleSummary) => (isTitle(r.text) ? r.text : '');
 </script>
@@ -119,11 +127,7 @@
   <main class="flex flex-col items-center gap-4 px-4 py-16 text-center sm:py-24">
     <div class="font-mono text-[15px] text-fg-muted">{id}</div>
     <h1 class="m-0 text-[28px] font-semibold">There's no rule {id}</h1>
-    <p class="m-0 max-w-[520px] text-base leading-normal text-fg-soft">
-      It isn't in the Comprehensive Rules loaded here{#if meta.rules_as_of}
-        (as of {calendarDate(meta.rules_as_of)}){/if}.{#if suggestion}
-        The closest rule that exists is its parent.{/if}
-    </p>
+    <p class="m-0 max-w-[520px] text-base leading-normal text-fg-soft">{notFoundNote}</p>
     <div class="mt-2 flex flex-wrap justify-center gap-3">
       {#if suggestion}
         <a
