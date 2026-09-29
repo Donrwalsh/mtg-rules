@@ -7,7 +7,7 @@
   let error = '';
   let loading = false;
 
-  $: id = $page.params.id;
+  $: id = $page.params.id ?? '';
   $: load(id);
 
   async function load(ruleId: string) {
