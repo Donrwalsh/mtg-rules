@@ -89,3 +89,35 @@ def test_task_endpoints_on_by_default():
 def test_task_endpoints_env_override(monkeypatch):
     monkeypatch.setenv("MTG_API_TASK_ENDPOINTS", "false")
     assert Settings(_env_file=None).task_endpoints is False
+
+
+def test_gating_defaults():
+    s = Settings(_env_file=None)
+    assert s.gating_enabled is False
+    assert s.daily_budget_usd == 1.0
+    assert s.gemini_input_price_per_mtok == 0.0
+    assert s.gemini_output_price_per_mtok == 0.0
+    assert s.ip_daily_llm_limit == 20
+    assert s.ip_window_llm_limit == 5
+    assert s.ip_window_minutes == 10
+    assert s.max_query_chars == 500
+    assert s.answer_cache_enabled is True
+    assert s.admin_password.get_secret_value() == ""
+    assert s.generation_thinking_level is None
+
+
+def test_thinking_level_is_an_overridable_generation_setting():
+    from mtg_api.config import GENERATION_SETTINGS, OVERRIDABLE_SETTINGS
+
+    assert "generation_thinking_level" in OVERRIDABLE_SETTINGS
+    assert "generation_thinking_level" in GENERATION_SETTINGS
+
+
+def test_generator_label_without_thinking_level_is_unchanged():
+    s = Settings(_env_file=None, gemini_model="gemini-3.5-flash")
+    assert generator_label(s) == "gemini:gemini-3.5-flash"
+
+
+def test_generator_label_includes_thinking_level():
+    s = Settings(_env_file=None, gemini_model="gemini-3.5-flash", generation_thinking_level="low")
+    assert generator_label(s) == "gemini:gemini-3.5-flash:think=low"
