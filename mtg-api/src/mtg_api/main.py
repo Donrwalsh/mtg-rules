@@ -15,6 +15,8 @@ from qdrant_client import QdrantClient
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
+from mtg_api.admin_auth import require_admin
+from mtg_api.admin_auth import router as auth_router
 from mtg_api.card_matcher import CardMatcher, load_card_matcher, ordinary_words
 from mtg_api.celery_client import get_celery_client
 from mtg_api.citations import cite_answer
@@ -163,6 +165,8 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_router)
 
 
 @app.get("/health")
@@ -396,7 +400,7 @@ def get_task_status(task_id: str, client: Celery = Depends(get_celery_client)) -
     }
 
 
-@app.get("/api/v1/queries")
+@app.get("/api/v1/queries", dependencies=[Depends(require_admin)])
 def get_query_history(
     limit: int = 50,
     offset: int = 0,

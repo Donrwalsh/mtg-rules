@@ -27,3 +27,18 @@ def memory_engine() -> Engine:
     )
     history_metadata.create_all(engine)
     return engine
+
+
+def admin_client(monkeypatch, password: str = "pw"):
+    """A TestClient logged in as the admin, sending the X-Admin-Request
+    marker on every request."""
+    from fastapi.testclient import TestClient
+    from pydantic import SecretStr
+
+    from mtg_api.config import settings
+    from mtg_api.main import app
+
+    monkeypatch.setattr(settings, "admin_password", SecretStr(password))
+    client = TestClient(app, headers={"X-Admin-Request": "1"})
+    assert client.post("/api/v1/auth/login", json={"password": password}).status_code == 200
+    return client
