@@ -187,8 +187,6 @@ def test_gemini_answerer_parses_finish_reason(monkeypatch):
 
 
 def test_gemini_answerer_finish_reason_defaults_to_none_when_absent(monkeypatch):
-    _capture_gemini_request(
-        monkeypatch, {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]}
-    )
+    _capture_gemini_request(monkeypatch, {"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
     result = GeminiAnswerer("k", "m").generate("q", "ctx")
     assert result.finish_reason is None

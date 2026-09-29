@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -40,9 +41,10 @@ class Settings(BaseSettings):
     # Temperature 0 so the same question and context give the same answer.
     generation_temperature: float | None = 0.0
     generation_max_tokens: int | None = None
-    # Gemini 3.x thinkingConfig.thinkingLevel ("low", "high", ...). None
-    # means "don't send it": the model's default thinking applies.
-    generation_thinking_level: str | None = None
+    # Gemini 3.x thinkingConfig.thinkingLevel. None means "don't send it":
+    # the model's default thinking applies. A typo here would otherwise
+    # turn every generate call into a Gemini 400, burning visitor quota.
+    generation_thinking_level: Literal["minimal", "low", "medium", "high"] | None = None
     # Enables per-request overrides, eval response fields and
     # GET /api/v1/config. Never on in production.
     eval_mode: bool = False

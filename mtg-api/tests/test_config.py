@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from mtg_api.config import Settings, generator_label
 
 
@@ -121,3 +124,16 @@ def test_generator_label_without_thinking_level_is_unchanged():
 def test_generator_label_includes_thinking_level():
     s = Settings(_env_file=None, gemini_model="gemini-3.5-flash", generation_thinking_level="low")
     assert generator_label(s) == "gemini:gemini-3.5-flash:think=low"
+
+
+def test_generation_thinking_level_rejects_an_invalid_value():
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, generation_thinking_level="loww")
+
+
+def test_generation_thinking_level_accepts_each_valid_value():
+    for level in ("minimal", "low", "medium", "high"):
+        assert (
+            Settings(_env_file=None, generation_thinking_level=level).generation_thinking_level
+            == level
+        )

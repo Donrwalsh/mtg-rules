@@ -155,7 +155,7 @@ def test_repeat_question_is_served_from_cache(gated):
 
 
 def test_truncated_answer_is_returned_but_not_cached(gated):
-    engine, answerer = _setup(answerer=_CountingAnswerer(finish_reason="MAX_TOKENS"))
+    _, answerer = _setup(answerer=_CountingAnswerer(finish_reason="MAX_TOKENS"))
     first = _post({"query": "trample"}).json()
     assert first["answer"] == "Yes [1]."
     second = _post({"query": "trample"}).json()

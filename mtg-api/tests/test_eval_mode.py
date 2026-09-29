@@ -275,6 +275,20 @@ def test_usage_is_null_outside_eval_mode():
     assert _post({"query": "q"}).json()["usage"] is None
 
 
+def test_override_accepts_a_valid_thinking_level(eval_mode, monkeypatch):
+    monkeypatch.setattr(main, "build_answerer", lambda s: _FakeAnswerer("An answer."))
+    _override()
+    resp = _post({"query": "trample", "overrides": {"generation_thinking_level": "low"}})
+    assert resp.status_code == 200
+
+
+def test_override_rejects_an_invalid_thinking_level(eval_mode):
+    _override()
+    resp = _post({"query": "trample", "overrides": {"generation_thinking_level": "loww"}})
+    assert resp.status_code == 422
+    assert "generation_thinking_level" in resp.json()["detail"]
+
+
 def test_build_answerer_passes_the_thinking_level():
     s = main.settings.model_copy(
         update={"gemini_api_key": SecretStr("k"), "generation_thinking_level": "low"}
