@@ -60,8 +60,8 @@
       <h1 class="m-0 text-2xl font-semibold sm:text-[32px]">Comprehensive Rules</h1>
       {#if contents}
         <p class="m-0 text-[15px] text-fg-soft">
-          {total} rules in {contents.sections.length} sections{#if contents.rules_as_of}
-            · <span class="font-mono text-[13px]">as of {calendarDate(contents.rules_as_of)}</span
+          {total} rules in {contents.sections.length} sections{#if contents.rules_as_of}&nbsp;·
+            <span class="font-mono text-[13px]">as of {calendarDate(contents.rules_as_of)}</span
             >{/if}
         </p>
       {/if}
