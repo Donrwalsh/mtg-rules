@@ -50,6 +50,13 @@ class Card(BaseModel):
     # A link, not rules content: deliberately left out of content_hash so a
     # changed default printing never triggers a re-embed.
     scryfall_uri: str | None = None
+    # Display-only, like scryfall_uri: left out of content_hash so they
+    # never trigger a re-embed. Taken from the front face on multi-face cards.
+    power: str | None = None
+    toughness: str | None = None
+    loyalty: str | None = None
+    # Scryfall's "normal" image URL (query string kept: it's their cache buster).
+    image_uri: str | None = None
     content_hash: str = ""
 
     def model_post_init(self, context: Any, /) -> None:

@@ -277,3 +277,31 @@ def test_database_failure_does_not_break_ungated_answers():
     resp = _post({"query": "trample"})
     assert resp.status_code == 200
     assert resp.json()["answer"] == "Yes [1]."
+
+
+def test_cache_hit_rows_from_before_enrichment_are_enriched(gated):
+    engine, _ = _setup()
+    app.dependency_overrides[main.get_rules_index] = lambda: main.RulesIndex(
+        [
+            {"rule_id": "702", "text": "Keyword Abilities", "parent_id": None},
+            {"rule_id": "702.19", "text": "Trample", "parent_id": "702"},
+            {"rule_id": "702.19b", "text": "T.", "parent_id": "702.19"},
+        ]
+    )
+    first = _post({"query": "How does trample work?"}).json()
+    assert first["citations"][0]["heading"] == "Trample"
+    # Simulate a row cached before this change: strip the enrichment.
+    with engine.begin() as conn:
+        stored = dict(conn.execute(select(answer_cache.c.response)).scalar_one())
+        for r in stored["results"]:
+            r.pop("heading", None)
+            r.pop("card", None)
+        for c in stored["citations"]:
+            c.pop("heading", None)
+            c.pop("card", None)
+        conn.execute(answer_cache.update().values(response=stored))
+
+    second = _post({"query": "how does trample work"}).json()
+    assert second["cached_at"] is not None
+    assert second["results"][0]["heading"] == "Trample"
+    assert second["citations"][0]["heading"] == "Trample"

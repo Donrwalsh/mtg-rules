@@ -25,6 +25,7 @@ def test_rule_found_with_ancestors_and_ingest_date():
     assert resp.json() == {
         "rule_id": "702.11b",
         "text": "Can't be targeted by opponents.",
+        "heading": "Hexproof",
         "ancestors": [
             {"rule_id": "702", "text": "Keyword Abilities"},
             {"rule_id": "702.11", "text": "Hexproof"},
@@ -58,3 +59,22 @@ def test_unknown_rule_is_404():
     resp = _get("/api/v1/rules/702.99z")
     assert resp.status_code == 404
     assert resp.json() == {"detail": "Rule not found"}
+
+
+def test_rules_table_of_contents():
+    resp = _get("/api/v1/rules")
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "sections": [
+            {
+                "number": 7,
+                "title": "Additional Rules",
+                "rules": [{"rule_id": "702", "text": "Keyword Abilities"}],
+            }
+        ],
+        "rules_as_of": "2026-08-25",
+    }
+
+
+def test_rule_detail_carries_its_heading():
+    assert _get("/api/v1/rules/702.11b").json()["heading"] == "Hexproof"

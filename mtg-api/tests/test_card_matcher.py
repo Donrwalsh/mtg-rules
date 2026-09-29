@@ -110,3 +110,11 @@ def test_empty_card_list_returns_no_matches_without_raising():
 def test_no_matches_returns_empty_list():
     matcher = CardMatcher(CARDS)
     assert matcher.find_matches("just a generic rules question") == []
+
+
+def test_by_oracle_id_returns_the_loaded_row():
+    bolt = {"oracle_id": "oid-bolt", "name": "Lightning Bolt"}
+    matcher = CardMatcher([bolt, {"oracle_id": "oid-x", "name": "Counterspell"}])
+    assert matcher.by_oracle_id("oid-bolt") is bolt
+    assert matcher.by_oracle_id("missing") is None
+    assert matcher.by_oracle_id(None) is None

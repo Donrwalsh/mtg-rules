@@ -36,6 +36,7 @@ from mtg_api.config import (
     settings,
 )
 from mtg_api.embedder import Embedder, load_fastembed_embedder
+from mtg_api.enrich import enrich_citations, enrich_results
 from mtg_api.history import list_history, save_history
 from mtg_api.keyword_matcher import KeywordMatcher
 from mtg_api.llm import (
@@ -318,6 +319,9 @@ def query(
             # overwrites this entry via _cache_put.
             logger.exception("Malformed answer-cache row for key %s; treating as a miss", key)
         else:
+            # Rows cached before enrichment existed lack card/heading.
+            enrich_results(cached_response.results, matcher, rules_index)
+            enrich_citations(cached_response.citations, matcher, rules_index)
             _record(engine, outcome="cached", **record)
             _save(
                 engine,
@@ -449,6 +453,8 @@ def query(
         card_results + card_ruling_results + keyword_results + rule_search_results + vector_results
     )
     context, sources = build_context(all_results)
+    # After build_context: display data must never reach the LLM.
+    enrich_results(all_results, matcher, rules_index)
     answer = None
     error = None
     generation = None
@@ -482,6 +488,7 @@ def query(
     citations = cited.citations if cited else []
     rule_references = cited.rule_references if cited else []
     citation_stats = cited.stats if cited else CitationStats()
+    enrich_citations(citations, matcher, rules_index)
 
     _save(
         engine,
@@ -613,6 +620,25 @@ def _rule_summary(rule: dict) -> dict:
     return {"rule_id": rule["rule_id"], "text": rule["text"]}
 
 
+@app.get("/api/v1/meta")
+def get_meta(rules_index: RulesIndex = Depends(get_rules_index)) -> dict:
+    """Public facts the UI states: the daily answer limit (null when not
+    gated) and how current the rules are."""
+    return {
+        "answers_per_day": settings.ip_daily_llm_limit if settings.gating_enabled else None,
+        "max_query_chars": settings.max_query_chars,
+        "rules_as_of": rules_index.ingested_at,
+    }
+
+
+@app.get("/api/v1/rules")
+def list_rules(rules_index: RulesIndex = Depends(get_rules_index)) -> dict:
+    return {
+        "sections": rules_index.table_of_contents(),
+        "rules_as_of": rules_index.ingested_at,
+    }
+
+
 @app.get("/api/v1/rules/{rule_id}")
 def get_rule(rule_id: str, rules_index: RulesIndex = Depends(get_rules_index)) -> dict:
     # Tolerate how people type rule numbers: "702.11B", "702.11b." in prose.
@@ -622,6 +648,7 @@ def get_rule(rule_id: str, rules_index: RulesIndex = Depends(get_rules_index)) -
         raise HTTPException(status_code=404, detail="Rule not found")
     return {
         **_rule_summary(rule),
+        "heading": rules_index.heading(normalized),
         "ancestors": [_rule_summary(r) for r in rules_index.ancestors(normalized)],
         "subrules": [_rule_summary(r) for r in rules_index.children(normalized)],
         "rules_ingested_at": rules_index.ingested_at,

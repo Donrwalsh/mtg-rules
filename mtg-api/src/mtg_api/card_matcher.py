@@ -31,11 +31,18 @@ class CardMatcher:
         self._ordinary_words = {w.lower() for w in ordinary_words}
         self._cards_by_key: dict[str, dict] = {}
         self._automaton = ahocorasick.Automaton()
+        # References to the same rows, not copies: this adds a dict, not data.
+        self._cards_by_oracle_id: dict[str, dict] = {}
         for card in cards:
             key = card["name"].lower()
             self._cards_by_key[key] = card
+            if card.get("oracle_id"):
+                self._cards_by_oracle_id[card["oracle_id"]] = card
             self._automaton.add_word(key, key)
         self._automaton.make_automaton()
+
+    def by_oracle_id(self, oracle_id: str | None) -> dict | None:
+        return self._cards_by_oracle_id.get(oracle_id) if oracle_id else None
 
     def find_matches(self, query: str) -> list[dict]:
         if not self._cards_by_key:

@@ -556,3 +556,61 @@ def test_rules_search_skips_rules_already_in_the_results(monkeypatch):
     rule_ids = [r["rule_id"] for r in body["results"] if r["rule_id"]]
     assert rule_ids == ["704.5b"]
     assert body["results"][-1]["match_type"] == "vector_hit"
+
+
+def test_query_results_and_citations_carry_card_details_and_headings():
+    cards = [
+        {
+            "oracle_id": "oid-1",
+            "name": "Lightning Bolt",
+            "oracle_text": "Deals 3 damage.",
+            "type_line": "Instant",
+            "mana_cost": "{R}",
+            "image_uri": "https://cards.scryfall.io/normal/front/b/o/bolt.jpg?1",
+        }
+    ]
+    rules = [{"rule_id": "702", "text": "Keyword Abilities", "parent_id": None}, *HEXPROOF_RULES]
+    _override(cards=cards, rules=rules, answerer=_FakeAnswerer("Bolt [1] vs hexproof [2]."))
+    try:
+        body = (
+            TestClient(app)
+            .post("/api/v1/query", json={"query": "can Lightning Bolt target my hexproof creature"})
+            .json()
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    card, keyword = body["results"][0], body["results"][1]
+    assert card["card"]["type_line"] == "Instant"
+    assert card["card"]["image_small"] == "https://cards.scryfall.io/small/front/b/o/bolt.jpg?1"
+    assert keyword["rule_id"] == "702.11"
+    assert keyword["heading"] == "Hexproof"
+    by_number = {c["number"]: c for c in body["citations"]}
+    assert by_number[1]["card"]["name"] == "Lightning Bolt"
+    assert by_number[2]["heading"] == "Hexproof"
+
+
+def test_enrichment_does_not_change_the_llm_context():
+    seen = []
+
+    class _Recording(_FakeAnswerer):
+        def generate(self, query, context):
+            seen.append(context)
+            return super().generate(query, context)
+
+    cards = [
+        {
+            "oracle_id": "oid-1",
+            "name": "Lightning Bolt",
+            "oracle_text": "Deals 3 damage.",
+            "image_uri": "https://cards.scryfall.io/normal/front/b/o/bolt.jpg?1",
+        }
+    ]
+    _override(cards=cards, rules=HEXPROOF_RULES, answerer=_Recording())
+    try:
+        TestClient(app).post("/api/v1/query", json={"query": "Lightning Bolt vs hexproof"})
+    finally:
+        app.dependency_overrides.clear()
+    assert "scryfall.io" not in seen[0]
+    assert "Instant" not in seen[0]
+    assert "[2] Rule 702.11: Hexproof" in seen[0]
