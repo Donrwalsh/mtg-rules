@@ -81,7 +81,7 @@ services:
       # No Celery worker here: ingest/embed/tasks would only queue jobs that
       # never run. Data arrives via deploy/sync_data.py instead.
       MTG_API_TASK_ENDPOINTS: "false"
-      # Cost gating (see README "Access"): per-IP quotas and a daily cap on
+      # Cost gating (see README "Cost gating"): per-IP quotas and a daily cap on
       # Gemini spend. Prices are USD per 1M tokens (thinking bills as output),
       # checked on 2026-09-29 at ai.google.dev/gemini-api/docs/pricing.
       MTG_API_GATING_ENABLED: "true"
