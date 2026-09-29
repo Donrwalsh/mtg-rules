@@ -54,7 +54,15 @@ from mtg_api.qdrant_check import check_qdrant
 from mtg_api.retrieval import fetch_card_rulings, hybrid_search
 from mtg_api.rules_index import RulesIndex, load_rules_index
 from mtg_api.sparse_embedder import SparseEmbedder, load_bm25_sparse_embedder
-from mtg_api.usage import Gate, check_gate, cost_usd, ip_bucket, record_usage
+from mtg_api.usage import (
+    Gate,
+    check_gate,
+    check_gating_config,
+    cost_usd,
+    ip_bucket,
+    record_usage,
+    usage_summary,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +167,8 @@ def resolve_settings(overrides: dict[str, Any]) -> Settings:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Refuse to serve with gating on but no prices: every answer would look free.
+    check_gating_config(settings)
     # Warm the rules index, the card and keyword automatons, and both models
     # at container startup, not on the first request -- moves the ~20s cold-load cost
     # from the first query to `docker compose up` instead.
@@ -168,6 +178,7 @@ async def lifespan(app: FastAPI):
     get_dense_embedder()
     get_sparse_embedder()
     get_answerer()
+    get_data_version()
     yield
 
 
@@ -538,6 +549,11 @@ def get_query_history(
     engine: Engine = Depends(get_db_engine),
 ) -> list[dict]:
     return list_history(engine, limit=limit, offset=offset)
+
+
+@app.get("/api/v1/admin/usage", dependencies=[Depends(require_admin)])
+def get_usage(engine: Engine = Depends(get_db_engine)) -> dict:
+    return usage_summary(engine, settings, datetime.now(UTC))
 
 
 # What GET /api/v1/config may show. An explicit allowlist, never a dump of
