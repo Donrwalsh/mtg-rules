@@ -1,11 +1,12 @@
 <script lang="ts">
+  import AppHeader from '$lib/AppHeader.svelte';
   import {
     MAX_QUERY_CHARS,
     RateLimitedError,
     submitQuery,
     type QueryResponse
   } from '$lib/api';
-  import { isAdmin } from '$lib/admin';
+  import { admin } from '$lib/admin.svelte';
   import CitedAnswer from '$lib/CitedAnswer.svelte';
   import SourcesList from '$lib/SourcesList.svelte';
 
@@ -42,6 +43,8 @@
     return next.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
 </script>
+
+<AppHeader />
 
 <main>
   <h1>MTG Rules Search (prototype)</h1>
@@ -86,7 +89,7 @@
         {#if response.cached_at}
           <p class="badge">
             Cached answer · first generated {formatDate(response.cached_at)}
-            {#if $isAdmin}
+            {#if admin.isAdmin}
               <button type="button" on:click={() => ask(true)} disabled={loading}>
                 Get a fresh answer
               </button>

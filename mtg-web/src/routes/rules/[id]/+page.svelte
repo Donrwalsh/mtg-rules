@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AppHeader from '$lib/AppHeader.svelte';
   import { page } from '$app/stores';
   import { fetchRule, NotFoundError, type RuleDetail } from '$lib/api';
 
@@ -42,6 +43,8 @@
 <svelte:head>
   <title>Rule {id} — MTG Rules</title>
 </svelte:head>
+
+<AppHeader />
 
 <main>
   <p><a href="/">&larr; Back to search</a></p>

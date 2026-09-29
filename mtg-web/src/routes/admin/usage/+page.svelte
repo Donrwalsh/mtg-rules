@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AppHeader from '$lib/AppHeader.svelte';
   import { fetchUsage, type UsageSummary } from '$lib/api';
 
   const OUTCOMES = ['generated', 'cached', 'degraded_ip', 'degraded_global', 'error'];
@@ -13,6 +14,8 @@
   const dollars = (n: number) => `$${n.toFixed(4)}`;
   $: today = usage ? usage.days[usage.days.length - 1] : null;
 </script>
+
+<AppHeader />
 
 <main>
   <h1>Usage</h1>

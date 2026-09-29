@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AppHeader from '$lib/AppHeader.svelte';
   import { fetchHistory, type QueryHistoryRow } from '$lib/api';
   import CitedAnswer from '$lib/CitedAnswer.svelte';
   import SourcesList from '$lib/SourcesList.svelte';
@@ -40,6 +41,8 @@
 
   load();
 </script>
+
+<AppHeader />
 
 <main>
   <h1>Query History</h1>

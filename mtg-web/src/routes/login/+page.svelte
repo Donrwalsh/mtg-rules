@@ -1,7 +1,8 @@
 <script lang="ts">
+  import AppHeader from '$lib/AppHeader.svelte';
   import { goto } from '$app/navigation';
   import { login, RateLimitedError } from '$lib/api';
-  import { refreshAdmin } from '$lib/admin';
+  import { refreshAdmin } from '$lib/admin.svelte';
 
   let password = '';
   let error = '';
@@ -24,6 +25,8 @@
     }
   }
 </script>
+
+<AppHeader />
 
 <main>
   <h1>Log in</h1>
