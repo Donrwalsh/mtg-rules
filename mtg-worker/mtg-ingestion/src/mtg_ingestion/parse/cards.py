@@ -11,6 +11,15 @@ def _strip_query(uri: str | None) -> str | None:
     return uri.split("?", 1)[0] if uri else None
 
 
+def _front(raw: dict, key: str):
+    """A card-level field, falling back to the front face: multi-face cards
+    keep P/T, loyalty and images on card_faces instead."""
+    if raw.get(key) is not None:
+        return raw[key]
+    faces = raw.get("card_faces") or []
+    return faces[0].get(key) if faces else None
+
+
 def parse_cards_file(raw_path: Path) -> list[Card]:
     """Parse a downloaded oracle-cards bulk file (.jsonl.gz or legacy .json)
     into Card records.
@@ -41,6 +50,10 @@ def parse_cards_file(raw_path: Path) -> list[Card]:
                 type_line=raw.get("type_line", ""),
                 mana_cost=raw.get("mana_cost") or None,
                 scryfall_uri=_strip_query(raw.get("scryfall_uri")),
+                power=_front(raw, "power"),
+                toughness=_front(raw, "toughness"),
+                loyalty=_front(raw, "loyalty"),
+                image_uri=(_front(raw, "image_uris") or {}).get("normal"),
             )
         )
     return cards

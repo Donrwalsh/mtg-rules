@@ -122,3 +122,74 @@ def test_parse_cards_keeps_scryfall_uri_without_query_string(tmp_path: Path) -> 
 def test_scryfall_uri_is_not_part_of_content_hash() -> None:
     base = {"oracle_id": "o", "name": "N", "oracle_text": "t", "type_line": "x", "mana_cost": None}
     assert Card(**base).content_hash == Card(**base, scryfall_uri="https://a").content_hash
+
+
+NORMAL = "https://cards.scryfall.io/normal/front/a/b/{}.jpg?1"
+
+
+def test_parse_cards_keeps_display_fields(tmp_path: Path) -> None:
+    raw = [
+        {
+            "oracle_id": "bears",
+            "name": "Grizzly Bears",
+            "oracle_text": "",
+            "type_line": "Creature — Bear",
+            "mana_cost": "{1}{G}",
+            "power": "2",
+            "toughness": "2",
+            "image_uris": {"small": "ignored", "normal": NORMAL.format("bears")},
+        },
+        {
+            # Double-faced: P/T and images live on the faces; use the front.
+            "oracle_id": "delver",
+            "name": "Delver of Secrets // Insectile Aberration",
+            "type_line": "Creature — Human Wizard // Creature — Human Insect",
+            "mana_cost": "{U}",
+            "card_faces": [
+                {
+                    "oracle_text": "Look at the top card.",
+                    "power": "1",
+                    "toughness": "1",
+                    "image_uris": {"normal": NORMAL.format("delver")},
+                },
+                {"oracle_text": "Flying", "power": "3", "toughness": "2"},
+            ],
+        },
+        {
+            "oracle_id": "jace",
+            "name": "Jace Beleren",
+            "oracle_text": "+2: Each player draws a card.",
+            "type_line": "Legendary Planeswalker — Jace",
+            "mana_cost": "{1}{U}{U}",
+            "loyalty": "3",
+        },
+    ]
+    raw_path = tmp_path / "oracle_cards.json"
+    raw_path.write_text(json.dumps(raw))
+
+    cards = {c.oracle_id: c for c in parse_cards_file(raw_path)}
+
+    bears = cards["bears"]
+    assert (bears.power, bears.toughness, bears.loyalty) == ("2", "2", None)
+    assert bears.image_uri == NORMAL.format("bears")
+    delver = cards["delver"]
+    assert (delver.power, delver.toughness) == ("1", "1")
+    assert delver.image_uri == NORMAL.format("delver")
+    jace = cards["jace"]
+    assert (jace.power, jace.loyalty, jace.image_uri) == (None, "3", None)
+
+
+def test_display_fields_do_not_change_content_hash() -> None:
+    plain = Card(oracle_id="a", name="N", oracle_text="t", type_line="T", mana_cost="{1}")
+    dressed = Card(
+        oracle_id="a",
+        name="N",
+        oracle_text="t",
+        type_line="T",
+        mana_cost="{1}",
+        power="2",
+        toughness="2",
+        loyalty="4",
+        image_uri=NORMAL.format("a"),
+    )
+    assert plain.content_hash == dressed.content_hash
