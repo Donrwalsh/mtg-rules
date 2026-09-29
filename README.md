@@ -39,7 +39,7 @@ by a single `docker-compose.yml`.
 
 | Directory | What it is |
 |---|---|
-| `mtg-web/` | SvelteKit SPA frontend. A search page that shows the generated answer with inline citations (hover/focus previews, links to rules and Scryfall), a numbered Sources list and the other retrieved results; a `/rules/[id]` page; and `/history`. Static build served by nginx on port 3000. |
+| `mtg-web/` | SvelteKit (Svelte 5) SPA frontend, styled with Tailwind v4 (design tokens in `src/app.css`). A search page that shows the generated answer with inline citations (hover/focus previews, links to rules and Scryfall), a numbered Sources list and the other retrieved results; a `/rules/[id]` page; and `/history`. Static build served by nginx on port 3000. |
 | `mtg-api/` | FastAPI backend. Query endpoint (retrieval + Gemini answer generation), history endpoint, Celery task triggers, task status. Port 8000. |
 | `mtg-worker/` | Celery worker. Registers `mtg_worker.ingest` and `mtg_worker.embed`, which delegate to the two packages below. |
 | `mtg-worker/mtg-ingestion/` | Fetch + parse stage. Pulls the Comprehensive Rules, Scryfall `oracle_cards` and `rulings` bulk data, writes JSONL to `data/parsed/`. |
@@ -269,6 +269,8 @@ cd mtg-web
 npm install
 npm run dev        # Vite dev server
 npm run build      # static build for adapter-static
+npm run check      # svelte-check (types, Svelte diagnostics)
+npm test           # Vitest unit tests (src/**/*.test.ts)
 ```
 
 ## Tests
@@ -299,7 +301,7 @@ to `main` (`.github/workflows/`):
 | Workflow | Runs |
 |---|---|
 | Backend CI | mtg-api: lint, tests, Docker image build |
-| Frontend CI | mtg-web: `npm run build`, Docker image build |
+| Frontend CI | mtg-web: `npm run check`, `npm test`, `npm run build`, Docker image build |
 | Worker CI | mtg-worker, mtg-ingestion, mtg-embed: lint, tests (CPU-only torch) |
 | Evals CI | evals: lint, tests |
 | Deploy CI | deploy: lint, tests |
