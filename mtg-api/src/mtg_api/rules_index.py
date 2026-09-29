@@ -6,6 +6,27 @@ from pathlib import Path
 
 _DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
+# The Comprehensive Rules' nine sections. Only the raw text names them, and
+# they haven't changed in decades, so they live here rather than in ingestion.
+CR_SECTIONS: dict[int, str] = {
+    1: "Game Concepts",
+    2: "Parts of a Card",
+    3: "Card Types",
+    4: "Zones",
+    5: "Turn Structure",
+    6: "Spells, Abilities, and Effects",
+    7: "Additional Rules",
+    8: "Multiplayer Rules",
+    9: "Casual Variants",
+}
+_TOP_LEVEL_RE = re.compile(r"\d{3}")
+_HEADING_MAX_CHARS = 60
+
+
+def _is_title(text: str) -> bool:
+    # "Deathtouch", "Combat Damage Step" -- not rule prose.
+    return len(text) <= _HEADING_MAX_CHARS and not text.rstrip().endswith((".", ":", ")"))
+
 
 class RulesIndex:
     """The Comprehensive Rules in memory, keyed by rule_id. Shared by the
@@ -42,6 +63,29 @@ class RulesIndex:
             parent_id = parent.get("parent_id")
         chain.reverse()
         return chain
+
+    def heading(self, rule_id: str) -> str | None:
+        """The nearest title-like text at or above this rule: 702.2c ->
+        "Deathtouch", 510.1c -> "Combat Damage Step"."""
+        rule = self._by_id.get(rule_id)
+        if rule is None:
+            return None
+        for candidate in [rule, *reversed(self.ancestors(rule_id))]:
+            if _is_title(candidate["text"]):
+                return candidate["text"]
+        return None
+
+    def table_of_contents(self) -> list[dict]:
+        sections: dict[int, list[dict]] = {}
+        for rule in self.rules:
+            if _TOP_LEVEL_RE.fullmatch(rule["rule_id"]):
+                sections.setdefault(int(rule["rule_id"][0]), []).append(
+                    {"rule_id": rule["rule_id"], "text": rule["text"]}
+                )
+        return [
+            {"number": n, "title": CR_SECTIONS.get(n, f"Section {n}"), "rules": sections[n]}
+            for n in sorted(sections)
+        ]
 
 
 def load_rules_index(rules_path: Path) -> RulesIndex:
