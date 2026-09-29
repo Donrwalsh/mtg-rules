@@ -9,6 +9,19 @@ export const ADMIN_HEADER = 'X-Admin-Request';
 
 export class RateLimitedError extends Error {}
 
+// A card's face for display (not its rules text, which is `text`). Filled in
+// by the API on card, oracle and ruling sources.
+export interface CardDetails {
+  name: string;
+  type_line: string;
+  mana_cost: string | null;
+  power: string | null;
+  toughness: string | null;
+  loyalty: string | null;
+  image_small: string | null;
+  image_normal: string | null;
+}
+
 export interface QueryResult {
   source: string;
   title: string;
@@ -21,6 +34,9 @@ export interface QueryResult {
   published_at?: string | null;
   scryfall_uri?: string | null;
   cited?: boolean;
+  card?: CardDetails | null;
+  // Rules only: e.g. "Deathtouch" for 702.2c.
+  heading?: string | null;
 }
 
 export interface Citation {
@@ -34,6 +50,8 @@ export interface Citation {
   // "/rules/{id}" for rules (our own route), a Scryfall URL for cards and rulings.
   url: string | null;
   published_at: string | null;
+  card?: CardDetails | null;
+  heading?: string | null;
 }
 
 export interface CitationStats {
@@ -159,9 +177,40 @@ export interface RuleSummary {
 }
 
 export interface RuleDetail extends RuleSummary {
+  heading: string | null;
   ancestors: RuleSummary[];
   subrules: RuleSummary[];
   rules_ingested_at: string | null;
+}
+
+export interface RulesSection {
+  number: number;
+  title: string;
+  rules: RuleSummary[];
+}
+
+export interface RulesContents {
+  sections: RulesSection[];
+  rules_as_of: string | null;
+}
+
+export async function fetchRulesIndex(): Promise<RulesContents> {
+  const resp = await fetch(`${API_URL}/api/v1/rules`);
+  if (!resp.ok) throw new Error(`rules index fetch failed: ${resp.status}`);
+  return resp.json();
+}
+
+// Public facts the UI states. answers_per_day is null when not gated.
+export interface Meta {
+  answers_per_day: number | null;
+  max_query_chars: number;
+  rules_as_of: string | null;
+}
+
+export async function fetchMeta(): Promise<Meta> {
+  const resp = await fetch(`${API_URL}/api/v1/meta`);
+  if (!resp.ok) throw new Error(`meta fetch failed: ${resp.status}`);
+  return resp.json();
 }
 
 export class NotFoundError extends Error {}
