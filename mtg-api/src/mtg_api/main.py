@@ -302,22 +302,36 @@ def query(
     hit = _cache_get(engine, key) if key and not request.fresh else None
     if hit is not None:
         stored, generated_at = hit
-        _record(engine, outcome="cached", **record)
-        _save(
-            engine,
-            s,
-            request,
-            answer=stored["answer"],
-            results=stored["results"],
-            error=None,
-            citations=stored["citations"],
-            citation_stats=stored["citation_stats"],
-            rule_references=stored["rule_references"],
-            cached=True,
-        )
-        return QueryResponse(
-            **stored, query=request.query, cached_at=generated_at, answers_remaining=remaining
-        )
+        # The global budget being exhausted applies to the next new
+        # question too, so don't promise answers a cache hit didn't use.
+        cache_remaining = 0 if gate.degraded == "global_budget" else remaining
+        try:
+            cached_response = QueryResponse(
+                **stored,
+                query=request.query,
+                cached_at=generated_at,
+                answers_remaining=cache_remaining,
+            )
+        except Exception:
+            # A row from an older schema (or otherwise malformed): fall
+            # through to a normal retrieval + generation below, which
+            # overwrites this entry via _cache_put.
+            logger.exception("Malformed answer-cache row for key %s; treating as a miss", key)
+        else:
+            _record(engine, outcome="cached", **record)
+            _save(
+                engine,
+                s,
+                request,
+                answer=cached_response.answer,
+                results=[r.model_dump() for r in cached_response.results],
+                error=None,
+                citations=[c.model_dump() for c in cached_response.citations],
+                citation_stats=cached_response.citation_stats.model_dump(),
+                rule_references=cached_response.rule_references,
+                cached=True,
+            )
+            return cached_response
 
     card_results = [
         QueryResult(

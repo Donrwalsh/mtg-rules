@@ -7,6 +7,7 @@ from sqlalchemy import select
 from test_query import _FailingEngine, _FakeHit, _override
 
 from mtg_api import main
+from mtg_api.answer_cache import answer_cache, cache_key
 from mtg_api.history import list_history
 from mtg_api.llm import Generation
 from mtg_api.main import app, get_data_version
@@ -169,6 +170,43 @@ def test_failed_answers_are_not_cached():
     _post({"query": "trample"})
     assert answerer.calls == 2
     assert _outcomes(engine) == ["error", "error"]
+
+
+def test_malformed_cache_row_falls_back_to_fresh_generation(gated):
+    engine, answerer = _setup()
+    _post({"query": "trample"})
+    key = cache_key("trample", main.settings, "v1")
+    with engine.begin() as conn:
+        conn.execute(
+            answer_cache.update()
+            .where(answer_cache.c.key == key)
+            .values(response={"answer": "old", "results": "not-a-list"})
+        )
+    body = _post({"query": "trample"}).json()
+    assert answerer.calls == 2
+    assert body["answer"] == "Yes [1]."
+    assert body["cached_at"] is None
+
+
+def test_cache_hit_is_free_even_when_the_daily_budget_is_exhausted(gated):
+    engine, answerer = _setup()
+    _post({"query": "trample"})
+    record_usage(
+        engine,
+        now=datetime.now(UTC),
+        ip_bucket="elsewhere",
+        is_admin=False,
+        outcome="generated",
+        model="m",
+        cost=1.0,  # exhausts the $1.00 daily budget for everyone
+    )
+    body = _post({"query": "trample"}).json()
+    assert answerer.calls == 1
+    assert body["cached_at"] is not None
+    assert body["degraded"] is None
+    # The global budget is exhausted, so the UI must not promise more
+    # answers than the next new question will actually get.
+    assert body["answers_remaining"] == 0
 
 
 def test_new_data_version_misses_the_cache():
