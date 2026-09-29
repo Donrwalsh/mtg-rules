@@ -27,27 +27,45 @@
   }
 </script>
 
+<svelte:head>
+  <title>Admin log in — MTG Rules</title>
+</svelte:head>
+
 <AppHeader />
 
-<main class="mx-auto flex max-w-sm flex-col gap-4 px-4 py-16">
-  <h1 class="m-0 text-2xl font-medium">Log in</h1>
-  <form class="flex flex-col gap-3" onsubmit={onSubmit}>
-    <label for="pw" class="text-sm text-fg-muted">Admin password</label>
-    <input
-      id="pw"
-      type="password"
-      class="min-h-11 rounded-[10px] border border-line-strong bg-field px-4 text-base text-fg outline-none focus:border-gold"
-      bind:value={password}
-      autocomplete="current-password"
-      aria-describedby={error ? 'login-error' : undefined}
-    />
-    <button
-      type="submit"
-      class="min-h-11 cursor-pointer rounded-[7px] border-0 bg-gold text-sm font-semibold text-gold-ink disabled:bg-gold-off disabled:text-gold-off-fg"
-      disabled={busy}>Log in</button
-    >
-  </form>
-  {#if error}
-    <p id="login-error" role="alert" class="m-0 text-sm text-danger">{error}</p>
-  {/if}
+<main class="flex justify-center px-4 py-12 sm:py-24">
+  <div
+    class="flex w-full max-w-[400px] flex-col gap-[18px] rounded-xl border border-line bg-card px-5 py-6 sm:p-8"
+  >
+    <div class="flex flex-col gap-1.5">
+      <h1 class="m-0 text-[22px] font-semibold">Admin log in</h1>
+      <p class="m-0 text-sm leading-normal text-fg-soft">
+        Query history and usage are for the site's admin.
+      </p>
+    </div>
+    <form class="flex flex-col gap-2.5" onsubmit={onSubmit}>
+      <label for="pw" class="text-sm text-fg-body">Password</label>
+      <input
+        id="pw"
+        type="password"
+        bind:value={password}
+        autocomplete="current-password"
+        aria-invalid={error ? 'true' : undefined}
+        aria-describedby={error ? 'login-error' : undefined}
+        class={[
+          'min-h-[46px] rounded-[10px] border bg-field px-3.5 font-sans text-base text-fg outline-none focus:border-gold',
+          error ? 'border-danger-line' : 'border-line-strong'
+        ]}
+      />
+      {#if error}
+        <p id="login-error" role="alert" class="m-0 text-sm text-danger">{error}</p>
+      {/if}
+      <button
+        type="submit"
+        disabled={busy}
+        class="mt-1.5 min-h-[46px] cursor-pointer rounded-lg border-0 bg-gold font-sans text-[15px] font-semibold text-gold-ink disabled:cursor-default disabled:bg-gold-off disabled:text-gold-off-fg"
+        >Log in</button
+      >
+    </form>
+  </div>
 </main>
