@@ -46,6 +46,36 @@ class QdrantStore:
             if p.payload and "content_hash" in p.payload
         }
 
+    def point_ids(self, source_type: str, page_size: int = 1000) -> set[str]:
+        """IDs of every stored point of one source type ("rule" | "oracle" | "ruling")."""
+        ids: set[str] = set()
+        offset = None
+        while True:
+            points, offset = self._client.scroll(
+                collection_name=self._collection_name,
+                scroll_filter=qmodels.Filter(
+                    must=[
+                        qmodels.FieldCondition(
+                            key="source_type", match=qmodels.MatchValue(value=source_type)
+                        )
+                    ]
+                ),
+                limit=page_size,
+                offset=offset,
+                with_payload=False,
+                with_vectors=False,
+            )
+            ids.update(str(p.id) for p in points)
+            if offset is None:
+                return ids
+
+    def delete(self, point_ids: list[str], batch_size: int = 1000) -> None:
+        for i in range(0, len(point_ids), batch_size):
+            self._client.delete(
+                collection_name=self._collection_name,
+                points_selector=qmodels.PointIdsList(points=point_ids[i : i + batch_size]),
+            )
+
     def upsert(
         self,
         chunks: list[EmbeddableChunk],

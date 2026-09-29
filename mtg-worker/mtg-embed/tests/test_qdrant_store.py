@@ -165,3 +165,54 @@ def test_overwrite_payloads_of_empty_list_is_a_no_op():
     store = _store()
     store.ensure_collection(dense_size=4)
     store.overwrite_payloads([])
+
+
+def _point(point_id: str, source_type: str) -> EmbeddableChunk:
+    return EmbeddableChunk(
+        point_id=point_id,
+        source_type=source_type,
+        text_to_embed="text",
+        content_hash="h",
+        payload={"source_type": source_type, "content_hash": "h", "text": "text"},
+    )
+
+
+def _store_with(points: list[EmbeddableChunk]) -> QdrantStore:
+    store = _store()
+    store.ensure_collection(dense_size=4)
+    store.upsert(
+        points,
+        [[0.1, 0.2, 0.3, 0.4]] * len(points),
+        [SparseVector(indices=[0], values=[1.0])] * len(points),
+    )
+    return store
+
+
+RULE_A = "00000000-0000-0000-0000-00000000000a"
+RULE_B = "00000000-0000-0000-0000-00000000000b"
+CARD_C = "00000000-0000-0000-0000-00000000000c"
+
+
+def test_point_ids_lists_only_the_given_source_type():
+    store = _store_with([_point(RULE_A, "rule"), _point(RULE_B, "rule"), _point(CARD_C, "oracle")])
+    assert store.point_ids("rule") == {RULE_A, RULE_B}
+    assert store.point_ids("oracle") == {CARD_C}
+
+
+def test_point_ids_pages_through_the_whole_collection():
+    ids = [f"00000000-0000-0000-0000-{i:012d}" for i in range(7)]
+    store = _store_with([_point(i, "rule") for i in ids])
+    assert store.point_ids("rule", page_size=2) == set(ids)
+
+
+def test_delete_removes_exactly_the_given_points():
+    store = _store_with([_point(RULE_A, "rule"), _point(RULE_B, "rule"), _point(CARD_C, "oracle")])
+    store.delete([RULE_A])
+    assert store.point_ids("rule") == {RULE_B}
+    assert store.point_ids("oracle") == {CARD_C}
+
+
+def test_delete_with_no_ids_is_a_no_op():
+    store = _store_with([_point(RULE_A, "rule")])
+    store.delete([])
+    assert store.point_ids("rule") == {RULE_A}
