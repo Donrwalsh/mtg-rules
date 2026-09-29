@@ -98,14 +98,59 @@ export interface QueryHistoryRow {
   citations: Citation[] | null;
   citation_stats: CitationStats | null;
   rule_references: string[] | null;
+  cached: boolean;
+}
+
+async function adminGet<T>(path: string): Promise<T> {
+  const resp = await fetch(`${API_URL}${path}`, { headers: { [ADMIN_HEADER]: '1' } });
+  if (!resp.ok) {
+    throw new Error(`${path} failed: ${resp.status}`);
+  }
+  return resp.json();
 }
 
 export async function fetchHistory(limit: number, offset: number): Promise<QueryHistoryRow[]> {
-  const resp = await fetch(`${API_URL}/api/v1/queries?limit=${limit}&offset=${offset}`);
-  if (!resp.ok) {
-    throw new Error(`history fetch failed: ${resp.status}`);
-  }
-  return resp.json();
+  return adminGet(`/api/v1/queries?limit=${limit}&offset=${offset}`);
+}
+
+export async function login(password: string): Promise<boolean> {
+  const resp = await fetch(`${API_URL}/api/v1/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password })
+  });
+  if (resp.status === 429) throw new RateLimitedError('Too many attempts. Wait a minute.');
+  if (resp.status === 403) return false;
+  if (!resp.ok) throw new Error(`login failed: ${resp.status}`);
+  return true;
+}
+
+export async function logout(): Promise<void> {
+  await fetch(`${API_URL}/api/v1/auth/logout`, { method: 'POST' });
+}
+
+export interface UsageDay {
+  date: string;
+  spend_usd: number;
+  outcomes: Record<string, number>;
+}
+
+export interface UsageBucket {
+  ip_bucket: string;
+  requests: number;
+  answers: number;
+  spend_usd: number;
+}
+
+export interface UsageSummary {
+  budget_usd: number;
+  days: UsageDay[]; // oldest first; the last entry is today (UTC)
+  cache_hit_rate: number | null;
+  top_ip_buckets: UsageBucket[];
+}
+
+export async function fetchUsage(): Promise<UsageSummary> {
+  return adminGet('/api/v1/admin/usage');
 }
 
 export interface RuleSummary {
