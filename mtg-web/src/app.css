@@ -1,0 +1,90 @@
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/400-italic.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import 'tailwindcss';
+
+/* Judge's Desk design tokens: values from the design canvas
+   (docs/superpowers/specs/2026-09-29-frontend-foundation-design.md). */
+@theme {
+  --color-*: initial;
+
+  --color-page: #121418;
+  --color-panel: #16191e;
+  --color-well: #181b20;
+  --color-card: #1c1f25;
+  --color-field: #1b1e24;
+  --color-chip: #23262d;
+  --color-skeleton: #1d2026;
+  --color-art: #2c2c30;
+
+  --color-line: #2a2e36;
+  --color-line-strong: #353a44;
+  --color-line-muted: #4a505c;
+
+  --color-fg: #e7e5df;
+  --color-fg-body: #cfccc4;
+  --color-fg-soft: #a9aeb7;
+  --color-fg-muted: #8d929c;
+  --color-fg-disabled: #5f6570;
+
+  --color-gold: #e7c170;
+  --color-gold-hover: #f3d796;
+  --color-gold-ink: #16181c;
+  --color-gold-wash: #211e16;
+  --color-gold-mark: #3a3320;
+  --color-gold-off: #4a4332;
+  --color-gold-off-fg: #cbbd97;
+
+  --color-notice: #2a2416;
+  --color-notice-line: #5c4a1f;
+  --color-notice-fg: #d9cfb6;
+
+  --color-teal: #9fd3c7;
+  --color-teal-wash: #182224;
+  --color-teal-line: #2f4a47;
+  --color-teal-chip: #24323a;
+  --color-teal-mark: #1f3331;
+  --color-teal-mark-fg: #bfe6dc;
+
+  --color-paused: #b9c9e6;
+  --color-paused-bg: #1b2230;
+  --color-paused-line: #34425c;
+  --color-paused-fg: #d6e1f5;
+
+  --color-caution: #f0c28a;
+  --color-caution-bg: #221c14;
+  --color-caution-line: #4d3a22;
+  --color-caution-chip: #3a2a18;
+  --color-caution-fg: #e3cfae;
+
+  --color-danger: #f0a3a3;
+  --color-danger-line: #8a3a3a;
+
+  --color-scrim: rgb(6 7 9 / 0.62);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --breakpoint-desk: 1100px;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-page font-sans text-fg antialiased;
+  }
+  a {
+    @apply text-gold hover:text-gold-hover;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+  }
+}
