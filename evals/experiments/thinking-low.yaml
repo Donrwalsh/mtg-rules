@@ -1,0 +1,3 @@
+description: "Low Gemini thinking level, as production runs (full mode only; retrieval is unaffected)."
+overrides:
+  generation_thinking_level: low

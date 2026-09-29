@@ -75,6 +75,11 @@ class FakeApi:
             "context_hash": context_hash,
             "prompt_version": 1,
             "generator": "gemini:" + overrides.get("gemini_model", "gemini-3.5-flash"),
+            "usage": (
+                {"input_tokens": 100, "output_tokens": 20, "thinking_tokens": 30}
+                if generate
+                else None
+            ),
         }
         return body, 12.5
 

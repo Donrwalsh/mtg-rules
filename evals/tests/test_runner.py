@@ -204,3 +204,19 @@ def test_rejected_overrides_stop_the_run_before_it_starts(tmp_path, eval_file):
     with pytest.raises(PreflightError, match="rejected the overrides.*hybrid_topk"):
         _run(tmp_path, eval_file, api, overrides={"hybrid_topk": 15})
     assert len(api.calls) == 1
+
+
+def test_full_run_records_token_usage_and_keeps_it_through_the_cache(tmp_path, eval_file):
+    expected = {"input_tokens": 100, "output_tokens": 20, "thinking_tokens": 30}
+    first, _ = _run(tmp_path, eval_file, FakeApi(RESULTS), mode="full", judge=FakeJudge())
+    assert first["cases"]["trample"]["full"]["usage"] == expected
+
+    second, _ = _run(tmp_path, eval_file, FakeApi(RESULTS), mode="full", judge=FakeJudge())
+    assert second["cases"]["trample"]["full"]["answer_cached"] is True
+    assert second["cases"]["trample"]["full"]["usage"] == expected
+
+
+def test_thinking_level_is_a_generation_key():
+    from mtg_evals.runner import GENERATION_KEYS
+
+    assert "generation_thinking_level" in GENERATION_KEYS
