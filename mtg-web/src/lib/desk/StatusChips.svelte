@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { QueryResponse } from '$lib/api';
+  import type { QueryResponse, ReplayResponse } from '$lib/api';
   import { shortDate } from '$lib/format';
   import { answersLeftLabel, isRunningLow } from '$lib/status';
 
@@ -8,12 +8,15 @@
     isAdmin,
     loading,
     compact,
+    replay = null,
     onfresh
   }: {
     response: QueryResponse;
     isAdmin: boolean;
     loading: boolean;
     compact: boolean;
+    // Set when re-rendering a history row: marks it and hides the fresh button.
+    replay?: Pick<ReplayResponse, 'id' | 'created_at'> | null;
     onfresh: () => void;
   } = $props();
 
@@ -32,11 +35,16 @@
       {compact ? 'cited' : `source${count === 1 ? '' : 's'} cited`}
     </span>
   {/if}
+  {#if replay}
+    <span class="rounded bg-chip px-2 py-[3px]">
+      replay · #{replay.id} · {shortDate(replay.created_at)}
+    </span>
+  {/if}
   {#if response.cached_at}
     <span class="rounded bg-chip px-2 py-[3px]">
       cached · {isAdmin ? 'first generated ' : ''}{shortDate(response.cached_at)}
     </span>
-    {#if isAdmin}
+    {#if isAdmin && !replay}
       <button
         type="button"
         onclick={onfresh}

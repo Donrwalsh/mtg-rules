@@ -1,9 +1,18 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
+  import { goto } from '$app/navigation';
   import { MediaQuery } from 'svelte/reactivity';
   import { page } from '$app/state';
   import { admin } from '$lib/admin.svelte';
-  import { RateLimitedError, submitQuery, type QueryResponse } from '$lib/api';
+  import {
+    AdminRequiredError,
+    fetchReplay,
+    NotFoundError,
+    RateLimitedError,
+    submitQuery,
+    type QueryResponse,
+    type ReplayResponse
+  } from '$lib/api';
   import AppHeader from '$lib/AppHeader.svelte';
   import AnswerBody from '$lib/desk/AnswerBody.svelte';
   import EmptyState from '$lib/desk/EmptyState.svelte';
@@ -34,6 +43,10 @@
   let sheetItems = $state<EvidenceItem[]>([]);
   let sheetIndex = $state(0);
   const sheetOpen = $derived(!!page.state.sheet);
+  // Admin: /?replay=<history id> re-renders a saved answer without asking again.
+  let replay = $state<ReplayResponse | null>(null);
+  let replayFailed = $state<{ id: string; kind: 'admin' | 'missing' | 'other' } | null>(null);
+  let replayLoads = 0;
 
   const phone = new MediaQuery('max-width: 639px');
   const desk = new MediaQuery('min-width: 1100px');
@@ -52,11 +65,73 @@
     return submitQuery(q, { fresh });
   }
 
+  const replayParam = $derived(page.url.searchParams.get('replay'));
+
+  $effect(() => {
+    const id = replayParam;
+    untrack(() => {
+      if (id) loadReplay(id);
+      else if (replay || replayFailed) reset();
+    });
+  });
+
+  function reset() {
+    replay = null;
+    replayFailed = null;
+    response = null;
+    selection = null;
+    query = '';
+    view = 'idle';
+  }
+
+  async function loadReplay(id: string) {
+    const load = ++replayLoads;
+    rateLimited = '';
+    selection = null;
+    replayFailed = null;
+    view = 'loading';
+    try {
+      const r = await fetchReplay(id);
+      if (load !== replayLoads) return;
+      replay = r;
+      response = r;
+      query = r.query;
+      view = 'result';
+    } catch (e) {
+      if (load !== replayLoads) return;
+      replay = null;
+      replayFailed = {
+        id,
+        kind:
+          e instanceof AdminRequiredError
+            ? 'admin'
+            : e instanceof NotFoundError
+              ? 'missing'
+              : 'other'
+      };
+      failure = e instanceof Error ? e.message : String(e);
+      view = 'failed';
+    }
+  }
+
+  const REPLAY_ERRORS = {
+    admin: { title: 'Sign in to replay', hint: 'Replaying a past answer is for admins only.' },
+    missing: { title: 'Replay not found', hint: 'That history entry is missing or has no answer.' },
+    other: { title: "Replay didn't load", hint: "The server didn't answer." }
+  };
+
   async function ask(fresh = false) {
     // A fresh request must regenerate the question whose cached answer is
     // on screen, not whatever is currently sitting in the input box.
     const q = fresh && response ? response.query : query.trim();
     if (!q) return;
+    if (replayParam) {
+      // Asking for real ends the replay.
+      replay = null;
+      replayFailed = null;
+      replayLoads++;
+      goto('/', { keepFocus: true, noScroll: true });
+    }
     const previous: View = response ? 'result' : 'idle';
     rateLimited = '';
     selection = null;
@@ -138,7 +213,17 @@
 {:else if view === 'loading'}
   <LoadingState />
 {:else if view === 'failed'}
-  <ErrorState message={failure} onretry={() => ask()} />
+  {#if replayFailed}
+    {@const { id, kind } = replayFailed}
+    <ErrorState
+      message={failure}
+      title={REPLAY_ERRORS[kind].title}
+      hint={REPLAY_ERRORS[kind].hint}
+      onretry={() => loadReplay(id)}
+    />
+  {:else}
+    <ErrorState message={failure} onretry={() => ask()} />
+  {/if}
 {:else if response && notice}
   <main class="mx-auto flex max-w-[1280px] flex-col gap-6 px-4 py-6 sm:px-8 desk:px-12 desk:py-9">
     <StatusNotice kind={notice} remaining={response.answers_remaining} />
@@ -154,6 +239,7 @@
         isAdmin={admin.isAdmin}
         loading={false}
         compact={phone.current}
+        {replay}
         onfresh={() => ask(true)}
       />
       <AnswerBody

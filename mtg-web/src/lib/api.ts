@@ -133,6 +133,27 @@ export async function fetchHistory(limit: number, offset: number): Promise<Query
   return adminGet(`/api/v1/queries?limit=${limit}&offset=${offset}`);
 }
 
+// A saved answer re-rendered on the desk without asking again (admin only).
+export interface ReplayResponse extends QueryResponse {
+  id: number;
+  created_at: string;
+}
+
+export class AdminRequiredError extends Error {}
+
+export async function fetchReplay(id: string): Promise<ReplayResponse> {
+  const resp = await fetch(`${API_URL}/api/v1/queries/${encodeURIComponent(id)}`, {
+    headers: { [ADMIN_HEADER]: '1' }
+  });
+  if (resp.status === 401) throw new AdminRequiredError('admin login required');
+  // 422: an id that isn't a number.
+  if (resp.status === 404 || resp.status === 422) {
+    throw new NotFoundError(`history #${id} has no answer to replay`);
+  }
+  if (!resp.ok) throw new Error(`replay failed: ${resp.status}`);
+  return resp.json();
+}
+
 export async function login(password: string): Promise<boolean> {
   const resp = await fetch(`${API_URL}/api/v1/auth/login`, {
     method: 'POST',
