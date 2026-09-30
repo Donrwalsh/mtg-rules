@@ -229,8 +229,8 @@ describe('placePreview', () => {
 
   it('never goes past the left margin', () => {
     const narrow = { width: 300, height: 800 };
-    // Right: 300 - 8 - 172 = 120; left: 60 - 12 - 8 = 40. Neither fits.
-    expect(placePreview(art(60, 200), narrow, PREVIEW_SIZE, 12).left).toBe(172);
+    // Right: 300 - 8 - 168 = 124; left: 60 - 12 - 8 = 40. Neither fits.
+    expect(placePreview(art(60, 200), narrow, PREVIEW_SIZE, 12).left).toBe(168);
     // Left is roomier here, and clamps to the margin.
     expect(placePreview(art(200, 200), narrow, PREVIEW_SIZE, 12).left).toBe(8);
   });
