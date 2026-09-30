@@ -158,7 +158,9 @@ Or open http://localhost:3000, type a question, and submit.
 | `/api/v1/auth/login` | POST | `{"password": str}` | Log in as admin; sets a signed session cookie. |
 | `/api/v1/auth/logout` | POST | — | Clear the admin session cookie. |
 | `/api/v1/auth/me` | GET | — | `{"is_admin": bool}` for the current session. |
-| `/api/v1/rules/{rule_id}` | GET | — | One Comprehensive Rules entry: `rule_id`, `text`, `ancestors` (top-level first), direct `subrules`, `rules_ingested_at`. Case-insensitive, tolerates a trailing `.`; 404 for unknown IDs |
+| `/api/v1/rules` | GET | — | The Comprehensive Rules' table of contents: `sections` (the nine sections, each with its three-digit rules) and `rules_as_of` |
+| `/api/v1/rules/{rule_id}` | GET | — | One Comprehensive Rules entry: `rule_id`, `text`, `heading` (e.g. "Deathtouch" for 702.2c), `ancestors` (top-level first), direct `subrules`, `rules_ingested_at`. Case-insensitive, tolerates a trailing `.`; 404 for unknown IDs |
+| `/api/v1/meta` | GET | — | Public facts for the UI: `answers_per_day` (the per-visitor daily limit; `null` when gating is off), `max_query_chars`, `rules_as_of` |
 | `/api/v1/ingest` | POST | — | Trigger `mtg_worker.ingest`; returns `{"task_id"}` |
 | `/api/v1/embed` | POST | `{"limit": "all" \| int}` | Trigger `mtg_worker.embed`; returns `{"task_id"}` |
 | `/api/v1/tasks/{id}` | GET | — | Celery task status (+ result when ready) |
@@ -173,6 +175,12 @@ Or open http://localhost:3000, type a question, and submit.
   ("rule" | "card" | "ruling"), title, rule_id, card_name, oracle_id, text,
   url, published_at}`. Rule URLs are the frontend route `/rules/{rule_id}`;
   card and ruling URLs are the card's Scryfall page.
+- Results and citations also carry display-only fields, filled in after the
+  LLM context is built so they never reach the model: `card` (`name`,
+  `type_line`, `mana_cost`, `power`, `toughness`, `loyalty`, `image_small`,
+  `image_normal`) on card, oracle and ruling sources (a ruling gets the card
+  it rules on), and `heading` on rules. Card images are Scryfall's, loaded
+  directly from `cards.scryfall.io`.
 - `rule_references` — raw rule numbers in the answer's prose that exist in
   the rules (unknown ones stay plain text and are logged).
 - `citation_stats` — `{cited_count, invalid_count, uncited_answer}`;
