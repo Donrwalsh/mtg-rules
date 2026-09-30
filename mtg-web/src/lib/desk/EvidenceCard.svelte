@@ -1,6 +1,7 @@
 <script lang="ts">
   import { cardSummary, statLine, type EvidenceItem } from '$lib/evidence';
   import { calendarDate } from '$lib/format';
+  import CardArt from './CardArt.svelte';
   import Icon from './Icon.svelte';
 
   let {
@@ -18,8 +19,18 @@
   const external = { target: '_blank', rel: 'noopener noreferrer' };
 </script>
 
-{#snippet art(w: number, h: number)}
-  {#if item.card?.image_small}
+{#snippet art(w: number, h: number, zoomable: boolean)}
+  {#if zoomable && item.card?.image_normal}
+    <CardArt
+      {name}
+      thumb={item.card.image_small ?? item.card.image_normal}
+      normal={item.card.image_normal}
+      large={item.card.image_large}
+      width={w}
+      height={h}
+      class="rounded-md"
+    />
+  {:else if item.card?.image_small}
     <img
       src={item.card.image_small}
       alt={name}
@@ -53,7 +64,7 @@
     ]}
   >
     {#if item.kind === 'card'}
-      {@render art(52, 72)}
+      {@render art(52, 72, false)}
       <span class="flex min-w-0 flex-1 flex-col gap-[3px]">
         <span class="font-mono text-xs text-fg-muted">{label}</span>
         <span class="text-[15px] font-semibold">{name}</span>
@@ -82,7 +93,7 @@
       active ? 'border-gold bg-gold-wash' : 'border-line bg-card'
     ]}
   >
-    {@render art(96, 134)}
+    {@render art(96, 134, true)}
     <div class="flex min-w-0 flex-col gap-1.5">
       <div class={['font-mono text-xs', active ? 'text-gold' : 'text-fg-muted']}>{label}</div>
       <div class="text-base font-semibold">

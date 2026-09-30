@@ -101,7 +101,8 @@
   }
 
   function onWindowKey(event: KeyboardEvent) {
-    if (event.key === 'Escape' && !sheetOpen) selection = null;
+    // Escape that closes a sheet or zoom shouldn't also clear the selection.
+    if (event.key === 'Escape' && !sheetOpen && !page.state.zoom) selection = null;
   }
 </script>
 
