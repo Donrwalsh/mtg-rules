@@ -90,5 +90,12 @@ class QueryResponse(BaseModel):
     usage: dict[str, int] | None = None
 
 
+class ReplayResponse(QueryResponse):
+    """A saved history row, shaped like the answer it produced."""
+
+    id: int
+    created_at: datetime
+
+
 class EmbedRequest(BaseModel):
     limit: str = "all"

@@ -61,3 +61,10 @@ def list_history(engine: Engine, *, limit: int = 50, offset: int = 0) -> list[di
     with engine.connect() as conn:
         rows = conn.execute(stmt).mappings().all()
     return [dict(row) for row in rows]
+
+
+def get_history(engine: Engine, history_id: int) -> dict | None:
+    stmt = select(query_history).where(query_history.c.id == history_id)
+    with engine.connect() as conn:
+        row = conn.execute(stmt).mappings().first()
+    return dict(row) if row else None

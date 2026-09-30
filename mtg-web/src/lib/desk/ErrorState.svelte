@@ -1,16 +1,19 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
 
-  let { message, onretry }: { message: string; onretry: () => void } = $props();
+  let {
+    message,
+    onretry,
+    title = "Search didn't go through",
+    hint = "The server didn't answer. Your question is still in the box, so you can try again in a moment."
+  }: { message: string; onretry: () => void; title?: string; hint?: string } = $props();
 </script>
 
 <main class="flex justify-center px-4 py-16 sm:py-24">
   <div role="alert" class="flex w-full max-w-[560px] flex-col items-center gap-3.5 text-center">
     <Icon name="warning" size={40} class="text-danger" />
-    <h1 class="m-0 text-2xl font-medium">Search didn't go through</h1>
-    <p class="m-0 text-base leading-normal text-fg-soft">
-      The server didn't answer. Your question is still in the box, so you can try again in a moment.
-    </p>
+    <h1 class="m-0 text-2xl font-medium">{title}</h1>
+    <p class="m-0 text-base leading-normal text-fg-soft">{hint}</p>
     <button
       type="button"
       onclick={onretry}

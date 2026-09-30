@@ -37,7 +37,7 @@ from mtg_api.config import (
 )
 from mtg_api.embedder import Embedder, load_fastembed_embedder
 from mtg_api.enrich import enrich_citations, enrich_results
-from mtg_api.history import list_history, save_history
+from mtg_api.history import get_history, list_history, save_history
 from mtg_api.keyword_matcher import KeywordMatcher
 from mtg_api.llm import (
     PROMPT_VERSION,
@@ -50,6 +50,7 @@ from mtg_api.models import (
     QueryRequest,
     QueryResponse,
     QueryResult,
+    ReplayResponse,
 )
 from mtg_api.qdrant_check import check_qdrant
 from mtg_api.retrieval import fetch_card_rulings, hybrid_search
@@ -570,6 +571,29 @@ def get_query_history(
     engine: Engine = Depends(get_db_engine),
 ) -> list[dict]:
     return list_history(engine, limit=limit, offset=offset)
+
+
+# Admin only: re-renders a past answer on the desk without asking again, so
+# nothing here touches gating, usage, the answer cache or history.
+@app.get(
+    "/api/v1/queries/{history_id}",
+    response_model=ReplayResponse,
+    dependencies=[Depends(require_admin)],
+)
+def get_query_replay(history_id: int, engine: Engine = Depends(get_db_engine)) -> ReplayResponse:
+    row = get_history(engine, history_id)
+    if row is None or not row["answer"]:
+        raise HTTPException(status_code=404, detail="No answer to replay")
+    return ReplayResponse(
+        id=row["id"],
+        created_at=row["created_at"],
+        query=row["query"],
+        answer=row["answer"],
+        results=row["results"],
+        citations=row["citations"] or [],
+        rule_references=row["rule_references"] or [],
+        citation_stats=row["citation_stats"] or {},
+    )
 
 
 @app.get("/api/v1/admin/usage", dependencies=[Depends(require_admin)])

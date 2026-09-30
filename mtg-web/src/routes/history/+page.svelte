@@ -144,6 +144,9 @@
             <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-fg-muted">
               <span>Also retrieved · {uncitedItems(row.results).length}</span>
               <span>Model <span class="font-mono">{row.model}</span></span>
+              {#if row.answer}
+                <a href="/?replay={row.id}" class="text-gold">Open on desk</a>
+              {/if}
               <details class="w-full">
                 <summary class="cursor-pointer text-gold">Raw results</summary>
                 <pre
