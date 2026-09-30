@@ -108,7 +108,7 @@
             <span class="truncate text-sm text-fg-muted">{preview(row)}</span>
           </span>
           <span class="flex flex-wrap gap-1.5 font-mono text-[11px]">
-            {#if row.error}{@render chip('error', 'danger')}{/if}
+            {#if row.error && row.answer}{@render chip('cut off', 'caution')}{:else if row.error}{@render chip('error', 'danger')}{/if}
             {#if row.citation_stats?.uncited_answer}{@render chip('No sources', 'caution')}{/if}
             {#if row.cached}{@render chip('cached', 'neutral')}{/if}
             {#if row.citations?.length}{@render chip(`${row.citations.length} cited`, 'teal')}{/if}
