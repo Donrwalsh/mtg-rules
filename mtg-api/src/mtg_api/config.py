@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.5-flash"
     gemini_url: str = "https://generativelanguage.googleapis.com"
     gemini_timeout_seconds: float = 60.0
+    # Longest wait between two chunks of a streamed answer (the thinking
+    # before the first chunk included). gemini_timeout_seconds caps the total.
+    gemini_stream_chunk_timeout_seconds: float = 30.0
     postgres_dsn: str = "postgresql+psycopg://mtg:mtg@postgres:5432/mtg"
     card_ruling_limit: int = 20
     # None means "don't send it": the model's own default applies.

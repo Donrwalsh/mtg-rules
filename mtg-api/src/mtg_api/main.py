@@ -131,6 +131,7 @@ def build_answerer(s: Settings) -> GeminiAnswerer:
         max_tokens=s.generation_max_tokens,
         thinking_level=s.generation_thinking_level,
         timeout=s.gemini_timeout_seconds,
+        chunk_timeout=s.gemini_stream_chunk_timeout_seconds,
     )
 
 
