@@ -1,61 +1,165 @@
 # Judge's Desk Secondary Pages Implementation Plan
 
-> **Status: blocked on board review.** Only Phase 1 can run now. Phase 2 is filled in (replacing the outline below) once the user approves the boards and the spec's "Step 2" questions are settled.
-
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give `/rules`, `/rules/[id]`, `/history`, `/login`, `/admin/usage` and the phone menu full Judge's Desk designs, then build them.
+**Goal:** Give `/rules`, `/rules/[id]`, `/history`, `/login`, `/admin/usage` and the phone menu their full Judge's Desk designs, as approved on the design canvas.
 
-**Architecture:** Design first, on the existing canvas, and wait for approval. Then build each page from PR 1's tokens and PR 3's components (evidence cards, previews, notices), fed by PR 2's `GET /api/v1/rules`.
+**Architecture:** Frontend only, with no API changes. Small pure modules (`rules.ts`, `ruleText.ts`, `usageChart.ts`, plus a date helper) hold the logic and are unit-tested. The pages are Svelte 5 route components styled with PR 1's tokens, reusing PR 3's `AnswerBody`, `EvidenceCard` and `format.ts`. `AppHeader` gains a current-page marker and a phone dropdown menu.
 
-**Tech Stack:** Claude Design canvas (Artifact tool); SvelteKit 2 + Svelte 5, Tailwind v4 tokens, Vitest.
+**Tech Stack:** SvelteKit 2 + Svelte 5 (runes, `$app/state`, `svelte/reactivity` `MediaQuery`), Tailwind v4 tokens, Vitest.
 
 **Spec:** [docs/superpowers/specs/2026-09-29-redesign-secondary-pages-design.md](../specs/2026-09-29-redesign-secondary-pages-design.md)
 
+**Design canvas:** https://claude.ai/artifact/XzoXtd9SdWQsQvPr2cF6G6, section "Other pages" (version 11).
+
 ## Global Constraints
 
-- Starts after PR 3 merges; branch `feature/redesign-secondary-pages` from `main`.
-- Boards use exactly the tokens and type of the existing boards (IBM Plex Sans, JetBrains Mono, the PR 1 palette); desktop boards 1280 wide, phone 390.
-- No code until the user approves the boards.
-- Admin pages stay admin-only; the API enforces it and the UI hides the links.
+- Branch `feature/redesign-secondary-pages`, stacked on `feature/judge-desk-search` with `docs/frontend-redesign-plans` merged in, until PRs 1–3 and #10 merge.
+- Colours only via tokens; no hex in `.svelte` files. Breakpoints: `sm` 640px, `desk` 1100px.
+- Tap targets ≥ 44px on phone. Real `<a>` and `<button>` elements; `aria-expanded` on disclosure buttons; `aria-current` for current page or rule.
+- Rule text is rendered as text parts, never `{@html}`.
+- Admin pages stay admin-only (the API enforces it; the UI hides links).
 - Commits: conventional prefixes, ending with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
 ---
 
-## Phase 1: Boards (can run now)
+## Phase 1: Boards (done)
 
-### Task 1: Draw the secondary-page boards
-
-**Canvas:** https://claude.ai/artifact/XzoXtd9SdWQsQvPr2cF6G6 (Design type; follow the type's instructions when editing: read `project/canvas.json`, add artboard files plus `boards` / `order` entries, publish with `url`, `root` and `files`).
-
-- [ ] **Step 1:** Read `project/canvas.json` and one existing board (e.g. `project/StateEmpty.dc.html`) to reuse its header markup and styles exactly.
-- [ ] **Step 2:** Add a third row, starting at y ≈ 3900, under a `title1` note "Other pages", with these artboards:
-  - `RulesContents.dc.html` (1280) and `RulesContentsPhone.dc.html` (390): nine sections, each listing its three-digit rules as links; "as of {date}" line.
-  - `RuleDetail.dc.html` (1280) and `RuleDetailPhone.dc.html` (390): breadcrumbs, rule id and heading, text, subrules; show 702.2c.
-  - `RuleNotFound.dc.html` (1280).
-  - `History.dc.html` (1280): list of past questions (query, answer preview, cached/error chips, model, time) with one row expanded to show the answer with markers and its evidence cards.
-  - `Login.dc.html` (1280), `LoginPhone.dc.html` (390), `LoginError.dc.html` (1280).
-  - `Usage.dc.html` (1280): today against the budget, the 7-day trend, outcome counts, top IP buckets.
-  - `PhoneMenu.dc.html` and `PhoneMenuAdmin.dc.html` (390): the ☰ menu open.
-- [ ] **Step 3:** Publish once (Artifact tool). Tell the user which boards were added and what was assumed. Do not verify by rendering unless asked.
-- [ ] **Step 4:** Collect the user's feedback on the canvas and revise until they approve.
-
-### Task 2: Finish the spec and this plan
-
-- [ ] **Step 1:** In the spec, replace "Step 2: finish this spec" with the per-page decisions, layout and states from the approved boards, and answer its four open questions with the user.
-- [ ] **Step 2:** Replace Phase 2 below with full tasks (files, interfaces, test code, commands), in the same form as the search-page plan.
-- [ ] **Step 3:** Commit both docs on `feature/redesign-secondary-pages`.
+- [x] **Task 1:** Drew 12 boards on the canvas: rules contents (desktop and phone), rule detail (desktop and phone), rule not found, history, log in (default, wrong password, phone), usage, and the phone menu (public and admin). Published as version 11.
+- [x] **Task 2:** User approved the boards on 2026-09-29. The spec's "Decisions" section and this plan's Phase 2 were written from them.
 
 ---
 
-## Phase 2: Build (outline, to be expanded in Task 2)
+## Phase 2: Build
 
-Expected tasks, in order. Each ends with `npm run check && npm test && npm run build` and a commit:
+## File Structure
 
-1. **Phone menu** in `AppHeader.svelte`: the ☰ button (44×44, `aria-expanded`, `aria-controls`), the panel from the approved board, Escape and outside click close it, focus returns to the button; point "Rules" at `/rules`.
-2. **`/rules`**: prerendered shell that loads `fetchRulesIndex()`; sections and links; loading and error states.
-3. **`/rules/[id]`**: the approved reading layout (reusing `RuleLink` previews for cross-references if the board shows them); not-found and loading states.
-4. **`/login`**: the approved form, errors and the rate-limited message.
-5. **`/history`**: the approved list and expanded row, reusing `AnswerBody` (read-only selection) and `EvidenceCard`; then remove `CitedAnswer.svelte` and `SourcesList.svelte` if nothing else uses them.
-6. **`/admin/usage`**: the approved layout; if it includes a chart, load the `dataviz` skill before writing it.
-7. **README and PR**.
+- `mtg-web/src/lib/rules.ts` (+ test): `CR_SECTIONS`, `normalizeRuleId`, `entryIdOf`, `isTopLevel`, `sectionOf`, `neighbours`, `windowAround`.
+- `mtg-web/src/lib/ruleText.ts` (+ test): splits rule text into text and rule-reference parts.
+- `mtg-web/src/lib/usageChart.ts` (+ test): `chartScale`, `barHeight`.
+- `mtg-web/src/lib/format.ts` (+ test): gains `historyTime`.
+- `mtg-web/src/lib/AppHeader.svelte`: current-page marker and phone menu.
+- `mtg-web/src/lib/pages/GoToRule.svelte`, `mtg-web/src/lib/pages/RuleText.svelte`, `mtg-web/src/lib/pages/SpendChart.svelte`.
+- Routes: `src/routes/rules/+page.svelte` (new), `src/routes/rules/[id]/+page.svelte`, `src/routes/history/+page.svelte`, `src/routes/login/+page.svelte`, `src/routes/admin/usage/+page.svelte`.
+- Delete: `src/lib/CitedAnswer.svelte`, `src/lib/SourcesList.svelte`.
+
+### Task 3: Logic modules
+
+**Files:** Create `rules.ts`, `rules.test.ts`, `ruleText.ts`, `ruleText.test.ts`, `usageChart.ts`, `usageChart.test.ts`. Modify `format.ts` and `format.test.ts`.
+
+**Interfaces (produces):**
+
+```ts
+// rules.ts
+export const CR_SECTIONS: Record<number, string>;
+export function normalizeRuleId(input: string): string;   // " 702.19B. " -> "702.19b"
+export function entryIdOf(ruleId: string): string;         // 702.2c -> 702.2; 702.2 -> 702.2; 702 -> 702
+export function isTopLevel(ruleId: string): boolean;        // /^\d{3}$/
+export function sectionOf(ruleId: string): number | null;  // 702.2c -> 7
+export function neighbours<T extends { rule_id: string }>(list: T[], id: string): { prev: T | null; next: T | null };
+export function windowAround<T extends { rule_id: string }>(list: T[], id: string, size?: number): T[];
+// ruleText.ts
+export type TextPart = { kind: 'text'; text: string } | { kind: 'rule'; text: string; ruleId: string };
+export function splitRuleText(text: string): TextPart[];
+// usageChart.ts
+export function chartScale(values: number[], budget: number): { max: number; ticks: number[] };
+export function barHeight(value: number, max: number, height: number): number;
+// format.ts
+export function historyTime(iso: string, locale?: string, timeZone?: string): string; // "Sep 29 · 14:02"
+```
+
+Rule-reference rules for `splitRuleText`:
+- Dotted ids (`702.19b`) always link, with the same guard against prices, dotted dates and versions as `segments.ts`.
+- A bare three-digit number links only when it follows "rule " or "rules " ("See rule 704."), so "100 cards" stays text.
+
+- [ ] **Step 1: Write the failing tests** (the cases above plus: neighbours at both ends, a window clamped at the start and end, the scale when every day is under budget and when one day is over it, `historyTime` in UTC).
+- [ ] **Step 2:** `npm test`, and confirm they fail.
+- [ ] **Step 3: Implement.** Key regex for `ruleText.ts`: `/(?<![\d.$€£])(\d{3}\.\d+[a-z]?)(?![a-z\d]|\.\d)|(?<=\brules?\s)(\d{3})(?![\d.])/g`.
+- [ ] **Step 4:** `npm test && npm run check`, then commit `feat: rule, rule-text and usage-chart helpers`.
+
+### Task 4: Header current page and phone menu
+
+**Files:** Modify `src/lib/AppHeader.svelte`.
+
+- **sm and up:** the nav as today, with Rules pointing to `/rules`. The link for `page.url.pathname` gets `aria-current="page"` and the class `border-b-2 border-gold pb-1 text-fg`.
+  - Rules is current for `/rules` and `/rules/*`.
+- **Below sm:** a ☰/✕ button (44×44, `aria-expanded`, `aria-controls="site-menu"`, `aria-label` "Menu" or "Close menu").
+  - The panel is `<nav id="site-menu" aria-label="Main">`, absolutely positioned under the header, full width, with a `panel` background, `rounded-b-2xl` corners, a `line-strong` bottom border and `z-30`.
+  - Behind it, a `fixed inset-0 top-[header] bg-scrim` button (`aria-label` "Close menu", `tabindex` -1) closes it on tap.
+  - Items: Search (`/`), Rules (`/rules`); for admins an "ADMIN" label, History, Usage and a Log out button. Rows are 52px, and the current page has a `bg-chip` background.
+  - Closes on Escape (focus back to the button), on scrim tap, and after navigation (`afterNavigate`).
+- **Check:** at 390px the menu opens and closes, focus returns, and admin items appear only for admins. At 1280px the underline marks the current page.
+- Commit `feat: phone menu and current-page marker in the header`.
+
+### Task 5: `/rules` contents and `GoToRule`
+
+**Files:** Create `src/lib/pages/GoToRule.svelte` and `src/routes/rules/+page.svelte`.
+
+- **`GoToRule`:** props `{ width?: string }`. A form with a visible "Go to" label, a mono input (placeholder "e.g. 702.19b") and a `chip` "Go" button. On submit it runs `goto('/rules/' + normalizeRuleId(value))`, ignoring an empty value.
+- **Page:**
+  - Fetch `fetchRulesIndex()` on mount, with states for loading, error (`role="alert"`) and loaded.
+  - Heading block as the spec describes.
+  - `desk` and up: three columns (sections 1–3, 4–6, 7–9). `sm` up to `desk`: two columns split at 1–4 and 5–9. Below `sm`: accordions (section 1 open).
+  - Rule rows are links to `/rules/{id}`.
+- Commit `feat: rules table of contents`.
+
+### Task 6: `/rules/[id]` detail and not-found
+
+**Files:** Modify `src/routes/rules/[id]/+page.svelte`. Create `src/lib/pages/RuleText.svelte`, which renders `splitRuleText` parts, with rule parts as mono links.
+
+- **Loading:**
+  - `id = normalizeRuleId(page.params.id)`, `entry = entryIdOf(id)`.
+  - Load `fetchRule(entry)`. When not top-level, also load `fetchRule(parentRule(entry))` for siblings.
+  - On `NotFoundError`: when `parentRule(id)` exists, fetch it, and on success show the "Go to {parent} · {heading}" button.
+  - Ignore stale responses, as today.
+- **Render** per the spec:
+  - Breadcrumbs from `ancestors`, with the section name from `CR_SECTIONS[sectionOf(id)]`.
+  - The h1.
+  - Subrule cards with `id="r{rule_id}"`. The card for `id` is highlighted and scrolled into view once loaded (`scrollIntoView({block: 'center'})`, instant under reduced motion).
+  - A previous/next grid from `neighbours(parent.subrules, entry)`.
+  - The desktop-only sidebar from `windowAround(parent.subrules, entry, 14)`.
+  - Top-level rules list their entries instead of cards.
+- **Check:** `/rules/702.2c`, `/rules/702.2`, `/rules/702`, `/rules/702.99z` and `/rules/100` at 1280 and 390, against the "Rule — detail", "Phone — rule detail" and "Rule — not found" boards.
+- Commit `feat: rule detail with whole entry, neighbours and not-found`.
+
+### Task 7: `/login`
+
+**Files:** Modify `src/routes/login/+page.svelte`.
+
+- The card per the spec. Keep the current submit logic, and use `aria-invalid` plus a `danger-line` border on error.
+- Commit `feat: login card`.
+
+### Task 8: `/history`
+
+**Files:** Modify `src/routes/history/+page.svelte`. Delete `src/lib/CitedAnswer.svelte` and `src/lib/SourcesList.svelte`.
+
+- **Rows:** a card list per the spec.
+  - `historyTime(row.created_at)`.
+  - The first line of the answer (`row.answer?.split('\n')[0]`), or "(no answer)".
+  - Chips from `row.error`, `row.citation_stats?.uncited_answer`, `row.cached` and `row.citations?.length`.
+- **Expanded row:**
+  - `AnswerBody` with local `selection` state, `canHover` from `MediaQuery('hover: hover')`, and `ruleReferences` from `row.rule_references ?? []`.
+  - A grid of `EvidenceCard`s from `(row.citations ?? []).map(fromCitation)`.
+  - A footer with "Also retrieved · {uncitedItems(row.results).length}", the model, and a `<details>` "Raw results".
+- **Paging** as today, with "Page n".
+- **Check:** `grep -r "CitedAnswer\|SourcesList" src` returns nothing.
+- Commit `feat: history list with expandable answers and sources`.
+
+### Task 9: `/admin/usage` and `SpendChart`
+
+**Files:** Create `src/lib/pages/SpendChart.svelte`. Modify `src/routes/admin/usage/+page.svelte`.
+
+- **`SpendChart`:** props `{ days: UsageDay[]; budget: number }`.
+  - A plain-HTML chart: absolutely positioned bars (`bg-gold rounded-t`, 2px gap between neighbours), gridlines from `chartScale().ticks` (the budget line dashed), mono y labels and date x labels.
+  - Only today's bar has a value label. Each bar has a `title` tooltip.
+  - The wrapper has `role="img"` with an `aria-label` listing every day's spend.
+  - Its width fills the container: bars are placed by percentage, not fixed pixels.
+- **Page:** tiles, chart and tables per the spec. Tables sit in `overflow-x-auto` wrappers so the page never scrolls sideways at 390px.
+- Commit `feat: usage dashboard with spend chart`.
+
+### Task 10: Visual check, README and PR
+
+- [ ] `npm run check && npm test && npm run build`.
+- [ ] With the dev stack running, drive every page at 1280, 834 and 390 wide in Chrome (playwright-core with the installed Chrome) and compare against its board. Also check: no overflow, no page errors, the phone menu by keyboard and touch, "Go to rule", accordion toggling, rule highlight and scroll, and history expand and paging.
+- [ ] README: describe the `/rules` contents, rule pages, history, usage and the phone menu in the `mtg-web/` row.
+- [ ] Clean `npm ci` and `docker build .`, then push and open the PR (stacked; list PR 4's own commits).
