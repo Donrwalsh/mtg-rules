@@ -1,18 +1,14 @@
 <script lang="ts">
-  import {
-    MAX_QUERY_CHARS,
-    RateLimitedError,
-    submitQuery,
-    type QueryResponse
-  } from '$lib/api';
-  import { isAdmin } from '$lib/admin';
+  import { MAX_QUERY_CHARS, RateLimitedError, submitQuery, type QueryResponse } from '$lib/api';
+  import { admin } from '$lib/admin.svelte';
+  import AppHeader from '$lib/AppHeader.svelte';
   import CitedAnswer from '$lib/CitedAnswer.svelte';
   import SourcesList from '$lib/SourcesList.svelte';
 
-  let query = '';
-  let response: QueryResponse | null = null;
-  let error = '';
-  let loading = false;
+  let query = $state('');
+  let response = $state<QueryResponse | null>(null);
+  let error = $state('');
+  let loading = $state(false);
 
   async function ask(fresh = false) {
     // A fresh request must regenerate the question whose cached answer is
@@ -29,6 +25,11 @@
     }
   }
 
+  function onSubmit(event: SubmitEvent) {
+    event.preventDefault();
+    ask();
+  }
+
   function formatDate(iso: string): string {
     return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
   }
@@ -36,41 +37,52 @@
   // Quotas and the budget reset at UTC midnight; show it in local time.
   function resetTime(): string {
     const now = new Date();
-    const next = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
-    );
+    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
     return next.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
 </script>
 
-<main>
-  <h1>MTG Rules Search (prototype)</h1>
-  <form on:submit|preventDefault={() => ask()}>
+<AppHeader />
+
+<main class="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8 sm:px-8">
+  <h1 class="m-0 text-2xl font-medium">Ask a rules question</h1>
+  <form
+    class="flex items-center gap-3 rounded-[10px] border border-line-strong bg-field py-1.5 pr-1.5 pl-4"
+    onsubmit={onSubmit}
+  >
+    <label for="q" class="font-mono text-[13px] text-fg-muted">Q</label>
     <input
+      id="q"
       type="text"
+      class="min-h-8 min-w-0 flex-1 border-0 bg-transparent text-base text-fg outline-none"
       bind:value={query}
       maxlength={MAX_QUERY_CHARS}
       placeholder="Ask a rules question"
     />
-    <button type="submit" disabled={loading}>{loading ? 'Searching…' : 'Search'}</button>
+    <button
+      type="submit"
+      class="min-h-10 cursor-pointer rounded-[7px] border-0 bg-gold px-[18px] text-sm font-semibold text-gold-ink disabled:cursor-default disabled:bg-gold-off disabled:text-gold-off-fg"
+      disabled={loading}>{loading ? 'Searching…' : 'Search'}</button
+    >
   </form>
   {#if query.length > MAX_QUERY_CHARS - 100}
-    <p class="note">{query.length}/{MAX_QUERY_CHARS} characters</p>
+    <p class="m-0 text-right font-mono text-xs text-fg-muted">{query.length} / {MAX_QUERY_CHARS}</p>
   {/if}
 
   {#if error}
-    <p style="color: red">{error}</p>
+    <p role="alert" class="m-0 text-sm text-danger">{error}</p>
   {/if}
 
   {#if response}
-    {#if response.degraded === 'global_budget'}
-      <p class="notice">
-        AI answers are paused for today. They resume at {resetTime()}. Here are the matching
-        rules, rulings and cards.
-      </p>
-    {:else if response.degraded === 'ip_quota'}
-      <p class="notice">
-        {#if response.answers_remaining}
+    {#if response.degraded}
+      <p
+        role="status"
+        class="m-0 rounded-[10px] border border-notice-line bg-notice px-4 py-3 text-sm text-notice-fg"
+      >
+        {#if response.degraded === 'global_budget'}
+          AI answers are paused for today. They resume at {resetTime()}. Here are the matching
+          rules, rulings and cards.
+        {:else if response.answers_remaining}
           You're asking quickly, so AI answers pause for a few minutes. Here are the matching
           rules, rulings and cards.
         {:else}
@@ -81,15 +93,19 @@
     {/if}
 
     {#if response.answer}
-      <div class="answer">
-        <h2>Answer</h2>
+      <section class="flex flex-col gap-2">
         {#if response.cached_at}
-          <p class="badge">
-            Cached answer · first generated {formatDate(response.cached_at)}
-            {#if $isAdmin}
-              <button type="button" on:click={() => ask(true)} disabled={loading}>
-                Get a fresh answer
-              </button>
+          <p class="m-0 flex items-center gap-3 font-mono text-xs text-fg-muted">
+            <span class="rounded bg-chip px-2 py-0.5"
+              >cached · first generated {formatDate(response.cached_at)}</span
+            >
+            {#if admin.isAdmin}
+              <button
+                type="button"
+                class="min-h-9 cursor-pointer rounded-[7px] border border-line-strong bg-transparent px-3 font-sans text-sm text-gold"
+                onclick={() => ask(true)}
+                disabled={loading}>Get a fresh answer</button
+              >
             {/if}
           </p>
         {/if}
@@ -99,15 +115,14 @@
           ruleReferences={response.rule_references}
         />
         {#if response.citation_stats.uncited_answer}
-          <p class="note">No sources cited</p>
+          <p class="m-0 text-sm text-caution">No sources cited</p>
         {/if}
-      </div>
+      </section>
     {/if}
 
     {#if response.answers_remaining !== null && !response.degraded}
-      <p class="note">
-        {response.answers_remaining} AI answer{response.answers_remaining === 1 ? '' : 's'} left
-        today
+      <p class="m-0 font-mono text-xs text-fg-muted">
+        {response.answers_remaining} AI answer{response.answers_remaining === 1 ? '' : 's'} left today
       </p>
     {/if}
 
@@ -118,25 +133,3 @@
     />
   {/if}
 </main>
-
-<style>
-  .note {
-    color: #666;
-    font-size: 0.9rem;
-    font-style: italic;
-  }
-  .badge {
-    display: inline-block;
-    background: #eef3fb;
-    border: 1px solid #c9d8f0;
-    border-radius: 4px;
-    padding: 0.2rem 0.5rem;
-    font-size: 0.85rem;
-  }
-  .notice {
-    background: #fff8e1;
-    border: 1px solid #f0d98c;
-    border-radius: 4px;
-    padding: 0.5rem 0.75rem;
-  }
-</style>

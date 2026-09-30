@@ -2,22 +2,23 @@
   import { isExternalUrl, type Citation } from '$lib/api';
   import { segmentAnswer } from '$lib/segments';
 
-  export let answer: string;
-  export let citations: Citation[] = [];
-  export let ruleReferences: string[] = [];
-  // Keeps popover ids unique when several answers share a page (history).
-  export let idPrefix = 'answer';
+  let {
+    answer,
+    citations = [],
+    ruleReferences = [],
+    // Keeps popover ids unique when several answers share a page (history).
+    idPrefix = 'answer'
+  }: { answer: string; citations?: Citation[]; ruleReferences?: string[]; idPrefix?: string } =
+    $props();
 
-  $: byNumber = new Map(citations.map((c) => [c.number, c]));
-  $: segments = segmentAnswer(answer, new Set(byNumber.keys()), new Set(ruleReferences));
+  const byNumber = $derived(new Map(citations.map((c) => [c.number, c])));
+  const segments = $derived(
+    segmentAnswer(answer, new Set(byNumber.keys()), new Set(ruleReferences))
+  );
 
   // Popovers are keyed per marker occurrence ("<segment>-<number>"), not per
   // source number: the same source can be cited several times in one answer.
-  let open: string | null = null;
-
-  function show(key: string) {
-    open = key;
-  }
+  let open = $state<string | null>(null);
 
   function hide(key: string) {
     if (open === key) open = null;
@@ -33,59 +34,18 @@
 </script>
 
 <!-- Every piece of model output is rendered as text; nothing uses {@html}. -->
-<p class="answer-text">{#each segments as seg, i}{#if seg.kind === 'text'}{seg.text}{:else if seg.kind === 'rule'}<a href="/rules/{seg.ruleId}">{seg.ruleId}</a>{:else}{#each seg.numbers as n}{@const c = byNumber.get(n)}{@const key = `${i}-${n}`}{#if c}<span class="cite"><sup><a
+<p class="leading-relaxed whitespace-pre-wrap text-fg-body">{#each segments as seg, i}{#if seg.kind === 'text'}{seg.text}{:else if seg.kind === 'rule'}<a class="font-mono" href="/rules/{seg.ruleId}">{seg.ruleId}</a>{:else}{#each seg.numbers as n}{@const c = byNumber.get(n)}{@const key = `${i}-${n}`}{#if c}<span class="relative"><sup><a
+            class="rounded border border-line-muted px-1 font-mono text-xs text-fg-body no-underline"
             href={href(c)}
             target={isExternalUrl(c.url) ? '_blank' : undefined}
             rel={isExternalUrl(c.url) ? 'noopener noreferrer' : undefined}
             aria-describedby="{idPrefix}-pop-{key}"
-            on:mouseenter={() => show(key)}
-            on:mouseleave={() => hide(key)}
-            on:focus={() => show(key)}
-            on:blur={() => hide(key)}
-            on:keydown={onKeydown}>[{n}]</a></sup><span
+            onmouseenter={() => (open = key)}
+            onmouseleave={() => hide(key)}
+            onfocus={() => (open = key)}
+            onblur={() => hide(key)}
+            onkeydown={onKeydown}>{n}</a></sup><span
           role="tooltip"
           id="{idPrefix}-pop-{key}"
-          class="popover"
-          hidden={open !== key}><strong>{c.title}</strong><span class="pop-text">{c.text}</span></span></span>{/if}{/each}{/if}{/each}</p>
-
-<style>
-  .answer-text {
-    white-space: pre-wrap;
-    line-height: 1.5;
-  }
-  .cite {
-    position: relative;
-  }
-  sup a {
-    text-decoration: none;
-    padding: 0 0.1em;
-  }
-  sup a:focus-visible {
-    outline: 2px solid #1a5fb4;
-    outline-offset: 1px;
-  }
-  .popover {
-    position: absolute;
-    left: 0;
-    bottom: 1.8em;
-    z-index: 10;
-    width: min(28rem, 80vw);
-    padding: 0.5rem 0.6rem;
-    background: #fff;
-    color: #222;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    font-size: 0.9rem;
-    line-height: 1.35;
-    white-space: normal;
-  }
-  .popover[hidden] {
-    display: none;
-  }
-  .pop-text {
-    display: block;
-    margin-top: 0.25rem;
-    white-space: pre-wrap;
-  }
-</style>
+          class="absolute bottom-[1.8em] left-0 z-10 w-[min(28rem,80vw)] rounded-lg border border-line-strong bg-card px-3 py-2 text-sm leading-snug whitespace-normal text-fg shadow-[0_8px_24px_rgb(0_0_0/0.4)]"
+          hidden={open !== key}><strong class="font-mono text-xs text-fg-muted">{c.title}</strong><span class="mt-1 block whitespace-pre-wrap text-fg-body">{c.text}</span></span></span>{/if}{/each}{/if}{/each}</p>
