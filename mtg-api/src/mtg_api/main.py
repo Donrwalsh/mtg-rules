@@ -14,6 +14,7 @@ from celery import Celery
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import TypeAdapter, ValidationError
 from qdrant_client import QdrantClient
 from sqlalchemy import create_engine
@@ -63,7 +64,7 @@ from mtg_api.qdrant_check import check_qdrant
 from mtg_api.retrieval import fetch_card_rulings, hybrid_search
 from mtg_api.rules_index import RulesIndex, load_rules_index
 from mtg_api.sparse_embedder import SparseEmbedder, load_bm25_sparse_embedder
-from mtg_api.streaming import AnswerJob, Emit, GenerationSlots
+from mtg_api.streaming import AnswerJob, Emit, GenerationSlots, sse_event
 from mtg_api.usage import (
     Gate,
     check_gate,
@@ -749,6 +750,28 @@ def query(
     return QueryResponse(query=request.query, **fields)
 
 
+def _sse(started: _Started) -> Iterator[str]:
+    """Relays the answer job as SSE. Closing this (the client left) only
+    stops the relay; the job finishes on its own thread."""
+    yield sse_event("results", started.head)
+    for name, data in started.rest:
+        yield sse_event(name, data)
+
+
+@app.post("/api/v1/query/stream")
+def query_stream(
+    request: QueryRequest, http_request: Request, d: QueryDeps = Depends(get_query_deps)
+) -> StreamingResponse:
+    # Phase 1 runs here, before any byte is sent, so a 422/403/429 is a
+    # plain HTTP error.
+    started = _start_query(request, http_request, d)
+    return StreamingResponse(
+        _sse(started),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 def require_task_endpoints() -> None:
     if not settings.task_endpoints:
         raise HTTPException(status_code=404, detail="Not Found")
@@ -814,6 +837,9 @@ def get_query_replay(history_id: int, engine: Engine = Depends(get_db_engine)) -
         citations=row["citations"] or [],
         rule_references=row["rule_references"] or [],
         citation_stats=row["citation_stats"] or {},
+        # No stored finish reason; a cut-off answer is the only row with
+        # both an answer and an error.
+        answer_complete=not row["error"],
     )
 
 
