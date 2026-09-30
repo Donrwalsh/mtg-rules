@@ -192,7 +192,7 @@ def usage_summary(
         "days": [
             {
                 "date": date.isoformat(),
-                "spend_usd": round(day["spend_usd"], 6),
+                "spend_usd": day["spend_usd"],
                 "outcomes": dict(day["outcomes"]),
             }
             for date, day in per_day.items()
