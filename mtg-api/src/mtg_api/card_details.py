@@ -15,6 +15,7 @@ class CardDetails(BaseModel):
     loyalty: str | None = None
     image_small: str | None = None
     image_normal: str | None = None
+    image_large: str | None = None
 
 
 def card_details(row: dict) -> CardDetails:
@@ -30,4 +31,5 @@ def card_details(row: dict) -> CardDetails:
         loyalty=row.get("loyalty"),
         image_small=normal.replace("/normal/", "/small/", 1) if normal else None,
         image_normal=normal,
+        image_large=normal.replace("/normal/", "/large/", 1) if normal else None,
     )

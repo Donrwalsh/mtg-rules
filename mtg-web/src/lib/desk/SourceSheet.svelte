@@ -1,17 +1,20 @@
 <script lang="ts">
   import { parentRule, statLine, type EvidenceItem } from '$lib/evidence';
   import { calendarDate } from '$lib/format';
+  import CardArt from './CardArt.svelte';
   import Icon from './Icon.svelte';
 
   let {
     items,
     index = $bindable(0),
-    open = $bindable(false),
+    open,
+    onclose,
     onchange
   }: {
     items: EvidenceItem[];
     index?: number;
-    open?: boolean;
+    open: boolean;
+    onclose: () => void;
     onchange?: (item: EvidenceItem) => void;
   } = $props();
 
@@ -38,8 +41,10 @@
     if (open && item) onchange?.(item);
   });
 
-  function onclose() {
-    open = false;
+  // Escape closes the dialog natively while `open` is still true; a close
+  // driven by `open` (back, or onclose) arrives with it already false.
+  function ondialogclose() {
+    if (open) onclose();
     opener?.focus();
   }
 </script>
@@ -49,8 +54,8 @@
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
 <dialog
   bind:this={dialog}
-  {onclose}
-  onclick={(e) => e.target === dialog && (open = false)}
+  onclose={ondialogclose}
+  onclick={(e) => e.target === dialog && onclose()}
   aria-label={item ? `Source ${item.number ?? index + 1}: ${item.title}` : 'Source'}
   class="mx-0 mt-auto mb-0 max-h-[85vh] w-full max-w-full overflow-y-auto rounded-t-[18px] border-0 border-t border-line-strong bg-card p-0 text-fg backdrop:bg-scrim"
 >
@@ -84,7 +89,7 @@
         <button
           type="button"
           aria-label="Close"
-          onclick={() => (open = false)}
+          onclick={onclose}
           class="flex size-11 cursor-pointer items-center justify-center rounded-full border-0 bg-chip text-fg"
         >
           <Icon name="close" />
@@ -94,12 +99,14 @@
       {#if item.kind === 'card'}
         <div class="flex gap-4">
           {#if item.card?.image_normal}
-            <img
-              src={item.card.image_normal}
-              alt={item.card.name}
-              width="150"
-              height="209"
-              class="h-[209px] w-[150px] shrink-0 rounded-lg"
+            <CardArt
+              name={item.card.name}
+              thumb={item.card.image_normal}
+              normal={item.card.image_normal}
+              large={item.card.image_large}
+              width={150}
+              height={209}
+              class="rounded-lg"
             />
           {:else}
             <div
@@ -147,18 +154,16 @@
           “{item.text}”
         </blockquote>
         {#if item.url}
-          <a
-            href={item.url}
-            {...external}
-            class="flex items-center gap-3 rounded-[10px] border border-line px-2.5 py-2 text-fg no-underline"
-          >
-            {#if item.card?.image_small}
-              <img
-                src={item.card.image_small}
-                alt=""
-                width="40"
-                height="56"
-                class="h-14 w-10 shrink-0 rounded"
+          <div class="flex items-center gap-3 rounded-[10px] border border-line px-2.5 py-2">
+            {#if item.card?.image_normal}
+              <CardArt
+                name={item.card.name}
+                thumb={item.card.image_small ?? item.card.image_normal}
+                normal={item.card.image_normal}
+                large={item.card.image_large}
+                width={40}
+                height={56}
+                class="rounded"
               />
             {:else}
               <span
@@ -167,12 +172,18 @@
                 >art</span
               >
             {/if}
-            <span class="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span class="text-xs text-fg-muted">From the card</span>
-              <span class="text-[15px] font-semibold">{item.cardName}</span>
-            </span>
-            <Icon name="chevron-right" class="text-fg-muted" />
-          </a>
+            <a
+              href={item.url}
+              {...external}
+              class="flex min-w-0 flex-1 items-center gap-3 self-stretch text-fg no-underline"
+            >
+              <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span class="text-xs text-fg-muted">From the card</span>
+                <span class="text-[15px] font-semibold">{item.cardName}</span>
+              </span>
+              <Icon name="chevron-right" class="text-fg-muted" />
+            </a>
+          </div>
           <div class="mt-auto grid grid-cols-2 gap-2.5">
             <a href="{item.url}#rulings" {...external} class={outlineButton}>All rulings (card)</a>
             <a href={item.url} {...external} class={outlineButton}>Scryfall ↗</a>

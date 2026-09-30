@@ -20,6 +20,7 @@
   import { fromCitation, type EvidenceItem } from '$lib/evidence';
   import { loadMeta, meta } from '$lib/meta.svelte';
   import type { Selection } from '$lib/selection';
+  import { closeSheet, openSheet as pushSheet } from '$lib/overlays';
   import { noticeFor } from '$lib/status';
 
   type View = 'idle' | 'loading' | 'result' | 'failed';
@@ -32,7 +33,7 @@
   let selection = $state<Selection | null>(null);
   let sheetItems = $state<EvidenceItem[]>([]);
   let sheetIndex = $state(0);
-  let sheetOpen = $state(false);
+  const sheetOpen = $derived(!!page.state.sheet);
 
   const phone = new MediaQuery('max-width: 639px');
   const desk = new MediaQuery('min-width: 1100px');
@@ -59,7 +60,6 @@
     const previous: View = response ? 'result' : 'idle';
     rateLimited = '';
     selection = null;
-    sheetOpen = false;
     view = 'loading';
     try {
       response = await run(q, fresh);
@@ -78,7 +78,7 @@
   function openSheet(items: EvidenceItem[], index: number) {
     sheetItems = items;
     sheetIndex = Math.max(0, index);
-    sheetOpen = true;
+    if (!page.state.sheet) pushSheet();
   }
 
   function select(number: number, occurrence: number) {
@@ -101,7 +101,8 @@
   }
 
   function onWindowKey(event: KeyboardEvent) {
-    if (event.key === 'Escape' && !sheetOpen) selection = null;
+    // Escape that closes a sheet or zoom shouldn't also clear the selection.
+    if (event.key === 'Escape' && !sheetOpen && !page.state.zoom) selection = null;
   }
 </script>
 
@@ -192,6 +193,7 @@
 <SourceSheet
   items={sheetItems}
   bind:index={sheetIndex}
-  bind:open={sheetOpen}
+  open={sheetOpen}
+  onclose={closeSheet}
   onchange={onSheetChange}
 />
