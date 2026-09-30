@@ -39,7 +39,7 @@ by a single `docker-compose.yml`.
 
 | Directory | What it is |
 |---|---|
-| `mtg-web/` | SvelteKit (Svelte 5) SPA frontend, styled with Tailwind v4 (design tokens in `src/app.css`). A search page that shows the generated answer with inline citations (hover/focus previews, links to rules and Scryfall), a numbered Sources list and the other retrieved results; a `/rules/[id]` page; and `/history`. Static build served by nginx on port 3000. |
+| `mtg-web/` | SvelteKit (Svelte 5) SPA frontend, styled with Tailwind v4 (design tokens in `src/app.css`). The search page is the Judge's Desk: the answer with a summary line and selectable citations (clicking one highlights its sentence and evidence card), an evidence panel (cited sources and the other retrieved results, with card images from Scryfall), a phone bottom sheet, and clear states for loading, errors and answer limits. In `npm run dev`, `/?mock=answered\|uncited\|quota\|breather\|paused\|error\|slow\|ratelimited` shows each state without calling the API. Also a `/rules/[id]` page and `/history`. Static build served by nginx on port 3000. |
 | `mtg-api/` | FastAPI backend. Query endpoint (retrieval + Gemini answer generation), history endpoint, Celery task triggers, task status. Port 8000. |
 | `mtg-worker/` | Celery worker. Registers `mtg_worker.ingest` and `mtg_worker.embed`, which delegate to the two packages below. |
 | `mtg-worker/mtg-ingestion/` | Fetch + parse stage. Pulls the Comprehensive Rules, Scryfall `oracle_cards` and `rulings` bulk data, writes JSONL to `data/parsed/`. |
