@@ -1,8 +1,8 @@
 // Dev-only stand-ins for POST /api/v1/query, so every state of the search
 // page can be checked without spending quota: /?mock=<name> in `npm run dev`.
 // Content follows the design canvas's worked example (trample + deathtouch).
-// Card images are null so the placeholders show; real images come from the
-// live API.
+// Card images are null so the placeholders show, except in `images`, which
+// uses real Scryfall URLs (and keeps Basilisk Collar as the placeholder).
 import {
   RateLimitedError,
   type CardDetails,
@@ -13,6 +13,7 @@ import {
 
 export const FIXTURE_NAMES = [
   'answered',
+  'images',
   'uncited',
   'quota',
   'breather',
@@ -174,6 +175,29 @@ const OTHERS: QueryResult[] = [
   }
 ];
 
+// `normal` URLs from cards_2026-09-29.jsonl; the other sizes share the path.
+const ART: Record<string, string> = {
+  'Colossal Dreadmaw':
+    'https://cards.scryfall.io/normal/front/8/0/8059c52b-5d25-4052-b48a-e9e219a7a546.jpg?1783930678',
+  'Windswift Slice':
+    'https://cards.scryfall.io/normal/front/f/8/f8097193-1d32-4235-afd4-f6839602e4fb.jpg?1783916024',
+  'Mirror Shield':
+    'https://cards.scryfall.io/normal/front/e/7/e7624e84-93ce-4983-8624-ebc934cab67f.jpg?1783931516',
+  'Ohran Frostfang':
+    'https://cards.scryfall.io/normal/front/5/5/55fb93e6-d057-4b70-ad12-e98291fd4a2c.jpg?1783903764'
+};
+
+function withArt(c: CardDetails): CardDetails {
+  const normal = ART[c.name];
+  if (!normal) return c;
+  return {
+    ...c,
+    image_small: normal.replace('/normal/', '/small/'),
+    image_normal: normal,
+    image_large: normal.replace('/normal/', '/large/')
+  };
+}
+
 const ANSWER =
   'Yes — each blocker only needs 1 damage. Deathtouch makes any nonzero amount of combat damage count as lethal when assigning it [1]. ' +
   'Trample only requires lethal damage on each blocker before the excess can be assigned to the player [2]. ' +
@@ -206,6 +230,11 @@ const retrievalOnly: QueryResponse = {
 
 const FIXTURES: Record<string, () => QueryResponse> = {
   answered: () => BASE,
+  images: () => ({
+    ...BASE,
+    citations: BASE.citations.map((c) => ({ ...c, card: c.card && withArt(c.card) })),
+    results: BASE.results.map((r) => ({ ...r, card: r.card && withArt(r.card) }))
+  }),
   uncited: () => ({
     ...BASE,
     query: 'What happens when two replacement effects apply to the same event?',

@@ -20,6 +20,8 @@ export interface CardDetails {
   loyalty: string | null;
   image_small: string | null;
   image_normal: string | null;
+  // Missing from answers stored before the API returned it.
+  image_large?: string | null;
 }
 
 export interface QueryResult {
