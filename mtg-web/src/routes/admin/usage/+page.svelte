@@ -1,7 +1,7 @@
 <script lang="ts">
   import AppHeader from '$lib/AppHeader.svelte';
   import { fetchUsage, type UsageSummary } from '$lib/api';
-  import { calendarDate } from '$lib/format';
+  import { calendarDate, usd, usdPrecise } from '$lib/format';
   import SpendChart from '$lib/pages/SpendChart.svelte';
 
   const OUTCOMES: [string, string][] = [
@@ -23,11 +23,14 @@
     .then((u) => (usage = u))
     .catch((e) => (error = String(e)));
 
-  const dollars = (n: number) => `$${n.toFixed(2)}`;
   const today = $derived(usage ? usage.days[usage.days.length - 1] : null);
   const count = (key: string) => today?.outcomes[key] ?? 0;
   const spentPct = $derived(
     usage && today ? Math.round((today.spend_usd / usage.budget_usd) * 100) : 0
+  );
+  // Sub-cent spend rounds to 0%; say so rather than claim nothing was spent.
+  const spentLabel = $derived(
+    spentPct === 0 && today && today.spend_usd > 0 ? '<1%' : `${spentPct}%`
   );
 </script>
 
@@ -55,7 +58,7 @@
     <h1 class="m-0 text-2xl font-semibold sm:text-[28px]">Usage</h1>
     {#if usage}
       <p class="m-0 text-sm text-fg-soft">
-        UTC days · daily budget <span class="font-mono">{dollars(usage.budget_usd)}</span> · limits
+        UTC days · daily budget <span class="font-mono">{usd(usage.budget_usd)}</span> · limits
         reset at midnight UTC
       </p>
     {/if}
@@ -69,8 +72,8 @@
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 desk:grid-cols-4">
       {@render tile(
         "Today's spend",
-        dollars(today.spend_usd),
-        `${spentPct}% of the ${dollars(usage.budget_usd)} budget`,
+        usdPrecise(today.spend_usd),
+        `${spentLabel} of the ${usd(usage.budget_usd)} budget`,
         spentPct
       )}
       {@render tile(
@@ -97,7 +100,7 @@
       <div class="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="spend-h" class="m-0 text-base font-semibold">Spend, last 7 days</h2>
         <span class="font-mono text-xs text-fg-muted"
-          >dashed line: {dollars(usage.budget_usd)} budget</span
+          >dashed line: {usd(usage.budget_usd)} budget</span
         >
       </div>
       <SpendChart days={usage.days} budget={usage.budget_usd} />
@@ -119,7 +122,7 @@
               {#each [...usage.days].reverse() as day (day.date)}
                 <tr>
                   <td class={td}>{calendarDate(day.date).replace(/, \d{4}$/, '')}</td>
-                  <td class={td}>{dollars(day.spend_usd)}</td>
+                  <td class={td}>{usdPrecise(day.spend_usd)}</td>
                   {#each OUTCOMES as [key] (key)}<td class={td}>{day.outcomes[key] ?? 0}</td>{/each}
                 </tr>
               {/each}
@@ -149,7 +152,7 @@
                     <td class={td}>{b.ip_bucket}</td>
                     <td class={td}>{b.requests}</td>
                     <td class={td}>{b.answers}</td>
-                    <td class={td}>{dollars(b.spend_usd)}</td>
+                    <td class={td}>{usdPrecise(b.spend_usd)}</td>
                   </tr>
                 {/each}
               </tbody>

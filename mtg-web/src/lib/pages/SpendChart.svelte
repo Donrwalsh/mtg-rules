@@ -1,20 +1,19 @@
 <script lang="ts">
   import type { UsageDay } from '$lib/api';
-  import { calendarDate } from '$lib/format';
+  import { calendarDate, usd, usdPrecise } from '$lib/format';
   import { barHeight, chartScale } from '$lib/usageChart';
 
   let { days, budget }: { days: UsageDay[]; budget: number } = $props();
 
   const HEIGHT = 220;
-  const dollars = (n: number) => `$${n.toFixed(2)}`;
   // "Sep 23" from "2026-09-23".
   const dayLabel = (date: string) => calendarDate(date).replace(/, \d{4}$/, '');
 
   const scale = $derived(chartScale(days.map((d) => d.spend_usd), budget));
   const summary = $derived(
     `Daily spend, ${days
-      .map((d) => `${dayLabel(d.date)} ${dollars(d.spend_usd)}`)
-      .join(', ')}. Budget ${dollars(budget)} a day.`
+      .map((d) => `${dayLabel(d.date)} ${usdPrecise(d.spend_usd)}`)
+      .join(', ')}. Budget ${usd(budget)} a day.`
   );
 </script>
 
@@ -27,7 +26,7 @@
       {#each scale.ticks as t (t)}
         <span
           class="absolute right-0 font-mono text-[11px] text-fg-muted"
-          style:bottom="{barHeight(t, scale.max, HEIGHT) - 7}px">{dollars(t)}</span
+          style:bottom="{barHeight(t, scale.max, HEIGHT) - 7}px">{usd(t)}</span
         >
       {/each}
     </div>
@@ -52,14 +51,14 @@
           {@const h = barHeight(day.spend_usd, scale.max, HEIGHT)}
           <div class="relative flex h-full flex-1 items-end justify-center">
             <div
-              title="{dayLabel(day.date)}: {dollars(day.spend_usd)}"
+              title="{dayLabel(day.date)}: {usdPrecise(day.spend_usd)}"
               class="w-[60%] max-w-16 rounded-t bg-gold"
               style:height="{h}px"
             ></div>
             {#if i === days.length - 1}
               <span
                 class="absolute font-mono text-xs text-fg"
-                style:bottom="{h + 6}px">{dollars(day.spend_usd)}</span
+                style:bottom="{h + 6}px">{usdPrecise(day.spend_usd)}</span
               >
             {/if}
           </div>

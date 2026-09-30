@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+import pytest
 from conftest import admin_client, memory_engine
 from fastapi.testclient import TestClient
 
@@ -31,6 +32,6 @@ def test_usage_returns_the_summary(monkeypatch):
         body = admin_client(monkeypatch).get("/api/v1/admin/usage").json()
     finally:
         app.dependency_overrides.clear()
-    assert body["days"][-1]["spend_usd"] == 0.02
+    assert body["days"][-1]["spend_usd"] == pytest.approx(0.02)
     assert body["top_ip_buckets"][0]["ip_bucket"] == "203.0.113.7"
     assert set(body) == {"budget_usd", "days", "cache_hit_rate", "top_ip_buckets"}

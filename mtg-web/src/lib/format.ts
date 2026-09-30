@@ -31,3 +31,20 @@ export function resetTime(now = new Date(), locale?: string, timeZone?: string):
   const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
   return next.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit', timeZone });
 }
+
+// Budgets and chart ticks: whole cents.
+export function usd(n: number, locale = 'en-US'): string {
+  return n.toLocaleString(locale, { style: 'currency', currency: 'USD' });
+}
+
+// Spend: per-answer costs are fractions of a cent, so show 5 significant
+// figures, never fewer than 2 decimals and never in exponent notation.
+export function usdPrecise(n: number, locale = 'en-US'): string {
+  const magnitude = n === 0 ? 0 : Math.floor(Math.log10(Math.abs(n)));
+  return n.toLocaleString(locale, {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: Math.min(100, Math.max(2, 4 - magnitude))
+  });
+}
