@@ -1,7 +1,7 @@
 import hashlib
 
 import pytest
-from conftest import memory_engine
+from conftest import StreamsFromGenerate, memory_engine
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from test_query import _FakeAnswerer, _FakeHit, _override
@@ -24,13 +24,13 @@ def eval_mode(monkeypatch):
     monkeypatch.setattr(main.settings, "eval_mode", True)
 
 
-class _RecordingAnswerer:
+class _RecordingAnswerer(StreamsFromGenerate):
     def __init__(self):
         self.calls = []
 
     def generate(self, query, context):
         self.calls.append(query)
-        return Generation(text="An answer.")
+        return Generation(text="An answer.", finish_reason="STOP")
 
 
 def _two_rule_hits():

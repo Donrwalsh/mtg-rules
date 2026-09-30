@@ -81,7 +81,7 @@ def find_rule_references(text: str, rules_index: RulesIndex) -> list[str]:
     return found
 
 
-def _citation(number: int, result: QueryResult) -> Citation:
+def citation_for(number: int, result: QueryResult) -> Citation:
     title = source_label(result)
     if result.source == "rule":
         rule_id = result.rule_id or result.title
@@ -108,7 +108,7 @@ def _citation(number: int, result: QueryResult) -> Citation:
 
 
 def build_citations(cited_numbers: list[int], sources: dict[int, QueryResult]) -> list[Citation]:
-    return [_citation(number, sources[number]) for number in sorted(cited_numbers)]
+    return [citation_for(number, sources[number]) for number in sorted(cited_numbers)]
 
 
 def cite_answer(

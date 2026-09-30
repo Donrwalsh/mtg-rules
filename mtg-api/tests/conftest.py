@@ -42,3 +42,21 @@ def admin_client(monkeypatch, password: str = "pw"):
     client = TestClient(app, headers={"X-Admin-Request": "1"})
     assert client.post("/api/v1/auth/login", json={"password": password}).status_code == 200
     return client
+
+
+class StreamsFromGenerate:
+    """For fake answerers that define generate(): serves it as a one-chunk
+    stream, the way the pipeline reads answers. Raises on first read, as a
+    real failed stream does."""
+
+    def stream(self, query, context):
+        from mtg_api.llm import StreamChunk
+
+        g = self.generate(query, context)
+        yield StreamChunk(
+            text=g.text,
+            input_tokens=g.input_tokens,
+            output_tokens=g.output_tokens,
+            thinking_tokens=g.thinking_tokens,
+            finish_reason=g.finish_reason,
+        )

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 import pytest
-from conftest import admin_client, memory_engine
+from conftest import StreamsFromGenerate, admin_client, memory_engine
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from test_query import _FailingEngine, _FakeHit, _override
@@ -9,12 +9,12 @@ from test_query import _FailingEngine, _FakeHit, _override
 from mtg_api import main
 from mtg_api.answer_cache import answer_cache, cache_key
 from mtg_api.history import list_history
-from mtg_api.llm import Generation
+from mtg_api.llm import Generation, StreamChunk
 from mtg_api.main import app, get_data_version
 from mtg_api.usage import llm_usage, record_usage
 
 
-class _CountingAnswerer:
+class _CountingAnswerer(StreamsFromGenerate):
     def __init__(self, raises=None, finish_reason="STOP"):
         self.calls = 0
         self._raises = raises
@@ -305,3 +305,75 @@ def test_cache_hit_rows_from_before_enrichment_are_enriched(gated):
     assert second["cached_at"] is not None
     assert second["results"][0]["heading"] == "Trample"
     assert second["citations"][0]["heading"] == "Trample"
+
+
+class _ChunksAnswerer:
+    """Streams the given chunks, then raises `then_raise` if set."""
+
+    def __init__(self, chunks, then_raise=None):
+        self._chunks = chunks
+        self._then_raise = then_raise
+        self.calls = 0
+
+    def stream(self, query, context):
+        self.calls += 1
+        yield from self._chunks
+        if self._then_raise:
+            raise self._then_raise
+
+
+def _rows(engine):
+    with engine.connect() as conn:
+        return conn.execute(select(llm_usage).order_by(llm_usage.c.id)).mappings().all()
+
+
+def test_complete_answer_is_marked_complete():
+    _setup()
+    assert _post({"query": "trample"}).json()["answer_complete"] is True
+
+
+def test_cut_off_answer_is_marked_and_saved_with_a_reason(gated):
+    engine, _ = _setup(answerer=_CountingAnswerer(finish_reason="MAX_TOKENS"))
+    body = _post({"query": "trample"}).json()
+    assert body["answer"] == "Yes [1]."
+    assert body["answer_complete"] is False
+    assert list_history(engine)[0]["error"] == "answer cut off (finish reason: MAX_TOKENS)"
+    assert _outcomes(engine) == ["generated"]
+
+
+def test_reservation_is_pending_while_the_answer_is_written(gated):
+    engine = memory_engine()
+    seen = []
+
+    class _Peeking(StreamsFromGenerate):
+        def generate(self, query, context):
+            seen.extend(_rows(engine))
+            return Generation("Yes [1].", finish_reason="STOP")
+
+    _setup(answerer=_Peeking(), engine=engine)
+    _post({"query": "trample"})
+    assert [r["outcome"] for r in seen] == ["pending"]
+    assert seen[0]["cost_usd"] > 0
+    assert _outcomes(engine) == ["generated"]  # the same row, finalized
+
+
+def test_failure_after_partial_text_keeps_the_text_and_estimates_cost(gated):
+    answerer = _ChunksAnswerer([StreamChunk(text="Yes, it does [1")], RuntimeError("reset"))
+    engine, _ = _setup(answerer=answerer)
+    body = _post({"query": "trample"}).json()
+    assert body["answer"] == "Yes, it does [1"
+    assert body["answer_complete"] is False
+    (row,) = _rows(engine)
+    assert row["outcome"] == "error"
+    assert row["cost_usd"] > 0  # estimated: no usage ever arrived
+    assert list_history(engine)[0]["error"] == "reset"
+    assert body["cached_at"] is None
+
+
+def test_failure_with_no_text_costs_nothing_and_has_no_answer(gated):
+    engine, _ = _setup(answerer=_ChunksAnswerer([], RuntimeError("Gemini 429")))
+    body = _post({"query": "trample"}).json()
+    assert body["answer"] is None
+    assert body["answer_complete"] is None
+    (row,) = _rows(engine)
+    assert (row["outcome"], row["cost_usd"]) == ("error", 0.0)

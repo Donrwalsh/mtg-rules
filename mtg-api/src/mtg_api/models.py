@@ -76,6 +76,9 @@ class QueryResponse(BaseModel):
     # Rule numbers mentioned in the answer's prose that exist in the rules.
     rule_references: list[str] = Field(default_factory=list)
     citation_stats: CitationStats = Field(default_factory=CitationStats)
+    # True when Gemini finished the answer, False when it stopped early
+    # (token limit, safety, timeout, dropped stream); None without an answer.
+    answer_complete: bool | None = None
     # Set when this answer came from the answer cache: when it was generated.
     cached_at: datetime | None = None
     # Why no answer was generated: "ip_quota" or "global_budget".
