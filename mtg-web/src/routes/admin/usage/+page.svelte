@@ -9,7 +9,8 @@
     ['cached', 'Cached'],
     ['degraded_ip', 'Visitor limit'],
     ['degraded_global', 'Site budget'],
-    ['error', 'Error']
+    ['error', 'Error'],
+    ['pending', 'In progress']
   ];
   const th =
     'border-b border-line-strong px-2.5 py-2 text-left font-mono text-[11px] font-normal whitespace-nowrap text-fg-muted';
