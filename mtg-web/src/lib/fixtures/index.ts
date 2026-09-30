@@ -212,6 +212,7 @@ const BASE: QueryResponse = {
   citations: CITATIONS,
   rule_references: ['510.1c', '702.2c', '702.19b'],
   citation_stats: { cited_count: 5, invalid_count: 0, uncited_answer: false },
+  answer_complete: true,
   cached_at: '2026-09-27T18:04:00Z',
   degraded: null,
   answers_remaining: 7
@@ -225,6 +226,7 @@ const retrievalOnly: QueryResponse = {
   citations: [],
   rule_references: [],
   results: uncitedResults,
+  answer_complete: null,
   cached_at: null
 };
 
