@@ -106,14 +106,15 @@ Request body: the same `QueryRequest` as `/api/v1/query`. Response:
 
 | Event | When | `data` |
 |---|---|---|
-| `results` | Always first | `results` (enriched `QueryResult`s, as today), `sources` (a `Citation` for every numbered result, keyed by number: see below), `degraded`, `answers_remaining`, `cached_at` |
+| `results` | Always first | `results` (enriched `QueryResult`s, as today), `sources` (a list of `Citation`s, one for every numbered result: see below), `degraded`, `answers_remaining`, `cached_at` |
 | `thinking` | Generation started, no answer text yet | `{}` |
 | `delta` | Each chunk that has answer text | `{"text": "<raw text since the last delta>"}` |
-| `done` | Always last on success, and on partial success | Every remaining `QueryResponse` field: `answer`, `citations`, `rule_references`, `citation_stats`, `answer_complete`, and in eval mode the eval fields |
-| `error` | Generation failed with **no** answer text at all | `{"message": "..."}` |
+| `error` | Generation failed with **no** answer text at all; `done` still follows | `{"message": "..."}` |
+| `done` | **Always last** | Every `QueryResponse` field except `query`, `degraded`, `answers_remaining` and `cached_at`: `results` again (now with `cited` flags), `answer`, `citations`, `rule_references`, `citation_stats`, `answer_complete`, and in eval mode the eval fields |
 
 `sources` lets the client show a live `CitationMarker` for `[n]` before
-validation has run. Each `Citation` is built with the same helper as
+validation has run. Result `i` in `results` is source `i + 1`, so the
+client can also mark live-cited results as `cited`. Each `Citation` is built with the same helper as
 `build_citations` (the `_citation` function in `citations.py`, made
 public) and then enriched with `enrich_citations`. The `done` event's
 `citations` list replaces the live one, and in practice only removes the
@@ -122,8 +123,9 @@ occasional invalid number.
 `answer_complete` is a new `QueryResponse` field (also on the JSON
 endpoint): `true` when `finish_reason == "STOP"`, `false` when there is
 partial text from any early stop or failure, `null` when there's no
-answer. If generation fails after some text has streamed, the stream
-still ends with `done` (with `answer_complete: false`), not `error`.
+answer. If generation fails after some text has streamed, there is no
+`error` event: the stream just ends with `done` (with `answer_complete:
+false`). The JSON endpoint reads only `results` and `done`.
 
 A degraded request (quota or budget), a `generate: false` request, and a
 cache hit all send `results` followed right away by `done`.
@@ -147,8 +149,11 @@ refuse the request with an HTTP status runs here, so decision 14 holds:
 3. Gate (as today). If not degraded and an answer is wanted:
 4. **Acquire a generation slot** (see *Concurrency caps*). No slot →
    `HTTPException(429)`.
-5. **Reserve** a `pending` usage row (see *Spend reservation*).
-6. Retrieval, `build_context`, enrichment, `sources` (exactly as today).
+5. Retrieval, `build_context`, enrichment, `sources` (exactly as today).
+6. **Reserve** a `pending` usage row (see *Spend reservation*). This
+   comes after retrieval because the worst-case estimate needs the
+   context's length. The gap is one retrieval (well under a second), and
+   the slot caps limit how many requests can sit in it.
 
 **Phase 2: generation (worker thread).** A `GenerationJob` owns the
 slot, the reservation id, `context`, `sources` and a `queue.Queue` of
@@ -160,8 +165,9 @@ events. Its thread:
 2. On a normal end, an early stop, a timeout or a transport error: runs
    `cite_answer` on whatever text there is, finalizes the usage row
    (real or estimated cost), saves history, puts the answer in the cache
-   only if `finish_reason == "STOP"`, and pushes `done` (or `error` if
-   there was no text at all).
+   only if `finish_reason == "STOP"`, and pushes `done` (preceded by
+   `error` if there was no text at all). A cut-off answer is saved to
+   history with `error = "answer cut off (finish reason: …)"`.
 3. In `finally`: releases the slot and pushes an end-of-stream marker.
    If anything above raised unexpectedly, the reservation keeps its
    worst-case cost (see below), so the budget stays safe.
@@ -229,6 +235,12 @@ chars ÷ 4⌉. Output = last `candidatesTokenCount` seen, otherwise
 ⌈received answer chars ÷ 4⌉. Thinking = last `thoughtsTokenCount` seen,
 otherwise `max_tokens` (or 2048). Round the result up.
 
+This applies only to a stream that ended **without** a `finishReason`.
+Once the final chunk has arrived, a missing count means zero (Gemini
+leaves out `thoughtsTokenCount` when there was no thinking), as today. A
+stream that never got a single chunk (for example, Gemini answered 429)
+costs zero, as a failed call does today.
+
 ### Concurrency caps
 
 An in-process `GenerationSlots` (a lock and counters; one uvicorn worker,
@@ -287,9 +299,13 @@ request's `AbortController`, and a replay load aborts it too. Then:
   derived value feeds `AnswerBody`;
 - `done`: replace the draft and the live citations with the validated
   fields. `view = 'result'`;
-- `error` or a network failure after `results`: keep the evidence and
-  show the error in the answer column. A failure before `results` →
-  `ErrorState` as today.
+- `error`: nothing to do. The `done` that follows has no answer, so the
+  page shows today's "Couldn't write an answer this time" notice above
+  the matching sources.
+- A network failure after `results` (the stream ends without `done`):
+  keep the evidence and whatever text has streamed, marked
+  `answer_complete: false`. With no text, show the same "Couldn't write
+  an answer" notice. A failure before `results` → `ErrorState` as today.
 
 **Live citations:** during streaming, `AnswerBody` gets `citations` =
 the `sources` whose number appears in the draft so far, and
