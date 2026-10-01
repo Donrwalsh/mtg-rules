@@ -230,7 +230,7 @@ def make_deps(*, hits=None, answerer=None, engine=None, cards=None, rules=None, 
     from mtg_api.card_matcher import CardMatcher
     from mtg_api.embedder import Embedder
     from mtg_api.keyword_matcher import KeywordMatcher
-    from mtg_api.main import QueryDeps
+    from mtg_api.query_pipeline import QueryDeps
     from mtg_api.rules_index import RulesIndex
     from mtg_api.sparse_embedder import SparseEmbedder
 

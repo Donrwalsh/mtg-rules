@@ -5,7 +5,7 @@ from conftest import FakeAnswerer, FakeHit, StreamsFromGenerate, memory_engine, 
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
-from mtg_api import main
+from mtg_api import main, query_pipeline
 from mtg_api.history import list_history
 from mtg_api.llm import PROMPT_VERSION, GeminiAnswerer, Generation, OllamaAnswerer, build_context
 from mtg_api.main import app
@@ -100,7 +100,7 @@ def test_generation_override_builds_a_per_request_answerer(eval_mode, monkeypatc
         seen.append(s)
         return FakeAnswerer("Per-request answer.")
 
-    monkeypatch.setattr(main, "build_answerer", fake_build_answerer)
+    monkeypatch.setattr(query_pipeline, "build_answerer", fake_build_answerer)
     override(answerer=FakeAnswerer("Shared answer."))
 
     resp = _post({"query": "q", "overrides": {"generation_temperature": 0.7}})
@@ -112,7 +112,7 @@ def test_generation_override_builds_a_per_request_answerer(eval_mode, monkeypatc
 
 def test_retrieval_override_keeps_the_shared_answerer(eval_mode, monkeypatch):
     built = []
-    monkeypatch.setattr(main, "build_answerer", lambda s: built.append(s))
+    monkeypatch.setattr(query_pipeline, "build_answerer", lambda s: built.append(s))
     override(answerer=FakeAnswerer("Shared answer."))
     resp = _post({"query": "q", "overrides": {"hybrid_top_k": 3}})
     assert resp.json()["answer"] == "Shared answer."
@@ -143,7 +143,7 @@ def test_eval_fields_present_in_eval_mode(eval_mode):
 
 
 def test_generator_reflects_model_override(eval_mode, monkeypatch):
-    monkeypatch.setattr(main, "build_answerer", lambda s: FakeAnswerer())
+    monkeypatch.setattr(query_pipeline, "build_answerer", lambda s: FakeAnswerer())
     override()
     body = _post({"query": "q", "overrides": {"gemini_model": "gemini-x"}}).json()
     assert body["generator"] == "gemini:gemini-x"
@@ -275,7 +275,7 @@ def test_usage_is_null_outside_eval_mode():
 
 
 def test_override_accepts_a_valid_thinking_level(eval_mode, monkeypatch):
-    monkeypatch.setattr(main, "build_answerer", lambda s: FakeAnswerer("An answer."))
+    monkeypatch.setattr(query_pipeline, "build_answerer", lambda s: FakeAnswerer("An answer."))
     override()
     resp = _post({"query": "trample", "overrides": {"generation_thinking_level": "low"}})
     assert resp.status_code == 200

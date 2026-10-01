@@ -4,13 +4,13 @@ import pytest
 from conftest import ChunksAnswerer, CountingAnswerer, admin_client, make_deps, setup_trample
 from fastapi.testclient import TestClient
 from sqlalchemy import select
-from starlette.requests import Request
 
-from mtg_api import main
+from mtg_api import main, query_pipeline
 from mtg_api.history import list_history
 from mtg_api.llm import StreamChunk
 from mtg_api.main import app
 from mtg_api.models import QueryRequest
+from mtg_api.query_pipeline import Caller
 from mtg_api.streaming import join_all
 from mtg_api.usage import llm_usage
 
@@ -90,7 +90,7 @@ def test_validation_errors_are_plain_http():
 
 def test_second_answer_from_one_ip_is_429_while_one_is_in_progress():
     setup_trample()
-    release = main.generation_slots.acquire("testclient", total_limit=4, ip_limit=1)
+    release = query_pipeline.generation_slots.acquire("testclient", total_limit=4, ip_limit=1)
     try:
         assert _stream({"query": "trample"}).status_code == 429
     finally:
@@ -122,7 +122,7 @@ def test_eval_mode_skips_the_caps(monkeypatch):
 def test_admin_skips_the_per_ip_cap_but_not_the_global_one(monkeypatch):
     setup_trample()
     client = admin_client(monkeypatch)
-    release = main.generation_slots.acquire("testclient", total_limit=4, ip_limit=1)
+    release = query_pipeline.generation_slots.acquire("testclient", total_limit=4, ip_limit=1)
     try:
         assert _stream({"query": "trample"}, client).status_code == 200
     finally:
@@ -134,10 +134,10 @@ def test_admin_skips_the_per_ip_cap_but_not_the_global_one(monkeypatch):
 
 def test_closing_the_stream_early_still_finishes_the_answer():
     deps = make_deps(answerer=CountingAnswerer())
-    http_request = Request(
-        {"type": "http", "method": "POST", "path": "/", "headers": [], "client": ("1.2.3.4", 1)}
+    stream = query_pipeline.start(
+        QueryRequest(query="trample"), Caller("1.2.3.4", is_admin=False, may_refresh=False), deps
     )
-    frames = main._sse(main._start_query(QueryRequest(query="trample"), http_request, deps))
+    frames = main._sse(stream)
     assert next(frames).startswith("event: results")
     frames.close()  # the visitor left
     join_all()
