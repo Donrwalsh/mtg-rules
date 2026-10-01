@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from mtg_evals.metrics import ANSWER_ORDER, DECLINE_ORDER, aggregate
 
@@ -207,8 +208,20 @@ def _pass_cell(stats: dict | None) -> str:
     return f"{stats['passed']}/{stats['scored']}"
 
 
+def baseline_line(path: Path | str, base: dict) -> str:
+    meta = base["metadata"]
+    generator = meta["api_config"].get("generator") or "?"
+    sha = meta["git_sha"] + ("-dirty" if meta.get("dirty") else "")
+    date = (meta.get("started_at") or "?")[:10]
+    return f"baseline: {Path(path).name} ({generator} · {sha} · {date})"
+
+
 def render(
-    new: dict, base: dict | None = None, diff: Diff | None = None, skipped: str | None = None
+    new: dict,
+    base: dict | None = None,
+    diff: Diff | None = None,
+    skipped: str | None = None,
+    base_label: str | None = None,
 ) -> str:
     mode = new["metadata"]["mode"]
     lines = [header(new)]
@@ -217,6 +230,8 @@ def render(
         judge = new["metadata"]["judge_model"]
         if judge in (generator, generator.partition(":")[2]):
             lines.append(f"WARNING: the judge ({judge}) is the generator model; grades are biased.")
+    if base is not None and base_label:
+        lines.append(base_label)
 
     now = new["aggregates"]
     before = None
