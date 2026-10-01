@@ -36,6 +36,7 @@ from mtg_api.config import (
     GENERATION_SETTINGS,
     OVERRIDABLE_SETTINGS,
     Settings,
+    answer_model,
     generator_label,
     settings,
 )
@@ -45,9 +46,10 @@ from mtg_api.history import get_history, list_history, save_history
 from mtg_api.keyword_matcher import KeywordMatcher
 from mtg_api.llm import (
     PROMPT_VERSION,
-    GeminiAnswerer,
+    Answerer,
     Generation,
     StreamAccumulator,
+    build_answerer,
     build_context,
     prompt_chars,
 )
@@ -130,26 +132,8 @@ def get_data_version() -> str:
     return read_data_version(settings.parsed_dir)
 
 
-def build_answerer(s: Settings) -> GeminiAnswerer:
-    api_key = s.gemini_api_key.get_secret_value()
-    if not api_key:
-        # Fail at startup (lifespan builds the answerer), not on the
-        # first user query.
-        raise RuntimeError("MTG_API_GEMINI_API_KEY is required")
-    return GeminiAnswerer(
-        api_key,
-        s.gemini_model,
-        base_url=s.gemini_url,
-        temperature=s.generation_temperature,
-        max_tokens=s.generation_max_tokens,
-        thinking_level=s.generation_thinking_level,
-        timeout=s.gemini_timeout_seconds,
-        chunk_timeout=s.gemini_stream_chunk_timeout_seconds,
-    )
-
-
 @lru_cache(maxsize=1)
-def get_answerer() -> GeminiAnswerer:
+def get_answerer() -> Answerer:
     return build_answerer(settings)
 
 
@@ -227,6 +211,7 @@ _PER_REQUEST_FIELDS = {
     "prompt_version",
     "generator",
     "usage",
+    "generation_error",
 }
 
 
@@ -272,7 +257,7 @@ def _save(engine: Engine, s: Settings, request: QueryRequest, **fields) -> None:
     if settings.eval_mode and request.source == "eval":
         return
     try:
-        save_history(engine, query=request.query, model=s.gemini_model, **fields)
+        save_history(engine, query=request.query, model=answer_model(s), **fields)
     except Exception:
         logger.exception("Failed to persist query history")
 
@@ -287,7 +272,7 @@ class QueryDeps:
     dense_embedder: Embedder
     sparse_embedder: SparseEmbedder
     client: QdrantClient
-    answerer: GeminiAnswerer
+    answerer: Answerer
     engine: Engine
     rules_index: RulesIndex
     data_version: str
@@ -299,7 +284,7 @@ def get_query_deps(
     dense_embedder: Embedder = Depends(get_dense_embedder),
     sparse_embedder: SparseEmbedder = Depends(get_sparse_embedder),
     client: QdrantClient = Depends(get_qdrant_client),
-    answerer: GeminiAnswerer = Depends(get_answerer),
+    answerer: Answerer = Depends(get_answerer),
     engine: Engine = Depends(get_db_engine),
     rules_index: RulesIndex = Depends(get_rules_index),
     data_version: str = Depends(get_data_version),
@@ -471,7 +456,7 @@ class _AnswerWork:
 
     s: Settings
     request: QueryRequest
-    answerer: GeminiAnswerer
+    answerer: Answerer
     d: QueryDeps
     context: str
     sources: dict[int, QueryResult]
@@ -553,6 +538,7 @@ def _run_answer(work: _AnswerWork, emit: Emit) -> None:
         eval_fields = dict(work.eval_fields)
         if settings.eval_mode:
             eval_fields["usage"] = None if failure else generation.usage()
+            eval_fields["generation_error"] = error
         response = QueryResponse(
             query=work.request.query,
             results=work.results,
@@ -603,7 +589,7 @@ def _start_query(request: QueryRequest, http_request: Request, d: QueryDeps) -> 
     now = datetime.now(UTC)
     bucket = ip_bucket(http_request.client.host if http_request.client else "unknown")
     tracked = request.generate and not settings.eval_mode
-    record = {"now": now, "ip_bucket": bucket, "is_admin": admin, "model": s.gemini_model}
+    record = {"now": now, "ip_bucket": bucket, "is_admin": admin, "model": answer_model(s)}
 
     gate = Gate(None, 0)
     remaining = None
@@ -854,6 +840,15 @@ def get_usage(engine: Engine = Depends(get_db_engine)) -> dict:
 CONFIG_EXPOSED_SETTINGS = OVERRIDABLE_SETTINGS + (
     "dense_model_name",
     "sparse_model_name",
+    # Which model wrote the answers, and how. Not ollama_url: it describes
+    # the machine, not the result.
+    "answer_provider",
+    "ollama_model",
+    "ollama_num_ctx",
+    "ollama_seed",
+    "ollama_num_predict_default",
+    "ollama_timeout_seconds",
+    "ollama_stream_chunk_timeout_seconds",
 )
 
 

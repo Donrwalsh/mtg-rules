@@ -7,7 +7,7 @@ from pydantic import SecretStr
 
 from mtg_api import main
 from mtg_api.history import list_history
-from mtg_api.llm import PROMPT_VERSION, GeminiAnswerer, Generation, build_context
+from mtg_api.llm import PROMPT_VERSION, GeminiAnswerer, Generation, OllamaAnswerer, build_context
 from mtg_api.main import app
 from mtg_api.models import QueryResult
 
@@ -293,3 +293,68 @@ def test_build_answerer_passes_the_thinking_level():
         update={"gemini_api_key": SecretStr("k"), "generation_thinking_level": "low"}
     )
     assert main.build_answerer(s)._thinking_level == "low"
+
+
+def test_build_answerer_builds_ollama_without_a_gemini_key():
+    s = main.settings.model_copy(
+        update={
+            "answer_provider": "ollama",
+            "gemini_api_key": SecretStr(""),
+            "generation_temperature": 0.0,
+            "generation_max_tokens": None,
+        }
+    )
+    answerer = main.build_answerer(s)
+    assert isinstance(answerer, OllamaAnswerer)
+    assert answerer.model == "phi4:latest"
+    assert answerer._body("q", "c")["options"] == {
+        "num_ctx": 6144,
+        "seed": 0,
+        "num_predict": 1024,
+        "temperature": 0.0,
+    }
+
+
+def test_build_answerer_passes_max_tokens_to_ollama():
+    s = main.settings.model_copy(update={"answer_provider": "ollama", "generation_max_tokens": 300})
+    assert main.build_answerer(s)._body("q", "c")["options"]["num_predict"] == 300
+
+
+def test_history_records_the_ollama_model(monkeypatch):
+    monkeypatch.setattr(main.settings, "answer_provider", "ollama")
+    engine = memory_engine()
+    override(engine=engine)
+    _post({"query": "q"})
+    assert list_history(engine)[0]["model"] == "phi4:latest"
+
+
+def test_generation_error_is_reported_in_eval_mode(eval_mode):
+    message = "context overflow: prompt of 9 tokens exceeds num_ctx 8"
+    override(answerer=FakeAnswerer(raises=RuntimeError(message)))
+    body = _post({"query": "q"}).json()
+    assert body["answer"] is None
+    assert body["generation_error"] == message
+
+
+def test_generation_error_is_null_for_a_good_answer(eval_mode):
+    override()
+    assert _post({"query": "q"}).json()["generation_error"] is None
+
+
+def test_generation_error_is_null_outside_eval_mode():
+    override(answerer=FakeAnswerer(raises=RuntimeError("boom")))
+    assert _post({"query": "q"}).json()["generation_error"] is None
+
+
+def test_config_exposes_the_ollama_settings_but_not_the_url(eval_mode, monkeypatch, tmp_path):
+    monkeypatch.setattr(main.settings, "parsed_dir", _parsed_dir(tmp_path))
+    app.dependency_overrides[main.get_qdrant_client] = lambda: _CountingClient()
+    settings_shown = TestClient(app).get("/api/v1/config").json()["settings"]
+    assert settings_shown["answer_provider"] == "gemini"
+    assert settings_shown["ollama_model"] == "phi4:latest"
+    assert settings_shown["ollama_num_ctx"] == 6144
+    assert settings_shown["ollama_seed"] == 0
+    assert settings_shown["ollama_num_predict_default"] == 1024
+    assert settings_shown["ollama_timeout_seconds"] == 180.0
+    assert settings_shown["ollama_stream_chunk_timeout_seconds"] == 120.0
+    assert "ollama_url" not in settings_shown

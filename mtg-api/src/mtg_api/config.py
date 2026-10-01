@@ -38,6 +38,22 @@ class Settings(BaseSettings):
     # Longest wait between two chunks of a streamed answer (the thinking
     # before the first chunk included). gemini_timeout_seconds caps the total.
     gemini_stream_chunk_timeout_seconds: float = 30.0
+    # Who writes the answers. "ollama" is for local development and evals
+    # only: production has no route to an Ollama server. Never overridable
+    # per request, so an eval run can't fall back to Gemini by accident.
+    answer_provider: Literal["gemini", "ollama"] = "gemini"
+    ollama_url: str = "http://host.docker.internal:11434"
+    ollama_model: str = "phi4:latest"
+    # Tokens Ollama holds for prompt plus answer. A longer prompt is refused
+    # (a context overflow), never truncated.
+    ollama_num_ctx: int = 6144
+    ollama_seed: int = 0
+    # The answer's token cap when generation_max_tokens is unset.
+    ollama_num_predict_default: int = 1024
+    # A cold load of a 9 GB model can take most of a minute before the first
+    # token; ollama_timeout_seconds caps the whole answer.
+    ollama_timeout_seconds: float = 180.0
+    ollama_stream_chunk_timeout_seconds: float = 120.0
     postgres_dsn: str = "postgresql+psycopg://mtg:mtg@postgres:5432/mtg"
     card_ruling_limit: int = 20
     # None means "don't send it": the model's own default applies.
@@ -107,10 +123,17 @@ GENERATION_SETTINGS: frozenset[str] = frozenset(
 
 
 def generator_label(s: Settings) -> str:
-    """Provider-qualified model, e.g. "gemini:gemini-3.5-flash", plus the
-    thinking level when one is set. Eval answer caches and the production
-    answer cache are keyed on it."""
+    """Provider-qualified model, e.g. "gemini:gemini-3.5-flash" (plus the
+    thinking level when one is set) or "ollama:phi4:latest". Eval answer
+    caches and the production answer cache are keyed on it."""
+    if s.answer_provider == "ollama":
+        return f"ollama:{s.ollama_model}"
     label = f"gemini:{s.gemini_model}"
     if s.generation_thinking_level:
         label += f":think={s.generation_thinking_level}"
     return label
+
+
+def answer_model(s: Settings) -> str:
+    """The model that writes answers, as history and usage rows record it."""
+    return s.ollama_model if s.answer_provider == "ollama" else s.gemini_model

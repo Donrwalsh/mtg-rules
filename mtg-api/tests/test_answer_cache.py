@@ -1,3 +1,5 @@
+import hashlib
+import json
 from datetime import UTC, datetime
 
 from conftest import memory_engine
@@ -10,7 +12,8 @@ from mtg_api.answer_cache import (
     put_cached,
     read_data_version,
 )
-from mtg_api.config import Settings
+from mtg_api.config import OVERRIDABLE_SETTINGS, Settings
+from mtg_api.llm import PROMPT_VERSION
 
 NOW = datetime(2026, 9, 29, 15, 0, tzinfo=UTC)
 
@@ -70,3 +73,23 @@ def test_read_data_version_falls_back_to_latest_file_names(tmp_path):
 
 def test_read_data_version_without_any_files(tmp_path):
     assert read_data_version(tmp_path / "missing") == "none|none"
+
+
+def test_gemini_cache_keys_are_unchanged():
+    s = Settings(_env_file=None)
+    parts = {
+        "query": normalize_query("Q"),
+        "prompt_version": PROMPT_VERSION,
+        "data_version": "v1",
+        "settings": {name: getattr(s, name) for name in OVERRIDABLE_SETTINGS},
+    }
+    encoded = json.dumps(parts, sort_keys=True, default=str).encode("utf-8")
+    assert cache_key("Q", s, "v1") == hashlib.sha256(encoded).hexdigest()
+
+
+def test_cache_key_keeps_providers_apart():
+    s = Settings(_env_file=None)
+    ollama = s.model_copy(update={"answer_provider": "ollama"})
+    assert cache_key("Q", s, "v1") != cache_key("Q", ollama, "v1")
+    other_model = ollama.model_copy(update={"ollama_model": "llama3.1:8b"})
+    assert cache_key("Q", ollama, "v1") != cache_key("Q", other_model, "v1")

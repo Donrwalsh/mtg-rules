@@ -11,6 +11,8 @@ from mtg_api.models import QueryResult
 if TYPE_CHECKING:
     import httpx
 
+    from mtg_api.config import Settings
+
 # Bump by hand whenever _SYSTEM_PROMPT or the user-message template changes:
 # eval answer caches are keyed on it.
 PROMPT_VERSION = 1
@@ -376,3 +378,32 @@ class OllamaAnswerer:
 
 
 Answerer = GeminiAnswerer | OllamaAnswerer
+
+
+def build_answerer(s: Settings) -> Answerer:
+    if s.answer_provider == "ollama":
+        return OllamaAnswerer(
+            s.ollama_model,
+            s.ollama_url,
+            num_ctx=s.ollama_num_ctx,
+            seed=s.ollama_seed,
+            temperature=s.generation_temperature,
+            num_predict=s.generation_max_tokens or s.ollama_num_predict_default,
+            timeout=s.ollama_timeout_seconds,
+            chunk_timeout=s.ollama_stream_chunk_timeout_seconds,
+        )
+    api_key = s.gemini_api_key.get_secret_value()
+    if not api_key:
+        # Fail at startup (lifespan builds the answerer), not on the
+        # first user query.
+        raise RuntimeError("MTG_API_GEMINI_API_KEY is required")
+    return GeminiAnswerer(
+        api_key,
+        s.gemini_model,
+        base_url=s.gemini_url,
+        temperature=s.generation_temperature,
+        max_tokens=s.generation_max_tokens,
+        thinking_level=s.generation_thinking_level,
+        timeout=s.gemini_timeout_seconds,
+        chunk_timeout=s.gemini_stream_chunk_timeout_seconds,
+    )

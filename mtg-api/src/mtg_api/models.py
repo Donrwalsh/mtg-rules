@@ -91,6 +91,8 @@ class QueryResponse(BaseModel):
     generator: str | None = None
     # Eval mode only: this request's Gemini token counts.
     usage: dict[str, int] | None = None
+    # Eval mode only: why the answer failed or stopped early (None when it didn't).
+    generation_error: str | None = None
 
 
 class ReplayResponse(QueryResponse):
