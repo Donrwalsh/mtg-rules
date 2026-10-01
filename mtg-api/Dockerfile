@@ -18,4 +18,4 @@ ENV PYTHONPATH=/app/src
 # survive container recreation.
 ENV FASTEMBED_CACHE_PATH=/root/.cache/huggingface/fastembed
 EXPOSE 8000
-CMD alembic upgrade head && uvicorn mtg_api.main:app --host 0.0.0.0 --port 8000
+CMD alembic upgrade head && exec uvicorn mtg_api.main:app --host 0.0.0.0 --port 8000
