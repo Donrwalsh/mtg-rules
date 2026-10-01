@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.5-flash"
     gemini_url: str = "https://generativelanguage.googleapis.com"
     gemini_timeout_seconds: float = 60.0
+    # Longest wait between two chunks of a streamed answer (the thinking
+    # before the first chunk included). gemini_timeout_seconds caps the total.
+    gemini_stream_chunk_timeout_seconds: float = 30.0
     postgres_dsn: str = "postgresql+psycopg://mtg:mtg@postgres:5432/mtg"
     card_ruling_limit: int = 20
     # None means "don't send it": the model's own default applies.
@@ -63,6 +66,11 @@ class Settings(BaseSettings):
     ip_daily_llm_limit: int = 20
     ip_window_llm_limit: int = 5
     ip_window_minutes: int = 10
+    # Answers being written at once, site-wide and per IP bucket. Over
+    # either, a request gets a 429 before anything streams. Eval mode is
+    # exempt from both; an admin only from the per-IP cap.
+    max_concurrent_generations: int = 4
+    max_concurrent_generations_per_ip: int = 1
     # Reuse answers to identical questions. Always bypassed in eval mode.
     answer_cache_enabled: bool = True
     # Unlocks the admin login. Empty disables it.

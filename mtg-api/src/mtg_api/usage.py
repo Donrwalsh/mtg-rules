@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import math
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -23,7 +24,7 @@ from sqlalchemy.engine import Engine
 
 from mtg_api.config import Settings
 from mtg_api.history import metadata
-from mtg_api.llm import Generation
+from mtg_api.llm import Generation, StreamAccumulator
 
 # One row per /api/v1/query call that asked for an answer (outside eval mode).
 llm_usage = Table(
@@ -36,7 +37,8 @@ llm_usage = Table(
     # IPv4 address, or IPv6 /64 in CIDR form.
     Column("ip_bucket", Text, nullable=False),
     Column("is_admin", Boolean, nullable=False),
-    # generated | cached | degraded_ip | degraded_global | error
+    # generated | cached | degraded_ip | degraded_global | error | pending
+    # (pending: reserved at worst-case cost while an answer is written)
     Column("outcome", Text, nullable=False),
     Column("model", Text, nullable=False),
     Column("input_tokens", Integer, nullable=False),
@@ -47,8 +49,14 @@ llm_usage = Table(
     Index("ix_llm_usage_ip_bucket_created_at", "ip_bucket", "created_at"),
 )
 
-# Outcomes that called Gemini, and so use up a visitor's quota.
-ANSWER_OUTCOMES = ("generated", "error")
+# Outcomes that called Gemini, and so use up a visitor's quota. A pending
+# row is an answer still being written.
+ANSWER_OUTCOMES = ("generated", "error", "pending")
+
+# Rough chars per token, for estimates only.
+_CHARS_PER_TOKEN = 4
+# Output assumed when generation_max_tokens is unset.
+FALLBACK_MAX_TOKENS = 2048
 
 
 def as_utc(dt: datetime) -> datetime:
@@ -82,6 +90,42 @@ def cost_usd(generation: Generation, s: Settings) -> float:
     ) / 1_000_000
 
 
+def estimate_tokens(chars: int) -> int:
+    return math.ceil(chars / _CHARS_PER_TOKEN)
+
+
+def _max_output(s: Settings) -> int:
+    return s.generation_max_tokens or FALLBACK_MAX_TOKENS
+
+
+def worst_case_cost(prompt_chars: int, s: Settings) -> float:
+    """What one answer can cost at most: the whole prompt plus the full
+    output allowance (thinking included), billed as output."""
+    return cost_usd(
+        Generation("", input_tokens=estimate_tokens(prompt_chars), output_tokens=_max_output(s)),
+        s,
+    )
+
+
+def estimate_generation(acc: StreamAccumulator, prompt_chars: int, s: Settings) -> Generation:
+    """Token counts for a stream, however it ended. A finished stream (it
+    sent a finish reason) reports every count, and a missing one is zero. A
+    stream that broke off keeps the counts it did send and estimates the
+    rest high. One that never sent anything cost nothing."""
+    if not acc.received or acc.finish_reason is not None:
+        return acc.generation()
+    return Generation(
+        text=acc.text,
+        input_tokens=acc.input_tokens
+        if acc.input_tokens is not None
+        else estimate_tokens(prompt_chars),
+        output_tokens=acc.output_tokens
+        if acc.output_tokens is not None
+        else estimate_tokens(len(acc.text)),
+        thinking_tokens=acc.thinking_tokens if acc.thinking_tokens is not None else _max_output(s),
+    )
+
+
 def record_usage(
     engine: Engine,
     *,
@@ -105,6 +149,52 @@ def record_usage(
                 input_tokens=g.input_tokens,
                 output_tokens=g.output_tokens,
                 thinking_tokens=g.thinking_tokens,
+                cost_usd=cost,
+            )
+        )
+
+
+def reserve_usage(
+    engine: Engine,
+    *,
+    now: datetime,
+    ip_bucket: str,
+    is_admin: bool,
+    model: str,
+    cost: float,
+) -> int:
+    """Insert a pending row at `cost` (the worst case) before generating, so
+    quotas and the budget count an answer that is still being written. A
+    row never finalized keeps that cost."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            llm_usage.insert().values(
+                created_at=now,
+                ip_bucket=ip_bucket,
+                is_admin=is_admin,
+                outcome="pending",
+                model=model,
+                input_tokens=0,
+                output_tokens=0,
+                thinking_tokens=0,
+                cost_usd=cost,
+            )
+        )
+        return result.inserted_primary_key[0]
+
+
+def finalize_usage(
+    engine: Engine, row_id: int, *, outcome: str, generation: Generation, cost: float
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            llm_usage.update()
+            .where(llm_usage.c.id == row_id)
+            .values(
+                outcome=outcome,
+                input_tokens=generation.input_tokens,
+                output_tokens=generation.output_tokens,
+                thinking_tokens=generation.thinking_tokens,
                 cost_usd=cost,
             )
         )

@@ -162,3 +162,18 @@ def test_replay_does_not_write_history(monkeypatch):
     save_history(engine, query="q", answer="a", results=[], model="m", error=None)
     _replay(monkeypatch, engine, 1)
     assert len(list_history(engine)) == 1
+
+
+def test_replay_marks_a_cut_off_answer_incomplete(monkeypatch):
+    engine = memory_engine()
+    save_history(
+        engine,
+        query="q",
+        answer="Half an",
+        results=[],
+        model="m",
+        error="answer cut off (finish reason: MAX_TOKENS)",
+    )
+    save_history(engine, query="q2", answer="Whole.", results=[], model="m", error=None)
+    assert _replay(monkeypatch, engine, 1).json()["answer_complete"] is False
+    assert _replay(monkeypatch, engine, 2).json()["answer_complete"] is True

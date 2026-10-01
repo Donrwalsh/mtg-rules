@@ -153,6 +153,7 @@ Or open http://localhost:3000, type a question, and submit.
 |---|---|---|---|
 | `/health` | GET | — | Service health + Qdrant reachability |
 | `/api/v1/query` | POST | `{"query": str, "fresh": bool}` | Hybrid search results plus a generated answer (`null` if generation failed or gating degraded the request) with validated citations; persists a `query_history` row. See below. `fresh` (admin only, otherwise 403) skips the answer cache and replaces its entry. |
+| `/api/v1/query/stream` | POST | same as `/api/v1/query` | The same answer as Server-Sent Events: `results` (retrieved sources plus `sources`, a citation for every numbered source), `thinking`, `delta` (`{"text"}`) per chunk, `error` (`{"message"}`, only when generation failed with no text), then always `done` (the rest of the `/api/v1/query` fields). 422/403/429 come back as plain HTTP errors before the stream starts; 429 also when too many answers are being written (4 site-wide, 1 per visitor). The answer keeps generating, and is recorded, cached and saved, if the client disconnects. |
 | `/api/v1/queries` | GET | — | **Admin only** (401/403 otherwise). Past query/answer/result records including `citations`, `citation_stats` and `rule_references` (`null` for rows saved before citations), newest first (`?limit=&offset=`, default `limit=50, offset=0`) |
 | `/api/v1/admin/usage` | GET | — | **Admin only.** Spend and outcome counts per UTC day, today's cache hit rate, today's busiest IP buckets. |
 | `/api/v1/auth/login` | POST | `{"password": str}` | Log in as admin; sets a signed session cookie. |
@@ -185,6 +186,9 @@ Or open http://localhost:3000, type a question, and submit.
   the rules (unknown ones stay plain text and are logged).
 - `citation_stats` — `{cited_count, invalid_count, uncited_answer}`;
   `uncited_answer` is true when an answer was generated but cites nothing.
+- `answer_complete` — `true` when Gemini finished the answer, `false` when
+  it stopped early (token limit, safety block, timeout, dropped stream; the
+  partial text is kept), `null` without an answer.
 - `cached_at` — set when this answer came from the answer cache: when it
   was first generated. `null` for a freshly generated answer.
 - `degraded` — why no answer was generated when cost gating is on:

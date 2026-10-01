@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { RateLimitedError } from '../api';
-import { mockQuery } from './index';
+import { describe, expect, it, vi } from 'vitest';
+import { RateLimitedError, type StreamDone, type StreamHandlers } from '../api';
+import { mockQuery, mockStream } from './index';
 
 describe('fixtures', () => {
   it('answered cites five sources and retrieves six more', async () => {
@@ -44,5 +44,63 @@ describe('fixtures', () => {
   it('error and ratelimited reject', async () => {
     await expect(mockQuery('error')).rejects.toThrow('query failed: 502');
     await expect(mockQuery('ratelimited')).rejects.toBeInstanceOf(RateLimitedError);
+  });
+});
+
+function record() {
+  const events: string[] = [];
+  let text = '';
+  let done: StreamDone | null = null;
+  const on: StreamHandlers = {
+    results: () => events.push('results'),
+    thinking: () => events.push('thinking'),
+    delta: (t) => {
+      if (events[events.length - 1] !== 'delta') events.push('delta');
+      text += t;
+    },
+    error: () => events.push('error'),
+    done: (d) => {
+      events.push('done');
+      done = d;
+    }
+  };
+  return { events, on, text: () => text, done: (): StreamDone | null => done };
+}
+
+async function play(name: string) {
+  vi.useFakeTimers();
+  const r = record();
+  const run = mockStream(name, r.on);
+  await vi.runAllTimersAsync();
+  await run;
+  vi.useRealTimers();
+  return r;
+}
+
+describe('mockStream', () => {
+  it.each([
+    ['streaming', ['results', 'thinking', 'delta', 'done'], true],
+    ['cutoff', ['results', 'thinking', 'delta', 'done'], false],
+    ['streamerror', ['results', 'thinking', 'error', 'done'], null],
+    ['answered', ['results', 'done'], true],
+    ['quota', ['results', 'done'], null]
+  ])('%s sends %j', async (name, expected, complete) => {
+    const r = await play(name);
+    expect(r.events).toEqual(expected);
+    expect(r.done()?.answer_complete).toBe(complete);
+  });
+
+  it('streaming deltas add up to the answer', async () => {
+    const r = await play('streaming');
+    expect(r.text()).toBe(r.done()?.answer);
+  });
+
+  it('stops when aborted', async () => {
+    const controller = new AbortController();
+    const r = record();
+    const run = mockStream('streaming', r.on, controller.signal);
+    controller.abort();
+    await expect(run).rejects.toThrow();
+    expect(r.events).not.toContain('done');
   });
 });

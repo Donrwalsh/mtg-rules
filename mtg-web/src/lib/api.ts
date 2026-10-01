@@ -1,3 +1,5 @@
+import { SseParser } from './sse';
+
 // Same-origin: nginx (Docker) and the Vite dev server (npm run dev) proxy
 // /api to the backend.
 const API_URL = '';
@@ -69,6 +71,9 @@ export interface QueryResponse {
   citations: Citation[];
   rule_references: string[];
   citation_stats: CitationStats;
+  // true: Gemini finished; false: it stopped early and this is the part
+  // that was written; null: no answer.
+  answer_complete: boolean | null;
   // Set when the answer came from the cache: when it was first generated.
   cached_at: string | null;
   // Why there's no answer: this visitor's quota, or the site's daily budget.
@@ -95,6 +100,70 @@ export async function submitQuery(
     throw new Error(`query failed: ${resp.status}`);
   }
   return resp.json();
+}
+
+// The first event of a streamed answer: everything but the answer.
+export interface StreamHead {
+  results: QueryResult[];
+  // A citation for every numbered source, so markers work while streaming.
+  sources: Citation[];
+  degraded: QueryResponse['degraded'];
+  answers_remaining: number | null;
+  cached_at: string | null;
+}
+
+// The last event: the validated answer. `results` again, with `cited` set.
+export type StreamDone = Omit<
+  QueryResponse,
+  'query' | 'degraded' | 'answers_remaining' | 'cached_at'
+>;
+
+export interface StreamHandlers {
+  results: (head: StreamHead) => void;
+  thinking: () => void;
+  delta: (text: string) => void;
+  // Generation failed with no text; `done` still follows.
+  error: (message: string) => void;
+  done: (done: StreamDone) => void;
+}
+
+export class StreamEndedError extends Error {}
+
+export async function streamQuery(
+  query: string,
+  { fresh = false, signal }: { fresh?: boolean; signal?: AbortSignal },
+  on: StreamHandlers
+): Promise<void> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (fresh) headers[ADMIN_HEADER] = '1';
+  const resp = await fetch(`${API_URL}/api/v1/query/stream`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(fresh ? { query, fresh } : { query }),
+    signal
+  });
+  if (resp.status === 429) {
+    throw new RateLimitedError('Too many requests. Wait a few seconds and try again.');
+  }
+  if (!resp.ok || !resp.body) {
+    throw new Error(`query failed: ${resp.status}`);
+  }
+  const reader = resp.body.pipeThrough(new TextDecoderStream()).getReader();
+  const parser = new SseParser();
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    for (const e of parser.push(value)) {
+      if (signal?.aborted) return;
+      const data = JSON.parse(e.data);
+      if (e.event === 'results') on.results(data);
+      else if (e.event === 'thinking') on.thinking();
+      else if (e.event === 'delta') on.delta(data.text);
+      else if (e.event === 'error') on.error(data.message);
+      else if (e.event === 'done') return on.done(data);
+    }
+  }
+  throw new StreamEndedError('The answer stopped arriving before it finished.');
 }
 
 export async function fetchAdminStatus(): Promise<boolean> {

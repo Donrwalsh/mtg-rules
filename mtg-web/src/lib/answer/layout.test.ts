@@ -77,4 +77,10 @@ describe('layoutAnswer', () => {
     const ps = pieces('Only this.');
     expect(textOf(layoutAnswer(ps).paragraphs.flat())).toBe('Only this.');
   });
+
+  it('lays out a streamed draft whose last sentence has not finished', () => {
+    const layout = layoutAnswer(pieces('Yes, one each. Trample then assigns'));
+    expect(layout.lead).not.toBeNull();
+    expect(textOf(layout.paragraphs.flat())).toBe('Trample then assigns');
+  });
 });

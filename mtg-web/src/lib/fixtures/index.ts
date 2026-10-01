@@ -8,8 +8,12 @@ import {
   type CardDetails,
   type Citation,
   type QueryResponse,
-  type QueryResult
+  type QueryResult,
+  type StreamDone,
+  type StreamHandlers,
+  type StreamHead
 } from '../api';
+import { liveCitations, visibleDraft } from '../stream';
 
 export const FIXTURE_NAMES = [
   'answered',
@@ -20,7 +24,12 @@ export const FIXTURE_NAMES = [
   'paused',
   'error',
   'slow',
-  'ratelimited'
+  'ratelimited',
+  'streaming',
+  'thinking',
+  'cutoff',
+  'streamerror',
+  'stalled'
 ] as const;
 
 const SCRY = 'https://scryfall.com/card/';
@@ -212,6 +221,7 @@ const BASE: QueryResponse = {
   citations: CITATIONS,
   rule_references: ['510.1c', '702.2c', '702.19b'],
   citation_stats: { cited_count: 5, invalid_count: 0, uncited_answer: false },
+  answer_complete: true,
   cached_at: '2026-09-27T18:04:00Z',
   degraded: null,
   answers_remaining: 7
@@ -225,6 +235,7 @@ const retrievalOnly: QueryResponse = {
   citations: [],
   rule_references: [],
   results: uncitedResults,
+  answer_complete: null,
   cached_at: null
 };
 
@@ -262,4 +273,120 @@ export function mockQuery(name: string): Promise<QueryResponse> {
   const make = FIXTURES[name] ?? FIXTURES.answered;
   // A short delay so the loading state shows between states.
   return new Promise((resolve) => setTimeout(() => resolve(structuredClone(make())), 400));
+}
+
+// Streamed versions of the fixtures, for the stream the page really reads.
+// `streaming`, `thinking`, `cutoff`, `streamerror` and `stalled` write the
+// worked example as it arrives; every other name answers at once, like a
+// cache hit or a degraded request.
+
+function wait(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new DOMException('Aborted', 'AbortError'));
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        reject(new DOMException('Aborted', 'AbortError'));
+      },
+      { once: true }
+    );
+  });
+}
+
+function headOf(r: QueryResponse, sources: Citation[]): StreamHead {
+  return {
+    results: r.results,
+    sources,
+    degraded: r.degraded,
+    answers_remaining: r.answers_remaining,
+    cached_at: r.cached_at
+  };
+}
+
+function doneOf(r: QueryResponse): StreamDone {
+  return {
+    results: r.results,
+    answer: r.answer,
+    citations: r.citations,
+    rule_references: r.rule_references,
+    citation_stats: r.citation_stats,
+    answer_complete: r.answer_complete
+  };
+}
+
+// Fixed-size pieces, the way Gemini's chunks break mid-marker and mid-word.
+function pieces(text: string, size = 14): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < text.length; i += size) out.push(text.slice(i, i + size));
+  return out;
+}
+
+// How long each streamed fixture thinks, and what share of the answer it
+// writes before stopping (null: all of it; 0: none, then an error).
+const STREAMED: Record<string, { thinkMs: number; stopAt: number | null; stall?: boolean }> = {
+  streaming: { thinkMs: 600, stopAt: null },
+  thinking: { thinkMs: 2500, stopAt: null },
+  cutoff: { thinkMs: 600, stopAt: 0.6 },
+  stalled: { thinkMs: 300, stopAt: 0.4, stall: true },
+  streamerror: { thinkMs: 1200, stopAt: 0 }
+};
+
+export async function mockStream(
+  name: string,
+  on: StreamHandlers,
+  signal?: AbortSignal
+): Promise<void> {
+  if (name === 'slow') return new Promise(() => {});
+  if (name === 'error') throw new Error('query failed: 502');
+  if (name === 'ratelimited') {
+    throw new RateLimitedError('Too many requests. Wait a few seconds and try again.');
+  }
+  const plan = STREAMED[name];
+  if (!plan) {
+    const r = structuredClone((FIXTURES[name] ?? FIXTURES.answered)());
+    await wait(400, signal);
+    on.results(headOf(r, []));
+    on.done(doneOf(r));
+    return;
+  }
+
+  const base = structuredClone({ ...BASE, cached_at: null });
+  await wait(300, signal);
+  on.results(headOf({ ...base, results: uncitedResults }, base.citations));
+  on.thinking();
+  await wait(plan.thinkMs, signal);
+
+  const full = base.answer!;
+  const text = plan.stopAt === null ? full : full.slice(0, Math.floor(full.length * plan.stopAt));
+  for (const piece of pieces(text)) {
+    on.delta(piece);
+    await wait(40, signal);
+  }
+  if (plan.stall) return new Promise(() => {});
+
+  if (plan.stopAt === 0) {
+    on.error('Gemini returned no answer: SAFETY');
+    on.done(doneOf({ ...retrievalOnly, answer_complete: null }));
+    return;
+  }
+  if (plan.stopAt === null) {
+    on.done(doneOf(base));
+    return;
+  }
+  const answer = visibleDraft(text).trimEnd();
+  const citations = liveCitations(answer, base.citations);
+  const cited = new Set(citations.map((c) => c.number));
+  on.done(
+    doneOf({
+      ...base,
+      answer,
+      citations,
+      rule_references: base.rule_references.filter((id) => answer.includes(id)),
+      results: base.results.map((r, i) => ({ ...r, cited: cited.has(i + 1) })),
+      citation_stats: { cited_count: citations.length, invalid_count: 0, uncited_answer: false },
+      answer_complete: false
+    })
+  );
 }

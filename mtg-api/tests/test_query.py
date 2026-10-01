@@ -1,4 +1,4 @@
-from conftest import memory_engine
+from conftest import StreamsFromGenerate, memory_engine
 from fastapi.testclient import TestClient
 
 from mtg_api import main
@@ -69,7 +69,7 @@ class _FakeQdrantClient:
         return self._scroll_points[:limit], None
 
 
-class _FakeAnswerer:
+class _FakeAnswerer(StreamsFromGenerate):
     def __init__(self, answer="A generated answer.", raises=None):
         self._answer = answer
         self._raises = raises
@@ -78,7 +78,11 @@ class _FakeAnswerer:
         if self._raises:
             raise self._raises
         return Generation(
-            text=self._answer, input_tokens=1000, output_tokens=100, thinking_tokens=200
+            text=self._answer,
+            input_tokens=1000,
+            output_tokens=100,
+            thinking_tokens=200,
+            finish_reason="STOP",
         )
 
 

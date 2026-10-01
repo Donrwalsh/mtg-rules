@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import json
+import time
+from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from mtg_api.models import QueryResult
+
+if TYPE_CHECKING:
+    import httpx
 
 # Bump by hand whenever _SYSTEM_PROMPT or the user-message template changes:
 # eval answer caches are keyed on it.
@@ -56,6 +63,15 @@ def build_context(results: list[QueryResult]) -> tuple[str, dict[int, QueryResul
     return "\n\n".join(blocks), sources
 
 
+def _user_message(query: str, context: str) -> str:
+    return f"Context:\n{context}\n\nQuestion: {query}"
+
+
+def prompt_chars(query: str, context: str) -> int:
+    """Characters sent to Gemini: the basis for estimating input tokens."""
+    return len(_SYSTEM_PROMPT) + len(_user_message(query, context))
+
+
 @dataclass(frozen=True)
 class Generation:
     """An answer and what it cost. Thinking tokens bill as output tokens."""
@@ -77,8 +93,73 @@ class Generation:
         }
 
 
+@dataclass(frozen=True)
+class StreamChunk:
+    """One streamGenerateContent event: its answer text (thought parts left
+    out) and whatever usage and finish reason it carried."""
+
+    text: str = ""
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    thinking_tokens: int | None = None
+    finish_reason: str | None = None
+
+
+class StreamAccumulator:
+    """Collects a stream as it arrives. Counts keep the last value Gemini
+    sent; None means Gemini never sent one."""
+
+    def __init__(self) -> None:
+        self._parts: list[str] = []
+        self.received = False
+        self.input_tokens: int | None = None
+        self.output_tokens: int | None = None
+        self.thinking_tokens: int | None = None
+        self.finish_reason: str | None = None
+
+    def add(self, chunk: StreamChunk) -> None:
+        self.received = True
+        self._parts.append(chunk.text)
+        for field in ("input_tokens", "output_tokens", "thinking_tokens", "finish_reason"):
+            value = getattr(chunk, field)
+            if value is not None:
+                setattr(self, field, value)
+
+    @property
+    def text(self) -> str:
+        return "".join(self._parts)
+
+    def generation(self) -> Generation:
+        return Generation(
+            text=self.text,
+            input_tokens=self.input_tokens or 0,
+            output_tokens=self.output_tokens or 0,
+            thinking_tokens=self.thinking_tokens or 0,
+            finish_reason=self.finish_reason,
+        )
+
+
+def _parse_chunk(data: dict) -> StreamChunk:
+    candidates = data.get("candidates") or []
+    feedback = data.get("promptFeedback") or {}
+    if not candidates and feedback.get("blockReason"):
+        # A blocked prompt comes back 200 with no candidates.
+        raise RuntimeError(f"Gemini returned no answer: {feedback['blockReason']}")
+    usage = data.get("usageMetadata") or {}
+    candidate = candidates[0] if candidates else {}
+    parts = candidate.get("content", {}).get("parts", [])
+    return StreamChunk(
+        # Skip thought-summary parts; keep only the answer text.
+        text="".join(p.get("text", "") for p in parts if not p.get("thought")),
+        input_tokens=usage.get("promptTokenCount"),
+        output_tokens=usage.get("candidatesTokenCount"),
+        thinking_tokens=usage.get("thoughtsTokenCount"),
+        finish_reason=candidate.get("finishReason"),
+    )
+
+
 class GeminiAnswerer:
-    """Answerer via the Gemini API's generateContent."""
+    """Answerer via the Gemini API's streamGenerateContent."""
 
     def __init__(
         self,
@@ -89,6 +170,8 @@ class GeminiAnswerer:
         max_tokens: int | None = None,
         thinking_level: str | None = None,
         timeout: float = 60.0,
+        chunk_timeout: float = 30.0,
+        transport: httpx.BaseTransport | None = None,
     ):
         self._api_key = api_key
         self._model = model
@@ -96,23 +179,20 @@ class GeminiAnswerer:
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._thinking_level = thinking_level
+        # Total time for one answer. chunk_timeout bounds each wait between
+        # chunks, which includes the thinking before the first one.
         self._timeout = timeout
+        self._chunk_timeout = chunk_timeout
+        self._transport = transport
 
     @property
     def model(self) -> str:
         return self._model
 
-    def generate(self, query: str, context: str) -> Generation:
-        import httpx
-
+    def _body(self, query: str, context: str) -> dict:
         body: dict = {
             "systemInstruction": {"parts": [{"text": _SYSTEM_PROMPT}]},
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [{"text": f"Context:\n{context}\n\nQuestion: {query}"}],
-                }
-            ],
+            "contents": [{"role": "user", "parts": [{"text": _user_message(query, context)}]}],
         }
         config: dict = {}
         if self._temperature is not None:
@@ -124,26 +204,38 @@ class GeminiAnswerer:
             config["thinkingConfig"] = {"thinkingLevel": self._thinking_level}
         if config:
             body["generationConfig"] = config
-        response = httpx.post(
-            f"{self._base_url}/v1beta/models/{self._model}:generateContent",
-            headers={"x-goog-api-key": self._api_key},
-            json=body,
-            timeout=self._timeout,
+        return body
+
+    def _client(self) -> httpx.Client:
+        import httpx
+
+        return httpx.Client(
+            transport=self._transport, timeout=httpx.Timeout(self._chunk_timeout, connect=10.0)
         )
-        response.raise_for_status()
-        data = response.json()
-        candidates = data.get("candidates") or []
-        if not candidates:
-            # A blocked prompt comes back 200 with no candidates.
-            reason = data.get("promptFeedback", {}).get("blockReason", "no candidates")
-            raise RuntimeError(f"Gemini returned no answer: {reason}")
-        parts = candidates[0].get("content", {}).get("parts", [])
-        usage = data.get("usageMetadata") or {}
-        # Skip thought-summary parts; keep only the answer text.
-        return Generation(
-            text="".join(p.get("text", "") for p in parts if not p.get("thought")),
-            input_tokens=usage.get("promptTokenCount", 0),
-            output_tokens=usage.get("candidatesTokenCount", 0),
-            thinking_tokens=usage.get("thoughtsTokenCount", 0),
-            finish_reason=candidates[0].get("finishReason"),
-        )
+
+    def stream(self, query: str, context: str) -> Iterator[StreamChunk]:
+        deadline = time.monotonic() + self._timeout
+        with (
+            self._client() as client,
+            client.stream(
+                "POST",
+                f"{self._base_url}/v1beta/models/{self._model}:streamGenerateContent",
+                params={"alt": "sse"},
+                headers={"x-goog-api-key": self._api_key},
+                json=self._body(query, context),
+            ) as response,
+        ):
+            if response.is_error:
+                response.read()  # so the raised error carries Gemini's message
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if time.monotonic() > deadline:
+                    raise TimeoutError(f"Gemini answer took longer than {self._timeout:g}s")
+                if line.startswith("data:"):
+                    yield _parse_chunk(json.loads(line[5:]))
+
+    def generate(self, query: str, context: str) -> Generation:
+        acc = StreamAccumulator()
+        for chunk in self.stream(query, context):
+            acc.add(chunk)
+        return acc.generation()
