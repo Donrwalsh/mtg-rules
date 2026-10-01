@@ -38,10 +38,16 @@ test('a stream that fails with no text shows the no-answer notice', async ({ pag
   await expect(page.getByText("Couldn't write an answer this time")).toBeVisible();
 });
 
-test('asking again mid-stream replaces the answer instead of mixing them', async ({ page }) => {
+// The server keeps writing an abandoned answer and holds the visitor's one
+// generation slot until it's done, so a second question mid-stream would get
+// a 429. Asking again waits for the answer instead.
+test('asking again is blocked until the answer finishes', async ({ page }) => {
   await ask(page, 'thinking');
   await expect(page.getByText('Thinking…')).toBeVisible();
+  const button = page.getByRole('button', { name: 'Answering…' });
+  await expect(button).toBeDisabled();
   await page.getByRole('textbox').press('Enter');
   await expect(page.getByRole('tab', { name: 'Cited · 5' })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText('Yes — each blocker only needs 1 damage.')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Ask' })).toBeEnabled();
 });

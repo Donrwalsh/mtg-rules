@@ -199,7 +199,9 @@
     // A fresh request must regenerate the question whose cached answer is
     // on screen, not whatever is currently sitting in the input box.
     const q = fresh && response ? response.query : query.trim();
-    if (!q) return;
+    // The server keeps writing an abandoned answer and holds this visitor's
+    // one generation slot until it's done, so asking now would get a 429.
+    if (!q || live) return;
     if (replayParam) {
       // Asking for real ends the replay.
       replay = null;
@@ -207,7 +209,7 @@
       replayLoads++;
       goto('/', { keepFocus: true, noScroll: true });
     }
-    // A new question replaces one still streaming.
+    // End anything still in flight (a question still loading, or a replay).
     controller?.abort();
     stopDraftFrames();
     const ctrl = (controller = new AbortController());
@@ -284,6 +286,7 @@
   <SearchForm
     bind:value={query}
     loading={view === 'loading'}
+    answering={live}
     retrievalOnly={!!response?.degraded}
     maxChars={meta.max_query_chars}
     error={rateLimited}

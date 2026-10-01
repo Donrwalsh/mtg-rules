@@ -4,6 +4,7 @@
   let {
     value = $bindable(''),
     loading = false,
+    answering = false,
     retrievalOnly = false,
     variant = 'header',
     maxChars,
@@ -12,6 +13,8 @@
   }: {
     value?: string;
     loading?: boolean;
+    // An answer is still streaming: asking again waits for it.
+    answering?: boolean;
     retrievalOnly?: boolean;
     variant?: 'header' | 'hero';
     maxChars: number;
@@ -21,14 +24,17 @@
 
   const phone = new MediaQuery('max-width: 639px');
   const uid = $props.id();
-  const label = $derived(loading ? 'Searching…' : retrievalOnly ? 'Search' : 'Ask');
+  const busy = $derived(loading || answering);
+  const label = $derived(
+    loading ? 'Searching…' : answering ? 'Answering…' : retrievalOnly ? 'Search' : 'Ask'
+  );
   const placeholder = $derived(
     variant === 'hero' ? 'e.g. Can I respond to a spell with split second?' : 'Ask a rules question'
   );
 
   function submit(event: SubmitEvent) {
     event.preventDefault();
-    if (!loading && value.trim()) onsubmit();
+    if (!busy && value.trim()) onsubmit();
   }
 
   // In the phone textarea, Enter asks (Shift+Enter still adds a line).
@@ -83,7 +89,7 @@
     {/if}
     <button
       type="submit"
-      disabled={loading}
+      disabled={busy}
       class="min-h-11 min-w-14 cursor-pointer rounded-[7px] border-0 bg-gold px-[18px] font-sans text-[15px] font-semibold text-gold-ink disabled:cursor-default disabled:bg-gold-off disabled:text-gold-off-fg sm:min-h-10 sm:text-sm"
       >{label}</button
     >
