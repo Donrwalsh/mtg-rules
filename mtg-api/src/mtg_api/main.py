@@ -12,7 +12,6 @@ from typing import Any
 
 from celery import Celery
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import TypeAdapter, ValidationError
@@ -61,6 +60,8 @@ from mtg_api.models import (
     QueryResponse,
     QueryResult,
     ReplayResponse,
+    StreamDone,
+    StreamHead,
 )
 from mtg_api.qdrant_check import check_qdrant
 from mtg_api.retrieval import fetch_card_rulings, hybrid_search
@@ -311,22 +312,12 @@ class _Started:
     rest: Iterator[tuple[str, dict]]
 
 
-# Per-request fields: in `results`, not repeated in `done`.
-_HEAD_ONLY = ("degraded", "answers_remaining", "cached_at")
-
-
 def _head(response: QueryResponse, sources: list[Citation]) -> dict:
-    data = jsonable_encoder(response)
-    return {
-        "results": data["results"],
-        **{k: data[k] for k in _HEAD_ONLY},
-        "sources": jsonable_encoder(sources),
-    }
+    return StreamHead.of(response, sources).model_dump(mode="json")
 
 
 def _done(response: QueryResponse) -> dict:
-    data = jsonable_encoder(response)
-    return {k: v for k, v in data.items() if k != "query" and k not in _HEAD_ONLY}
+    return StreamDone.of(response).model_dump(mode="json")
 
 
 def _retrieve(query: str, s: Settings, d: QueryDeps) -> list[QueryResult]:

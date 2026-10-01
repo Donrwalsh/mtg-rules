@@ -95,6 +95,62 @@ class QueryResponse(BaseModel):
     generation_error: str | None = None
 
 
+class StreamHead(BaseModel):
+    """The answer stream's first event, `results`: what is known before any
+    answer is written. Field order is the order on the wire."""
+
+    results: list[QueryResult]
+    degraded: str | None = None
+    answers_remaining: int | None = None
+    cached_at: datetime | None = None
+    # The numbered sources the answer being written may cite (empty when
+    # nothing is being written).
+    sources: list[Citation] = Field(default_factory=list)
+
+    @classmethod
+    def of(cls, response: QueryResponse, sources: list[Citation]) -> StreamHead:
+        return cls(
+            results=response.results,
+            degraded=response.degraded,
+            answers_remaining=response.answers_remaining,
+            cached_at=response.cached_at,
+            sources=sources,
+        )
+
+
+class StreamDone(BaseModel):
+    """The answer stream's last event, `done`: the authoritative answer.
+    Together with StreamHead it carries every QueryResponse field but
+    `query`; a test pins that partition."""
+
+    results: list[QueryResult]
+    answer: str | None = None
+    citations: list[Citation] = Field(default_factory=list)
+    rule_references: list[str] = Field(default_factory=list)
+    citation_stats: CitationStats = Field(default_factory=CitationStats)
+    answer_complete: bool | None = None
+    context_hash: str | None = None
+    prompt_version: int | None = None
+    generator: str | None = None
+    usage: dict[str, int] | None = None
+    generation_error: str | None = None
+
+    @classmethod
+    def of(cls, response: QueryResponse) -> StreamDone:
+        return cls(**{name: getattr(response, name) for name in cls.model_fields})
+
+    def response(self, query: str, head: StreamHead) -> QueryResponse:
+        """The blocking endpoint's body: the head's per-request fields, then
+        everything in done (whose results carry the `cited` flags)."""
+        fields = {
+            name: getattr(head, name)
+            for name in StreamHead.model_fields
+            if name not in ("results", "sources")
+        }
+        fields |= {name: getattr(self, name) for name in StreamDone.model_fields}
+        return QueryResponse(query=query, **fields)
+
+
 class ReplayResponse(QueryResponse):
     """A saved history row, shaped like the answer it produced."""
 
