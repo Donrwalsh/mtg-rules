@@ -91,14 +91,40 @@ def _judge(case: Case, answer: str | None, judge: Judge, cache: JsonCache) -> tu
     return result, False, latency_ms
 
 
-def _full(
+def _retrieve(case: Case, api: ApiClient, overrides: dict) -> tuple[dict, dict | None]:
+    """The case record with its retrieval scored, and the API response (None
+    when the call failed; the record then carries the error)."""
+    record = {
+        "id": case.id,
+        "category": case.category,
+        "tags": list(case.tags),
+        "question": case.question,
+        "retrieval": None,
+        "results": [],
+        "retrieve_ms": None,
+        "full": None,
+        "error": None,
+    }
+    try:
+        response, record["retrieve_ms"] = api.query(
+            case.question, generate=False, overrides=overrides
+        )
+        record["retrieval"] = score_retrieval(case, response["results"])
+        record["results"] = result_identifiers(response["results"])
+    except Exception as exc:  # noqa: BLE001 -- one bad case must not sink the run
+        record["error"] = f"{exc.__class__.__name__}: {exc}"
+        return record, None
+    return record, response
+
+
+def _generate(
     case: Case,
     retrieval_response: dict,
     api: ApiClient,
     overrides: dict,
     caches: Caches,
-    judge: Judge,
 ) -> dict:
+    """One case's answer: from the cache, or generated now."""
     generation_overrides = {k: v for k, v in overrides.items() if k in GENERATION_KEYS}
     key = answer_key(
         case.question,
@@ -125,14 +151,26 @@ def _full(
         context_drift = response["context_hash"] != retrieval_response["context_hash"]
         if entry["answer"] is not None and not context_drift:
             caches.answers.put(key, entry)
+    return {
+        "entry": entry,
+        "answer_cached": cached is not None,
+        "context_drift": context_drift,
+        "generator": retrieval_response["generator"],
+        "generate_ms": generate_ms,
+    }
+
+
+def _grade(case: Case, generated: dict, judge: Judge, caches: Caches) -> dict:
+    """The case's `full` record: the answer from _generate, judged and scored."""
+    entry = generated["entry"]
     answer = entry["answer"]
     judged, judge_cached, judge_ms = _judge(case, answer, judge, caches.judge)
     verdict_parsed = parse_verdict(answer) if case.verdict else None
     return {
         "answer": answer,
-        "answer_cached": cached is not None,
-        "context_drift": context_drift,
-        "generator": retrieval_response["generator"],
+        "answer_cached": generated["answer_cached"],
+        "context_drift": generated["context_drift"],
+        "generator": generated["generator"],
         "should_decline": case.should_decline,
         "verdict_expected": case.verdict,
         "verdict_parsed": verdict_parsed,
@@ -140,41 +178,35 @@ def _full(
         "judge": judged,
         "judge_cached": judge_cached,
         "citations": score_citations(case, entry["citations"], entry["citation_stats"]),
-        "generate_ms": generate_ms,
+        "generate_ms": generated["generate_ms"],
         "judge_ms": judge_ms,
         "usage": entry.get("usage"),
     }
 
 
-def evaluate_case(
-    case: Case,
-    api: ApiClient,
-    mode: str,
-    overrides: dict,
-    caches: Caches | None = None,
-    judge: Judge | None = None,
-) -> dict:
-    record = {
-        "id": case.id,
-        "category": case.category,
-        "tags": list(case.tags),
-        "question": case.question,
-        "retrieval": None,
-        "results": [],
-        "retrieve_ms": None,
-        "full": None,
-        "error": None,
-    }
+def _answer_case(
+    case: Case, api: ApiClient, opts: RunOptions, caches: Caches
+) -> tuple[dict, dict | None]:
+    """Pass 1: retrieval, plus the answer in full mode."""
+    record, response = _retrieve(case, api, opts.overrides)
+    if opts.mode != "full" or response is None:
+        return record, None
     try:
-        response, record["retrieve_ms"] = api.query(
-            case.question, generate=False, overrides=overrides
-        )
-        record["retrieval"] = score_retrieval(case, response["results"])
-        record["results"] = result_identifiers(response["results"])
-        if mode == "full":
-            record["full"] = _full(case, response, api, overrides, caches, judge)
+        return record, _generate(case, response, api, opts.overrides, caches)
     except Exception as exc:  # noqa: BLE001 -- one bad case must not sink the run
         record["error"] = f"{exc.__class__.__name__}: {exc}"
+        return record, None
+
+
+def _grade_case(
+    case: Case, record: dict, generated: dict | None, judge: Judge, caches: Caches
+) -> dict:
+    """Pass 2 (full mode): grade the answer pass 1 wrote."""
+    if generated is not None:
+        try:
+            record["full"] = _grade(case, generated, judge, caches)
+        except Exception as exc:  # noqa: BLE001 -- one bad case must not sink the run
+            record["error"] = f"{exc.__class__.__name__}: {exc}"
     return record
 
 
@@ -232,14 +264,26 @@ def execute(
     sha, dirty = git or git_info()
     concurrency = opts.concurrency or DEFAULT_CONCURRENCY[opts.mode]
 
-    def one(case: Case) -> dict:
-        record = evaluate_case(case, api, opts.mode, opts.overrides, caches, judge)
+    def answer(case: Case) -> tuple[dict, dict | None]:
+        record, generated = _answer_case(case, api, opts, caches)
+        if progress and opts.mode == "full":
+            progress(_answer_progress_line(record, generated))
+        return record, generated
+
+    # Full mode runs in two passes: every answer, then every grade. One GPU
+    # can't keep the generator and the judge loaded at once (phi4 and
+    # qwen2.5:14b are ~9 GB each on a 10 GB card), and alternating them
+    # reloads a model twice per case, ~25 s each time.
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        answered = list(pool.map(answer, cases))
+
+    records = []
+    for case, (record, generated) in zip(cases, answered, strict=True):
+        if opts.mode == "full":
+            record = _grade_case(case, record, generated, judge, caches)
         if progress:
             progress(_progress_line(record))
-        return record
-
-    with ThreadPoolExecutor(max_workers=concurrency) as pool:
-        records = list(pool.map(one, cases))
+        records.append(record)
 
     by_id = {r["id"]: r for r in records}
     run = {
@@ -281,4 +325,12 @@ def _progress_line(record: dict) -> str:
             grade = (full["judge"] or {}).get("grade", "-")
             cache = "cached" if full["answer_cached"] else "generated"
             status += f"  judge={grade} ({cache})"
+    return f"  {record['id']:<40} {status}"
+
+
+def _answer_progress_line(record: dict, generated: dict | None) -> str:
+    if generated is None:
+        status = f"ERROR {record['error']}" if record["error"] else "no answer"
+    else:
+        status = "answer cached" if generated["answer_cached"] else "answer generated"
     return f"  {record['id']:<40} {status}"

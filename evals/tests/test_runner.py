@@ -220,3 +220,21 @@ def test_thinking_level_is_a_generation_key():
     from mtg_evals.runner import GENERATION_KEYS
 
     assert "generation_thinking_level" in GENERATION_KEYS
+
+
+def test_full_run_generates_every_answer_before_judging_any(tmp_path, eval_file):
+    log = []
+
+    class LoggingApi(FakeApi):
+        def query(self, question, *, generate, overrides):
+            if generate:
+                log.append("generate")
+            return super().query(question, generate=generate, overrides=overrides)
+
+    class LoggingJudge(FakeJudge):
+        def grade(self, case, answer):
+            log.append("judge")
+            return super().grade(case, answer)
+
+    _run(tmp_path, eval_file, LoggingApi(RESULTS), mode="full", judge=LoggingJudge())
+    assert log == ["generate"] * 3 + ["judge"] * 3
