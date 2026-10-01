@@ -208,3 +208,9 @@ def test_judge_same_as_generator_warns():
     run = _run(BASE, mode="full")
     run["metadata"]["judge_model"] = "gemini-3.5-flash"
     assert "WARNING: the judge (gemini-3.5-flash) is the generator model" in render(run)
+
+
+def test_render_lists_context_overruns():
+    full = dict(_full("incorrect"), context_overflow=True)
+    run = _run({"trample": _case({"rules:702.19b": 1}, full=full)}, mode="full")
+    assert "context overruns (1): trample" in render(run)

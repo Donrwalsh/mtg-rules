@@ -102,6 +102,8 @@ def _run_one(
     api_url: str,
     concurrency: int | None,
     eval_file: Path,
+    fresh_answers: bool = False,
+    allow_gemini: bool = False,
 ) -> tuple[dict, Path]:
     overrides = {}
     if exp:
@@ -120,6 +122,8 @@ def _run_one(
         experiment=exp,
         overrides=overrides,
         concurrency=concurrency,
+        fresh_answers=fresh_answers,
+        allow_gemini=allow_gemini,
     )
     typer.echo(f"running {mode} · {split} · {api_url}" + (f" · exp={exp}" if exp else ""), err=True)
     try:
@@ -135,6 +139,15 @@ EvalOpt = Annotated[Path | None, typer.Option("--eval-file", help="Question set 
 ConcOpt = Annotated[
     int | None, typer.Option("--concurrency", help="Parallel cases (default 4 retrieval, 1 full).")
 ]
+FreshOpt = Annotated[
+    bool,
+    typer.Option(
+        "--fresh-answers", help="Generate every answer again (the cache is still written)."
+    ),
+]
+GeminiOpt = Annotated[
+    bool, typer.Option("--allow-gemini", help="Allow a full run on a billed Gemini generator.")
+]
 
 
 @app.command()
@@ -148,6 +161,8 @@ def run(
     concurrency: ConcOpt = None,
     no_compare: Annotated[bool, typer.Option("--no-compare")] = False,
     eval_file: EvalOpt = None,
+    fresh_answers: FreshOpt = False,
+    allow_gemini: GeminiOpt = False,
 ) -> None:
     """Run the eval set, write a run file and compare it to the baseline."""
     new, path = _run_one(
@@ -159,6 +174,8 @@ def run(
         api_url or default_api_url(),
         concurrency,
         eval_file or default_eval_file(),
+        fresh_answers,
+        allow_gemini,
     )
     base = None if no_compare else _baseline(mode.value)
     diff = diff_runs(base, new) if base else None
@@ -245,6 +262,8 @@ def sweep(
     api_url: ApiOpt = "",
     concurrency: ConcOpt = None,
     eval_file: EvalOpt = None,
+    fresh_answers: FreshOpt = False,
+    allow_gemini: GeminiOpt = False,
 ) -> None:
     """Run several experiments back to back and print them side by side."""
     runs = []
@@ -258,6 +277,8 @@ def sweep(
             api_url or default_api_url(),
             concurrency,
             eval_file or default_eval_file(),
+            fresh_answers,
+            allow_gemini,
         )
         typer.echo(f"  → {path.name}", err=True)
         runs.append((exp, new))

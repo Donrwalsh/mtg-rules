@@ -63,6 +63,15 @@ def _full(cases: list[dict]) -> dict:
         "judge_cache_hit_rate": _rate(sum(1 for f in judged if f["judge_cached"]), len(judged)),
         "invalid_citations": sum(f["citations"]["invalid_citations"] for f in full),
         "mean_generate_ms": _mean([f["generate_ms"] for f in full if f["generate_ms"] is not None]),
+        "context_overruns": sum(1 for f in full if f.get("context_overflow")),
+        "max_prompt_tokens": max(
+            (
+                f["usage"]["input_tokens"]
+                for f in full
+                if f.get("usage") and f["usage"].get("input_tokens") is not None
+            ),
+            default=None,
+        ),
     }
 
 

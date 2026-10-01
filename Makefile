@@ -1,11 +1,11 @@
 # Eval harness targets (see README "Evals"). Every target wraps `python -m mtg_evals`,
 # so each also works without make. Pass-through variables:
-#   EXP=<experiment>   TAG="tag1 tag2"   ID="case-id other-id"
+#   EXP=<experiment>   TAG="tag1 tag2"   ID="case-id other-id"   ARGS="--fresh-answers"
 
 PYTHON ?= python
 EVALS  := $(PYTHON) -m mtg_evals
 MODE   ?= retrieval
-FILTER  = $(if $(EXP),--exp $(EXP)) $(foreach t,$(TAG),--tag $(t)) $(foreach i,$(ID),--id $(i))
+FILTER  = $(if $(EXP),--exp $(EXP)) $(foreach t,$(TAG),--tag $(t)) $(foreach i,$(ID),--id $(i)) $(ARGS)
 SELECT  = $(foreach t,$(TAG),--tag $(t)) $(foreach i,$(ID),--id $(i))
 
 .PHONY: eval eval-full eval-test eval-baseline eval-compare eval-show eval-sweep eval-validate

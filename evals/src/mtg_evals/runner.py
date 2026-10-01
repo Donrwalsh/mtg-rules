@@ -32,6 +32,10 @@ GENERATION_KEYS = frozenset(
 
 DEFAULT_CONCURRENCY = {"retrieval": 4, "full": 1}
 
+# Prefix of the API's generation_error for a prompt longer than the model's
+# context window (mirrors mtg_api.llm.CONTEXT_OVERFLOW_PREFIX).
+CONTEXT_OVERFLOW_PREFIX = "context overflow:"
+
 _RESULT_FIELDS = ("source_type", "rule_id", "card_name", "oracle_id", "match_type")
 
 
@@ -46,6 +50,10 @@ class RunOptions:
     experiment: str | None = None
     overrides: dict = field(default_factory=dict)
     concurrency: int | None = None
+    # Generate every answer again (the answer cache is still written).
+    fresh_answers: bool = False
+    # Allow a full run whose generator is a billed Gemini model.
+    allow_gemini: bool = False
 
 
 @dataclass
@@ -101,6 +109,7 @@ def _retrieve(case: Case, api: ApiClient, overrides: dict) -> tuple[dict, dict |
         "question": case.question,
         "retrieval": None,
         "results": [],
+        "context_hash": None,
         "retrieve_ms": None,
         "full": None,
         "error": None,
@@ -111,6 +120,7 @@ def _retrieve(case: Case, api: ApiClient, overrides: dict) -> tuple[dict, dict |
         )
         record["retrieval"] = score_retrieval(case, response["results"])
         record["results"] = result_identifiers(response["results"])
+        record["context_hash"] = response.get("context_hash")
     except Exception as exc:  # noqa: BLE001 -- one bad case must not sink the run
         record["error"] = f"{exc.__class__.__name__}: {exc}"
         return record, None
@@ -123,6 +133,7 @@ def _generate(
     api: ApiClient,
     overrides: dict,
     caches: Caches,
+    fresh: bool,
 ) -> dict:
     """One case's answer: from the cache, or generated now."""
     generation_overrides = {k: v for k, v in overrides.items() if k in GENERATION_KEYS}
@@ -133,7 +144,7 @@ def _generate(
         retrieval_response["prompt_version"],
         generation_overrides,
     )
-    cached = caches.answers.get(key)
+    cached = None if fresh else caches.answers.get(key)
     context_drift = False
     generate_ms = None
     if cached is not None:
@@ -145,6 +156,7 @@ def _generate(
             "citations": response.get("citations") or [],
             "citation_stats": response.get("citation_stats") or {},
             "usage": response.get("usage"),
+            "generation_error": response.get("generation_error"),
         }
         # Retrieval is deterministic; a different context between the two
         # calls means the answer doesn't belong to the scored context.
@@ -181,6 +193,10 @@ def _grade(case: Case, generated: dict, judge: Judge, caches: Caches) -> dict:
         "generate_ms": generated["generate_ms"],
         "judge_ms": judge_ms,
         "usage": entry.get("usage"),
+        "generation_error": entry.get("generation_error"),
+        "context_overflow": (entry.get("generation_error") or "").startswith(
+            CONTEXT_OVERFLOW_PREFIX
+        ),
     }
 
 
@@ -192,7 +208,7 @@ def _answer_case(
     if opts.mode != "full" or response is None:
         return record, None
     try:
-        return record, _generate(case, response, api, opts.overrides, caches)
+        return record, _generate(case, response, api, opts.overrides, caches, opts.fresh_answers)
     except Exception as exc:  # noqa: BLE001 -- one bad case must not sink the run
         record["error"] = f"{exc.__class__.__name__}: {exc}"
         return record, None
@@ -246,7 +262,9 @@ def execute(
     api = api or ApiClient(opts.api_url)
     if opts.mode == "full" and judge is None:
         judge = Judge(JudgeConfig.from_env())
-    all_cases, api_config = preflight(api, opts.eval_file, opts.mode, judge and judge.config)
+    all_cases, api_config = preflight(
+        api, opts.eval_file, opts.mode, judge and judge.config, allow_gemini=opts.allow_gemini
+    )
     cases = select(all_cases, opts.split, opts.tags, opts.ids)
     if not cases:
         raise PreflightError(

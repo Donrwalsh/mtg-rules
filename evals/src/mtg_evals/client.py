@@ -58,7 +58,11 @@ class ApiClient:
 
 
 def preflight(
-    api: ApiClient, eval_path: Path, mode: str, judge: JudgeConfig | None
+    api: ApiClient,
+    eval_path: Path,
+    mode: str,
+    judge: JudgeConfig | None,
+    allow_gemini: bool = False,
 ) -> tuple[list[Case], dict]:
     """Fail fast, with a hint, before spending time on a run that can't work.
     Returns the loaded cases and the API's /api/v1/config body."""
@@ -94,6 +98,14 @@ def preflight(
         raise PreflightError(
             f"Qdrant collection {collection.get('name')!r} is empty or unreadable ({detail}). "
             "Run the embed pipeline first."
+        )
+
+    generator = config.get("generator") or ""
+    if mode == "full" and generator.startswith("gemini:") and not allow_gemini:
+        raise PreflightError(
+            f"the API writes answers with {generator}, which is billed. Run it on a local "
+            'model (MTG_API_ANSWER_PROVIDER=ollama; see README "Running evals on phi4") '
+            "or pass --allow-gemini."
         )
 
     if mode == "full" and not (judge and judge.model):

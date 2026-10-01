@@ -48,12 +48,14 @@ class FakeApi:
         config=None,
         health=None,
         config_status=200,
+        generation_error=None,
     ):
         self.results_by_question = results_by_question or {}
         self.answer = answer
         self._config = config if config is not None else CONFIG
         self._health = health or {"status": "ok", "qdrant": "ok"}
         self._config_status = config_status
+        self.generation_error = generation_error
         self.calls = []
 
     def health(self):
@@ -75,6 +77,7 @@ class FakeApi:
             "context_hash": context_hash,
             "prompt_version": 1,
             "generator": "gemini:" + overrides.get("gemini_model", "gemini-3.5-flash"),
+            "generation_error": self.generation_error if generate else None,
             "usage": (
                 {"input_tokens": 100, "output_tokens": 20, "thinking_tokens": 30}
                 if generate
