@@ -197,7 +197,7 @@ def _save_history(
     cached: bool = False,
 ) -> None:
     # Eval runs are not user queries, but only eval mode may say so.
-    if settings.eval_mode and request.source == "eval":
+    if s.eval_mode and request.source == "eval":
         return
     try:
         save_history(
@@ -247,15 +247,189 @@ class AnswerStream:
     events: Iterator[Event]  # always ends with exactly one Done
 
 
+def _reserve(engine: Engine, record: dict, cost: float) -> int | None:
+    try:
+        return reserve_usage(engine, cost=cost, **record)
+    except Exception:
+        logger.exception("Failed to reserve LLM usage")
+        return None
+
+
+def start(request: QueryRequest, caller: Caller, deps: QueryDeps) -> AnswerStream:
+    """Answer one question. Raises Refused (422 too long or a bad override,
+    403 fresh or overrides not allowed, 429 too many answers in progress)
+    before any work that costs money. Otherwise returns at once with the
+    head; when an answer is being written, `events` relays it from a worker
+    that finishes, records and caches it whether or not anyone keeps
+    reading."""
+    s, answerer = _resolve(request, caller, deps)
+    now = datetime.now(UTC)
+    tracked = request.generate and not s.eval_mode
+    record = {
+        "now": now,
+        "ip_bucket": caller.ip_bucket,
+        "is_admin": caller.is_admin,
+        "model": answer_model(s),
+    }
+
+    # The gate here, the slot and the reservation below are what review doc
+    # 01's answer allowance replaces.
+    gate = Gate(None, 0)
+    remaining = None
+    if tracked and s.gating_enabled and not caller.is_admin:
+        gate = _gate(deps.engine, s, caller.ip_bucket, now)
+        remaining = gate.answers_remaining
+
+    key = (
+        cache_key(request.query, s, deps.data_version)
+        if tracked and s.answer_cache_enabled
+        else None
+    )
+    if key and not request.fresh:
+        # The global budget being exhausted applies to the next new question
+        # too, so don't promise answers a cache hit didn't use.
+        cache_remaining = 0 if gate.degraded == "global_budget" else remaining
+        hit = _cached(request, deps, key, cache_remaining)
+        if hit is not None:
+            _record(deps.engine, outcome="cached", **record)
+            return _finished(deps, s, request, hit, cached=True)
+
+    generating = request.generate and gate.degraded is None
+    release = _acquire_slot(s, caller) if generating and not s.eval_mode else None
+    try:
+        results = retrieve(request.query, s, deps.retrieval())
+        context, sources = build_context(results)
+        # After build_context: display data must never reach the LLM.
+        enrich_results(results, deps.matcher, deps.rules_index)
+        eval_fields = _eval_fields(s, context)
+
+        if tracked and gate.degraded:
+            _record(deps.engine, outcome=_DEGRADED_OUTCOMES[gate.degraded], **record)
+        if generating and tracked and remaining is not None:
+            remaining = max(0, remaining - 1)
+
+        head = QueryResponse(
+            query=request.query,
+            results=results,
+            degraded=gate.degraded,
+            answers_remaining=remaining,
+            **eval_fields,
+        )
+        if not generating:
+            return _finished(deps, s, request, head)
+
+        live_sources = [citation_for(n, r) for n, r in sources.items()]
+        enrich_citations(live_sources, deps.matcher, deps.rules_index)
+        reservation = (
+            _reserve(deps.engine, record, worst_case_cost(prompt_chars(request.query, context), s))
+            if tracked
+            else None
+        )
+        writer = _AnswerWriter(
+            s=s,
+            request=request,
+            answerer=answerer,
+            deps=deps,
+            context=context,
+            sources=sources,
+            results=results,
+            record=record,
+            tracked=tracked,
+            reservation=reservation,
+            key=key,
+            answers_remaining=remaining,
+            eval_fields=eval_fields,
+            release=release,
+        )
+        job = AnswerJob(writer.run).start()
+    except BaseException:
+        if release:
+            release()
+        raise
+    return AnswerStream(StreamHead.of(head, live_sources), job.events())
+
+
+def _resolve(request: QueryRequest, caller: Caller, deps: QueryDeps) -> tuple[Settings, Answerer]:
+    """This request's settings and answerer, or Refused."""
+    s = resolve_settings(request.overrides)
+    answerer = deps.answerer
+    if GENERATION_SETTINGS & request.overrides.keys():
+        answerer = build_answerer(s)
+    if len(request.query) > s.max_query_chars:
+        raise Refused(422, f"query is longer than {s.max_query_chars} characters")
+    if request.fresh and not caller.may_refresh:
+        raise Refused(403, "fresh answers are admin-only")
+    return s, answerer
+
+
+def _cached(
+    request: QueryRequest, deps: QueryDeps, key: str, remaining: int | None
+) -> QueryResponse | None:
+    """The cached answer to this question, or None (a miss, or a row that no
+    longer parses, which the new answer will overwrite)."""
+    hit = _cache_get(deps.engine, key)
+    if hit is None:
+        return None
+    stored, generated_at = hit
+    try:
+        response = QueryResponse(
+            **stored, query=request.query, cached_at=generated_at, answers_remaining=remaining
+        )
+    except Exception:
+        logger.exception("Malformed answer-cache row for key %s; treating as a miss", key)
+        return None
+    # Only complete answers are cached; rows from before the field.
+    if response.answer_complete is None and response.answer:
+        response.answer_complete = True
+    # Rows cached before enrichment existed lack card/heading.
+    enrich_results(response.results, deps.matcher, deps.rules_index)
+    enrich_citations(response.citations, deps.matcher, deps.rules_index)
+    return response
+
+
+def _finished(
+    deps: QueryDeps,
+    s: Settings,
+    request: QueryRequest,
+    response: QueryResponse,
+    *,
+    cached: bool = False,
+) -> AnswerStream:
+    """A request answered without a worker: a cache hit, or retrieval only."""
+    _save_history(deps.engine, s, request, response, cached=cached)
+    return AnswerStream(StreamHead.of(response, []), iter([Done(StreamDone.of(response))]))
+
+
+def _acquire_slot(s: Settings, caller: Caller) -> Callable[[], None]:
+    release = generation_slots.acquire(
+        caller.ip_bucket,
+        total_limit=s.max_concurrent_generations,
+        ip_limit=None if caller.is_admin else s.max_concurrent_generations_per_ip,
+    )
+    if release is None:
+        raise Refused(429, "Too many answers in progress. Try again in a moment.")
+    return release
+
+
+def _eval_fields(s: Settings, context: str) -> dict:
+    if not s.eval_mode:
+        return {}
+    return {
+        "context_hash": hashlib.sha256(context.encode("utf-8")).hexdigest(),
+        "prompt_version": PROMPT_VERSION,
+        "generator": generator_label(s),
+    }
+
+
 @dataclass
-class _AnswerWork:
-    """What the worker thread needs to write, record, cache and save one
-    answer, whether or not anyone is still listening."""
+class _AnswerWriter:
+    """Writes, records, caches and saves one answer on the job's thread,
+    whether or not anyone is still listening."""
 
     s: Settings
     request: QueryRequest
     answerer: Answerer
-    d: QueryDeps
+    deps: QueryDeps
     context: str
     sources: dict[int, QueryResult]
     results: list[QueryResult]
@@ -267,228 +441,84 @@ class _AnswerWork:
     eval_fields: dict
     release: Callable[[], None] | None
 
-
-def _finalize(work: _AnswerWork, outcome: str, generation: Generation) -> None:
-    if not work.tracked:
-        return
-    cost = cost_usd(generation, work.s)
-    if work.reservation is None:
-        # The reservation insert failed; record the answer as before.
-        _record(work.d.engine, outcome=outcome, generation=generation, cost=cost, **work.record)
-        return
-    try:
-        finalize_usage(
-            work.d.engine, work.reservation, outcome=outcome, generation=generation, cost=cost
-        )
-    except Exception:
-        logger.exception("Failed to finalize LLM usage")
-
-
-def _run_answer(work: _AnswerWork, emit: Emit) -> None:
-    """Phase 2, on the job's thread: stream the answer out as deltas, then
-    do everything the old endpoint did after generating."""
-    s, d = work.s, work.d
-    acc = StreamAccumulator()
-    failure = None
-    try:
-        emit(Thinking())
+    def run(self, emit: Emit) -> None:
+        s, d = self.s, self.deps
+        acc = StreamAccumulator()
+        failure = None
         try:
-            for chunk in work.answerer.stream(work.request.query, work.context):
-                acc.add(chunk)
-                if chunk.text:
-                    emit(Delta(chunk.text))
-        except Exception as exc:
-            logger.exception("Answer generation failed (%s)", generator_label(s))
-            failure = str(exc)
+            emit(Thinking())
+            try:
+                for chunk in self.answerer.stream(self.request.query, self.context):
+                    acc.add(chunk)
+                    if chunk.text:
+                        emit(Delta(chunk.text))
+            except Exception as exc:
+                logger.exception("Answer generation failed (%s)", generator_label(s))
+                failure = str(exc)
 
-        generation = estimate_generation(acc, prompt_chars(work.request.query, work.context), s)
-        _finalize(work, "error" if failure else "generated", generation)
+            generation = estimate_generation(acc, prompt_chars(self.request.query, self.context), s)
+            self._finalize("error" if failure else "generated", generation)
 
-        # Keep whatever was written, even when the stream failed after it.
-        answer = acc.text if (acc.text or failure is None) else None
-        complete = failure is None and acc.finish_reason == "STOP"
-        error = failure
-        if answer and not complete and error is None:
-            error = f"answer cut off (finish reason: {acc.finish_reason or 'none'})"
+            # Keep whatever was written, even when the stream failed after it.
+            answer = acc.text if (acc.text or failure is None) else None
+            complete = failure is None and acc.finish_reason == "STOP"
+            error = failure
+            if answer and not complete and error is None:
+                error = f"answer cut off (finish reason: {acc.finish_reason or 'none'})"
 
-        # Must run before the results are dumped: it sets each cited
-        # result's `cited` flag.
-        cited = cite_answer(answer, work.sources, d.rules_index) if answer is not None else None
-        if cited is not None:
-            answer = cited.answer
-        citations = cited.citations if cited else []
-        enrich_citations(citations, d.matcher, d.rules_index)
-        rule_references = cited.rule_references if cited else []
-        citation_stats = cited.stats if cited else CitationStats()
+            # Must run before the results are dumped: it sets each cited
+            # result's `cited` flag.
+            cited = cite_answer(answer, self.sources, d.rules_index) if answer is not None else None
+            if cited is not None:
+                answer = cited.answer
+            citations = cited.citations if cited else []
+            enrich_citations(citations, d.matcher, d.rules_index)
 
-        eval_fields = dict(work.eval_fields)
-        if settings.eval_mode:
-            eval_fields["usage"] = None if failure else generation.usage()
-            eval_fields["generation_error"] = error
-        response = QueryResponse(
-            query=work.request.query,
-            results=work.results,
-            answer=answer,
-            citations=citations,
-            rule_references=rule_references,
-            citation_stats=citation_stats,
-            answer_complete=None if answer is None else complete,
-            answers_remaining=work.answers_remaining,
-            **eval_fields,
-        )
-        _save_history(d.engine, s, work.request, response, error=error)
-        if work.key and answer and complete:
-            _cache_put(d.engine, work.key, work.request.query, response, work.record["now"])
-        if failure and answer is None:
-            emit(Failed(failure))
-        emit(Done(StreamDone.of(response)))
-    finally:
-        if work.release:
-            work.release()
+            eval_fields = dict(self.eval_fields)
+            if s.eval_mode:
+                eval_fields["usage"] = None if failure else generation.usage()
+                eval_fields["generation_error"] = error
+            response = QueryResponse(
+                query=self.request.query,
+                results=self.results,
+                answer=answer,
+                citations=citations,
+                rule_references=cited.rule_references if cited else [],
+                citation_stats=cited.stats if cited else CitationStats(),
+                answer_complete=None if answer is None else complete,
+                answers_remaining=self.answers_remaining,
+                **eval_fields,
+            )
+            _save_history(d.engine, s, self.request, response, error=error)
+            if self.key and answer and complete:
+                _cache_put(d.engine, self.key, self.request.query, response, self.record["now"])
+            if failure and answer is None:
+                emit(Failed(failure))
+            emit(Done(StreamDone.of(response)))
+        finally:
+            if self.release:
+                self.release()
 
-
-def _reserve(engine: Engine, record: dict, cost: float) -> int | None:
-    try:
-        return reserve_usage(engine, cost=cost, **record)
-    except Exception:
-        logger.exception("Failed to reserve LLM usage")
-        return None
-
-
-def start(request: QueryRequest, caller: Caller, d: QueryDeps) -> AnswerStream:
-    """Answer one question. Raises Refused (422, 403, 429) before any work
-    that costs money. Otherwise returns at once with the head; when an answer
-    is being written, `events` relays it from a worker that finishes,
-    records and caches it whether or not anyone keeps reading."""
-    s = resolve_settings(request.overrides)
-    answerer = d.answerer
-    if GENERATION_SETTINGS & request.overrides.keys():
-        answerer = build_answerer(s)
-
-    if len(request.query) > s.max_query_chars:
-        raise Refused(422, f"query is longer than {s.max_query_chars} characters")
-    admin = caller.is_admin
-    if request.fresh and not caller.may_refresh:
-        raise Refused(403, "fresh answers are admin-only")
-
-    engine = d.engine
-    now = datetime.now(UTC)
-    bucket = caller.ip_bucket
-    tracked = request.generate and not settings.eval_mode
-    record = {"now": now, "ip_bucket": bucket, "is_admin": admin, "model": answer_model(s)}
-
-    gate = Gate(None, 0)
-    remaining = None
-    if tracked and s.gating_enabled and not admin:
-        gate = _gate(engine, s, bucket, now)
-        remaining = gate.answers_remaining
-
-    key = (
-        cache_key(request.query, s, d.data_version) if tracked and s.answer_cache_enabled else None
-    )
-    hit = _cache_get(engine, key) if key and not request.fresh else None
-    if hit is not None:
-        stored, generated_at = hit
-        # The global budget being exhausted applies to the next new
-        # question too, so don't promise answers a cache hit didn't use.
-        cache_remaining = 0 if gate.degraded == "global_budget" else remaining
+    def _finalize(self, outcome: str, generation: Generation) -> None:
+        if not self.tracked:
+            return
+        cost = cost_usd(generation, self.s)
+        if self.reservation is None:
+            # The reservation insert failed; record the answer as before.
+            _record(
+                self.deps.engine, outcome=outcome, generation=generation, cost=cost, **self.record
+            )
+            return
         try:
-            cached_response = QueryResponse(
-                **stored,
-                query=request.query,
-                cached_at=generated_at,
-                answers_remaining=cache_remaining,
+            finalize_usage(
+                self.deps.engine,
+                self.reservation,
+                outcome=outcome,
+                generation=generation,
+                cost=cost,
             )
         except Exception:
-            # A row from an older schema (or otherwise malformed): fall
-            # through to a normal retrieval + generation below, which
-            # overwrites this entry via _cache_put.
-            logger.exception("Malformed answer-cache row for key %s; treating as a miss", key)
-        else:
-            # Only complete answers are cached; rows from before the field.
-            if cached_response.answer_complete is None and cached_response.answer:
-                cached_response.answer_complete = True
-            # Rows cached before enrichment existed lack card/heading.
-            enrich_results(cached_response.results, d.matcher, d.rules_index)
-            enrich_citations(cached_response.citations, d.matcher, d.rules_index)
-            _record(engine, outcome="cached", **record)
-            _save_history(engine, s, request, cached_response, cached=True)
-            return AnswerStream(
-                StreamHead.of(cached_response, []), iter([Done(StreamDone.of(cached_response))])
-            )
-
-    generating = request.generate and gate.degraded is None
-    release = None
-    if generating and not settings.eval_mode:
-        release = generation_slots.acquire(
-            bucket,
-            total_limit=s.max_concurrent_generations,
-            ip_limit=None if admin else s.max_concurrent_generations_per_ip,
-        )
-        if release is None:
-            raise Refused(429, "Too many answers in progress. Try again in a moment.")
-
-    try:
-        all_results = retrieve(request.query, s, d.retrieval())
-        context, sources = build_context(all_results)
-        # After build_context: display data must never reach the LLM.
-        enrich_results(all_results, d.matcher, d.rules_index)
-
-        eval_fields = {}
-        if settings.eval_mode:
-            eval_fields = {
-                "context_hash": hashlib.sha256(context.encode("utf-8")).hexdigest(),
-                "prompt_version": PROMPT_VERSION,
-                "generator": generator_label(s),
-            }
-
-        if tracked and gate.degraded:
-            _record(engine, outcome=_DEGRADED_OUTCOMES[gate.degraded], **record)
-        if generating and tracked and remaining is not None:
-            remaining = max(0, remaining - 1)
-
-        head_response = QueryResponse(
-            query=request.query,
-            results=all_results,
-            degraded=gate.degraded,
-            answers_remaining=remaining,
-            **eval_fields,
-        )
-        if not generating:
-            _save_history(engine, s, request, head_response)
-            return AnswerStream(
-                StreamHead.of(head_response, []), iter([Done(StreamDone.of(head_response))])
-            )
-
-        live_sources = [citation_for(n, r) for n, r in sources.items()]
-        enrich_citations(live_sources, d.matcher, d.rules_index)
-        reservation = (
-            _reserve(engine, record, worst_case_cost(prompt_chars(request.query, context), s))
-            if tracked
-            else None
-        )
-        work = _AnswerWork(
-            s=s,
-            request=request,
-            answerer=answerer,
-            d=d,
-            context=context,
-            sources=sources,
-            results=all_results,
-            record=record,
-            tracked=tracked,
-            reservation=reservation,
-            key=key,
-            answers_remaining=remaining,
-            eval_fields=eval_fields,
-            release=release,
-        )
-        job = AnswerJob(lambda emit: _run_answer(work, emit)).start()
-    except BaseException:
-        if release:
-            release()
-        raise
-    return AnswerStream(StreamHead.of(head_response, live_sources), job.events())
+            logger.exception("Failed to finalize LLM usage")
 
 
 def sse_frames(stream: AnswerStream) -> Iterator[str]:
