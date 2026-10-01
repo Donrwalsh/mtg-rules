@@ -1,0 +1,114 @@
+running full · dev · http://localhost:8000
+  hexproof-own-target                      answer generated
+  deathtouch-trample-assignment            answer generated
+  trample-blocker-removed                  answer generated
+  ward-targeting                           answer generated
+  indestructible-zero-toughness            answer generated
+  vigilance-tapping                        answer generated
+  lifelink-uses-stack                      answer generated
+  first-strike-double-strike               answer generated
+  empty-library-draw                       answer generated
+  legend-rule                              answer generated
+  artifact-summoning-sickness              answer generated
+  put-land-not-land-drop                   answer generated
+  all-targets-illegal                      answer generated
+  damage-wears-off                         answer generated
+  copy-not-cast                            answer generated
+  sacrifice-indestructible                 answer generated
+  commander-damage                         answer generated
+  simultaneous-triggers                    answer generated
+  rest-in-peace-dies                       answer generated
+  blood-moon-basics                        answer generated
+  doubling-season-loyalty                  answer generated
+  swords-power-response                    answer generated
+  path-optional-search                     answer generated
+  thoughtseize-empty-hand                  answer generated
+  platinum-angel-concede                   answer generated
+  stifle-draw-step                         answer generated
+  clone-counters                           answer generated
+  blood-artist-board-wipe                  answer generated
+  humility-opalescence                     answer generated
+  phasing-oblivion-ring                    answer generated
+  deathtouch-pinger                        answer generated
+  standard-meta                            answer generated
+  alpha-print-run                          answer generated
+  next-set-release                         answer generated
+  messy-slang-bolt-hexproof                answer generated
+  messy-lowercase-cards                    answer generated
+  messy-misspelled-keyword                 answer generated
+  messy-terse-hand-size                    answer generated
+  hexproof-own-target                      pass  judge=correct (generated)
+  deathtouch-trample-assignment            pass  judge=correct (generated)
+  trample-blocker-removed                  pass  judge=correct (generated)
+  ward-targeting                           pass  judge=correct (generated)
+  indestructible-zero-toughness            FAIL  judge=correct (generated)
+  vigilance-tapping                        pass  judge=correct (generated)
+  lifelink-uses-stack                      pass  judge=correct (generated)
+  first-strike-double-strike               pass  judge=correct (generated)
+  empty-library-draw                       FAIL  judge=partial (generated)
+  legend-rule                              pass  judge=correct (generated)
+  artifact-summoning-sickness              FAIL  judge=incorrect (generated)
+  put-land-not-land-drop                   pass  judge=correct (generated)
+  all-targets-illegal                      pass  judge=correct (generated)
+  damage-wears-off                         FAIL  judge=correct (generated)
+  copy-not-cast                            pass  judge=correct (generated)
+  sacrifice-indestructible                 pass  judge=correct (generated)
+  commander-damage                         pass  judge=correct (generated)
+  simultaneous-triggers                    pass  judge=correct (generated)
+  rest-in-peace-dies                       pass  judge=correct (generated)
+  blood-moon-basics                        pass  judge=correct (generated)
+  doubling-season-loyalty                  pass  judge=correct (generated)
+  swords-power-response                    pass  judge=correct (generated)
+  path-optional-search                     pass  judge=correct (generated)
+  thoughtseize-empty-hand                  pass  judge=correct (generated)
+  platinum-angel-concede                   pass  judge=correct (generated)
+  stifle-draw-step                         pass  judge=correct (generated)
+  clone-counters                           pass  judge=correct (generated)
+  blood-artist-board-wipe                  pass  judge=correct (generated)
+  humility-opalescence                     pass  judge=correct (generated)
+  phasing-oblivion-ring                    pass  judge=correct (generated)
+  deathtouch-pinger                        pass  judge=correct (generated)
+  standard-meta                            -  judge=declined_properly (generated)
+  alpha-print-run                          -  judge=declined_properly (generated)
+  next-set-release                         -  judge=declined_properly (generated)
+  messy-slang-bolt-hexproof                pass  judge=correct (generated)
+  messy-lowercase-cards                    pass  judge=correct (generated)
+  messy-misspelled-keyword                 pass  judge=correct (generated)
+  messy-terse-hand-size                    pass  judge=partial (generated)
+
+eval  full · dev (38) · 348139a-dirty · mtg_rules · no experiment · judge=qwen2.5:14b
+no baseline for full at baseline-full-phi4.json; skipping comparison
+
+  pass rate                    88.6%
+  mean recall                  0.900
+  mean first-hit rank           3.44
+  forbidden-card hits              0
+  expected cards missing           0
+  errors                           0
+  mean results                  16.7
+  mean context chars            5321
+  judge correct                91.4%
+  judge partial                 5.7%
+  judge incorrect               2.9%
+  verdict accuracy             60.0%
+  decline accuracy            100.0%
+  invalid citations                8
+  judge errors                     0
+  answer cache hits             0.0%
+  judge cache hits             13.2%
+  mean generate ms             21324
+  context overruns                 0
+  max prompt tokens             2680
+
+  pass by category
+    card-ruling           10/10  judge correct 100.0%
+    cr-only               7/10  judge correct 80.0%
+    interaction           3/3  judge correct 100.0%
+    keyword               7/8  judge correct 100.0%
+    messy                 4/4  judge correct 75.0%
+    negative              -  declined 100.0%
+
+  failing retrieval (4): indestructible-zero-toughness, empty-library-draw, artifact-summoning-sickness, damage-wears-off
+
+run written to C:\Users\Bigbrass\Desktop\mtg-rules\evals\runs\20261001T153725Z-348139a-dirty-full.json
+exit 0
