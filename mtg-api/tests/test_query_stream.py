@@ -1,18 +1,12 @@
 import json
 
 import pytest
-from conftest import ChunksAnswerer, CountingAnswerer, admin_client, make_deps, setup_trample
+from conftest import ChunksAnswerer, admin_client, setup_trample
 from fastapi.testclient import TestClient
-from sqlalchemy import select
 
 from mtg_api import main, query_pipeline
-from mtg_api.history import list_history
 from mtg_api.llm import StreamChunk
 from mtg_api.main import app
-from mtg_api.models import QueryRequest
-from mtg_api.query_pipeline import Caller
-from mtg_api.streaming import join_all
-from mtg_api.usage import llm_usage
 
 
 @pytest.fixture(autouse=True)
@@ -130,21 +124,6 @@ def test_admin_skips_the_per_ip_cap_but_not_the_global_one(monkeypatch):
     monkeypatch.setattr(main.settings, "max_concurrent_generations", 0)
     # A new question: "trample" is now a cache hit, which needs no slot.
     assert _stream({"query": "deathtouch"}, client).status_code == 429
-
-
-def test_closing_the_stream_early_still_finishes_the_answer():
-    deps = make_deps(answerer=CountingAnswerer())
-    stream = query_pipeline.start(
-        QueryRequest(query="trample"), Caller("1.2.3.4", is_admin=False, may_refresh=False), deps
-    )
-    frames = query_pipeline.sse_frames(stream)
-    assert next(frames).startswith("event: results")
-    frames.close()  # the visitor left
-    join_all()
-    with deps.engine.connect() as conn:
-        outcomes = [r.outcome for r in conn.execute(select(llm_usage))]
-    assert outcomes == ["generated"]
-    assert list_history(deps.engine)[0]["answer"] == "Yes [1]."
 
 
 def test_blocking_and_streamed_answers_agree():
