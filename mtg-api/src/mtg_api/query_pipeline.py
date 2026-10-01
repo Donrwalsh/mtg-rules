@@ -187,12 +187,31 @@ def _cache_put(engine: Engine, key: str, query: str, response: QueryResponse, no
         logger.exception("Failed to store answer in cache")
 
 
-def _save(engine: Engine, s: Settings, request: QueryRequest, **fields) -> None:
+def _save_history(
+    engine: Engine,
+    s: Settings,
+    request: QueryRequest,
+    response: QueryResponse,
+    *,
+    error: str | None = None,
+    cached: bool = False,
+) -> None:
     # Eval runs are not user queries, but only eval mode may say so.
     if settings.eval_mode and request.source == "eval":
         return
     try:
-        save_history(engine, query=request.query, model=answer_model(s), **fields)
+        save_history(
+            engine,
+            query=request.query,
+            model=answer_model(s),
+            answer=response.answer,
+            error=error,
+            cached=cached,
+            results=[r.model_dump() for r in response.results],
+            citations=[c.model_dump() for c in response.citations],
+            citation_stats=response.citation_stats.model_dump(),
+            rule_references=response.rule_references,
+        )
     except Exception:
         logger.exception("Failed to persist query history")
 
@@ -302,18 +321,6 @@ def _run_answer(work: _AnswerWork, emit: Emit) -> None:
         rule_references = cited.rule_references if cited else []
         citation_stats = cited.stats if cited else CitationStats()
 
-        _save(
-            d.engine,
-            s,
-            work.request,
-            answer=answer,
-            results=[r.model_dump() for r in work.results],
-            error=error,
-            citations=[c.model_dump() for c in citations],
-            citation_stats=citation_stats.model_dump(),
-            rule_references=rule_references,
-        )
-
         eval_fields = dict(work.eval_fields)
         if settings.eval_mode:
             eval_fields["usage"] = None if failure else generation.usage()
@@ -329,6 +336,7 @@ def _run_answer(work: _AnswerWork, emit: Emit) -> None:
             answers_remaining=work.answers_remaining,
             **eval_fields,
         )
+        _save_history(d.engine, s, work.request, response, error=error)
         if work.key and answer and complete:
             _cache_put(d.engine, work.key, work.request.query, response, work.record["now"])
         if failure and answer is None:
@@ -404,18 +412,7 @@ def start(request: QueryRequest, caller: Caller, d: QueryDeps) -> AnswerStream:
             enrich_results(cached_response.results, d.matcher, d.rules_index)
             enrich_citations(cached_response.citations, d.matcher, d.rules_index)
             _record(engine, outcome="cached", **record)
-            _save(
-                engine,
-                s,
-                request,
-                answer=cached_response.answer,
-                results=[r.model_dump() for r in cached_response.results],
-                error=None,
-                citations=[c.model_dump() for c in cached_response.citations],
-                citation_stats=cached_response.citation_stats.model_dump(),
-                rule_references=cached_response.rule_references,
-                cached=True,
-            )
+            _save_history(engine, s, request, cached_response, cached=True)
             return AnswerStream(
                 StreamHead.of(cached_response, []), iter([Done(StreamDone.of(cached_response))])
             )
@@ -458,17 +455,7 @@ def start(request: QueryRequest, caller: Caller, d: QueryDeps) -> AnswerStream:
             **eval_fields,
         )
         if not generating:
-            _save(
-                engine,
-                s,
-                request,
-                answer=None,
-                results=[r.model_dump() for r in all_results],
-                error=None,
-                citations=[],
-                citation_stats=CitationStats().model_dump(),
-                rule_references=[],
-            )
+            _save_history(engine, s, request, head_response)
             return AnswerStream(
                 StreamHead.of(head_response, []), iter([Done(StreamDone.of(head_response))])
             )
