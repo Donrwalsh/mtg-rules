@@ -1,123 +1,16 @@
-from conftest import StreamsFromGenerate, memory_engine
+from conftest import FailingEngine, FakeAnswerer, FakeHit, memory_engine, override
 from fastapi.testclient import TestClient
 
 from mtg_api import main
-from mtg_api.card_matcher import CardMatcher
-from mtg_api.embedder import Embedder
 from mtg_api.history import list_history
-from mtg_api.keyword_matcher import KeywordMatcher
-from mtg_api.llm import Generation
 from mtg_api.main import (
     app,
-    get_answerer,
-    get_card_matcher,
-    get_db_engine,
-    get_dense_embedder,
-    get_keyword_matcher,
-    get_qdrant_client,
-    get_rules_index,
-    get_sparse_embedder,
 )
-from mtg_api.rules_index import RulesIndex
-from mtg_api.sparse_embedder import SparseEmbedder
-
-
-class _FakeDenseModel:
-    def encode(self, texts, batch_size, show_progress_bar=False):
-        return [[0.1, 0.2, 0.3, 0.4] for _ in texts]
-
-    def get_sentence_embedding_dimension(self):
-        return 4
-
-
-class _FakeSparseEmbedding:
-    indices = (0,)
-    values = (1.0,)
-
-
-class _FakeSparseModel:
-    def embed(self, texts):
-        return [_FakeSparseEmbedding() for _ in texts]
-
-
-class _FakeHit:
-    def __init__(self, id, score, payload):
-        self.id = id
-        self.score = score
-        self.payload = payload
-
-
-class _FakeQueryResult:
-    def __init__(self, points):
-        self.points = points
-
-
-class _FakeQdrantClient:
-    def __init__(self, dense_points=None, sparse_points=None, scroll_points=None):
-        self._dense_points = dense_points or []
-        self._sparse_points = sparse_points or []
-        self._scroll_points = scroll_points or []
-
-    def query_points(self, collection_name, using, query, limit, with_payload, query_filter=None):
-        points = self._dense_points if using == "dense" else self._sparse_points
-        if query_filter is not None:
-            (condition,) = query_filter.must
-            points = [p for p in points if p.payload.get(condition.key) == condition.match.value]
-        return _FakeQueryResult(points[:limit])
-
-    def scroll(self, collection_name, scroll_filter, limit, with_payload):
-        return self._scroll_points[:limit], None
-
-
-class _FakeAnswerer(StreamsFromGenerate):
-    def __init__(self, answer="A generated answer.", raises=None):
-        self._answer = answer
-        self._raises = raises
-
-    def generate(self, query, context):
-        if self._raises:
-            raise self._raises
-        return Generation(
-            text=self._answer,
-            input_tokens=1000,
-            output_tokens=100,
-            thinking_tokens=200,
-            finish_reason="STOP",
-        )
-
-
-class _FailingEngine:
-    def begin(self):
-        raise RuntimeError("db unreachable")
-
-    def connect(self):
-        raise RuntimeError("db unreachable")
-
-
-def _override(
-    cards=None,
-    dense_points=None,
-    sparse_points=None,
-    scroll_points=None,
-    answerer=None,
-    engine=None,
-    rules=None,
-):
-    app.dependency_overrides[get_card_matcher] = lambda: CardMatcher(cards or [])
-    app.dependency_overrides[get_keyword_matcher] = lambda: KeywordMatcher(rules or [])
-    app.dependency_overrides[get_rules_index] = lambda: RulesIndex(rules or [])
-    app.dependency_overrides[get_dense_embedder] = lambda: Embedder(_FakeDenseModel())
-    app.dependency_overrides[get_sparse_embedder] = lambda: SparseEmbedder(_FakeSparseModel())
-    app.dependency_overrides[get_qdrant_client] = lambda: _FakeQdrantClient(
-        dense_points, sparse_points, scroll_points
-    )
-    app.dependency_overrides[get_answerer] = lambda: answerer or _FakeAnswerer()
-    app.dependency_overrides[get_db_engine] = lambda: engine or memory_engine()
 
 
 def test_query_returns_card_match_when_name_detected():
     cards = [{"oracle_id": "oid-1", "name": "Counterspell", "oracle_text": "Counter target spell."}]
-    _override(cards=cards)
+    override(cards=cards)
     try:
         resp = TestClient(app).post("/api/v1/query", json={"query": "how does Counterspell work"})
     finally:
@@ -134,9 +27,9 @@ def test_query_returns_card_match_when_name_detected():
 
 def test_query_returns_vector_hit_when_no_card_named():
     dense_points = [
-        _FakeHit("p1", 1.0, {"source_type": "rule", "rule_id": "702.19", "text": "Trample text"})
+        FakeHit("p1", 1.0, {"source_type": "rule", "rule_id": "702.19", "text": "Trample text"})
     ]
-    _override(dense_points=dense_points)
+    override(dense_points=dense_points)
     try:
         resp = TestClient(app).post("/api/v1/query", json={"query": "how does trample work"})
     finally:
@@ -157,7 +50,7 @@ def test_query_includes_matched_cards_own_rulings():
     # An unrelated card's ruling that a naive semantic search might surface
     # instead of Craterhoof's own -- the bug this test guards against.
     dense_points = [
-        _FakeHit(
+        FakeHit(
             "p1",
             0.9,
             {
@@ -169,7 +62,7 @@ def test_query_includes_matched_cards_own_rulings():
         )
     ]
     scroll_points = [
-        _FakeHit(
+        FakeHit(
             "r1",
             None,
             {
@@ -180,7 +73,7 @@ def test_query_includes_matched_cards_own_rulings():
             },
         )
     ]
-    _override(cards=cards, dense_points=dense_points, scroll_points=scroll_points)
+    override(cards=cards, dense_points=dense_points, scroll_points=scroll_points)
     try:
         resp = TestClient(app).post(
             "/api/v1/query", json={"query": "how does Craterhoof Behemoth work"}
@@ -203,7 +96,7 @@ def test_query_includes_matched_cards_own_rulings():
 def test_query_dedupes_vector_hit_matching_a_card_match():
     cards = [{"oracle_id": "oid-1", "name": "Counterspell", "oracle_text": "Counter target spell."}]
     dense_points = [
-        _FakeHit(
+        FakeHit(
             "p1",
             1.0,
             {
@@ -214,7 +107,7 @@ def test_query_dedupes_vector_hit_matching_a_card_match():
             },
         )
     ]
-    _override(cards=cards, dense_points=dense_points)
+    override(cards=cards, dense_points=dense_points)
     try:
         resp = TestClient(app).post("/api/v1/query", json={"query": "Counterspell rulings"})
     finally:
@@ -234,7 +127,7 @@ HEXPROOF_RULES = [
 
 
 def test_query_includes_keyword_rules_when_keyword_named():
-    _override(rules=HEXPROOF_RULES)
+    override(rules=HEXPROOF_RULES)
     try:
         resp = TestClient(app).post(
             "/api/v1/query", json={"query": "can I target my own hexproof creature"}
@@ -252,7 +145,7 @@ def test_query_includes_keyword_rules_when_keyword_named():
 def test_query_orders_keyword_rules_after_card_rulings_and_before_vector_hits():
     cards = [{"oracle_id": "oid-1", "name": "Lightning Bolt", "oracle_text": "Deals 3 damage."}]
     scroll_points = [
-        _FakeHit(
+        FakeHit(
             "r1",
             None,
             {
@@ -264,9 +157,9 @@ def test_query_orders_keyword_rules_after_card_rulings_and_before_vector_hits():
         )
     ]
     dense_points = [
-        _FakeHit("p1", 0.9, {"source_type": "rule", "rule_id": "115.1", "text": "Targets."})
+        FakeHit("p1", 0.9, {"source_type": "rule", "rule_id": "115.1", "text": "Targets."})
     ]
-    _override(
+    override(
         cards=cards, rules=HEXPROOF_RULES, dense_points=dense_points, scroll_points=scroll_points
     )
     try:
@@ -290,7 +183,7 @@ def test_query_orders_keyword_rules_after_card_rulings_and_before_vector_hits():
 
 def test_query_dedupes_vector_hit_matching_a_keyword_rule():
     dense_points = [
-        _FakeHit(
+        FakeHit(
             "p1",
             0.9,
             {
@@ -299,9 +192,9 @@ def test_query_dedupes_vector_hit_matching_a_keyword_rule():
                 "text": "Can't be targeted by opponents.",
             },
         ),
-        _FakeHit("p2", 0.8, {"source_type": "rule", "rule_id": "115.1", "text": "Targets."}),
+        FakeHit("p2", 0.8, {"source_type": "rule", "rule_id": "115.1", "text": "Targets."}),
     ]
-    _override(rules=HEXPROOF_RULES, dense_points=dense_points)
+    override(rules=HEXPROOF_RULES, dense_points=dense_points)
     try:
         resp = TestClient(app).post("/api/v1/query", json={"query": "how does hexproof work"})
     finally:
@@ -318,7 +211,7 @@ def test_query_rejects_missing_query_field():
     # other test here -- without them it silently falls through to the
     # real, un-cached get_dense_embedder()/get_sparse_embedder(), which
     # downloads and loads the actual models over the network.
-    _override()
+    override()
     try:
         resp = TestClient(app).post("/api/v1/query", json={})
     finally:
@@ -327,7 +220,7 @@ def test_query_rejects_missing_query_field():
 
 
 def test_cors_header_present_for_configured_origin():
-    _override()
+    override()
     try:
         resp = TestClient(app).post(
             "/api/v1/query",
@@ -340,7 +233,7 @@ def test_cors_header_present_for_configured_origin():
 
 
 def test_query_returns_generated_answer_on_success():
-    _override(answerer=_FakeAnswerer(answer="Trample carries excess damage over."))
+    override(answerer=FakeAnswerer(answer="Trample carries excess damage over."))
     try:
         resp = TestClient(app).post("/api/v1/query", json={"query": "how does trample work"})
     finally:
@@ -350,7 +243,7 @@ def test_query_returns_generated_answer_on_success():
 
 
 def test_query_returns_null_answer_when_generation_fails():
-    _override(answerer=_FakeAnswerer(raises=RuntimeError("rate limited")))
+    override(answerer=FakeAnswerer(raises=RuntimeError("rate limited")))
     try:
         resp = TestClient(app).post("/api/v1/query", json={"query": "how does trample work"})
     finally:
@@ -361,7 +254,7 @@ def test_query_returns_null_answer_when_generation_fails():
 
 
 def test_query_succeeds_even_when_history_write_fails():
-    _override(answerer=_FakeAnswerer(answer="An answer."), engine=_FailingEngine())
+    override(answerer=FakeAnswerer(answer="An answer."), engine=FailingEngine())
     try:
         resp = TestClient(app).post("/api/v1/query", json={"query": "how does trample work"})
     finally:
@@ -372,7 +265,7 @@ def test_query_succeeds_even_when_history_write_fails():
 
 def test_query_persists_a_history_row():
     engine = memory_engine()
-    _override(answerer=_FakeAnswerer(answer="An answer."), engine=engine)
+    override(answerer=FakeAnswerer(answer="An answer."), engine=engine)
     try:
         TestClient(app).post("/api/v1/query", json={"query": "how does trample work"})
     finally:
@@ -397,7 +290,7 @@ def test_query_results_carry_source_metadata():
         }
     ]
     scroll_points = [
-        _FakeHit(
+        FakeHit(
             "r1",
             None,
             {
@@ -411,9 +304,9 @@ def test_query_results_carry_source_metadata():
         )
     ]
     dense_points = [
-        _FakeHit("p1", 0.9, {"source_type": "rule", "rule_id": "115.1", "text": "Targets."})
+        FakeHit("p1", 0.9, {"source_type": "rule", "rule_id": "115.1", "text": "Targets."})
     ]
-    _override(
+    override(
         cards=cards, rules=HEXPROOF_RULES, dense_points=dense_points, scroll_points=scroll_points
     )
     try:
@@ -444,16 +337,16 @@ def test_query_returns_validated_citations_and_persists_them():
         }
     ]
     dense_points = [
-        _FakeHit("p1", 0.9, {"source_type": "rule", "rule_id": "115.1", "text": "Targets."})
+        FakeHit("p1", 0.9, {"source_type": "rule", "rule_id": "115.1", "text": "Targets."})
     ]
     engine = memory_engine()
     # Context numbering: 1 Bolt, 2 702.11, 3 702.11a, 4 702.11b, 5 115.1.
     answer = "Bolt deals 3 [1]. Hexproof only stops opponents [4][99], see 702.11b and 999.9z."
-    _override(
+    override(
         cards=cards,
         rules=HEXPROOF_RULES,
         dense_points=dense_points,
-        answerer=_FakeAnswerer(answer=answer),
+        answerer=FakeAnswerer(answer=answer),
         engine=engine,
     )
     try:
@@ -494,7 +387,7 @@ def test_query_returns_validated_citations_and_persists_them():
 
 
 def test_query_flags_an_answer_with_no_citations():
-    _override(answerer=_FakeAnswerer(answer="The context doesn't cover that."))
+    override(answerer=FakeAnswerer(answer="The context doesn't cover that."))
     try:
         body = TestClient(app).post("/api/v1/query", json={"query": "best standard deck"}).json()
     finally:
@@ -505,7 +398,7 @@ def test_query_flags_an_answer_with_no_citations():
 
 def test_query_failed_generation_has_empty_citations():
     engine = memory_engine()
-    _override(answerer=_FakeAnswerer(raises=RuntimeError("down")), engine=engine)
+    override(answerer=FakeAnswerer(raises=RuntimeError("down")), engine=engine)
     try:
         body = TestClient(app).post("/api/v1/query", json={"query": "trample"}).json()
     finally:
@@ -520,9 +413,9 @@ def test_query_failed_generation_has_empty_citations():
 def _ruling_hits_and_one_rule():
     # The rule scores lowest overall, as rules do among thousands of rulings.
     return [
-        _FakeHit("r1", 0.9, {"source_type": "ruling", "card_name": "A", "text": "Ruling A."}),
-        _FakeHit("r2", 0.8, {"source_type": "ruling", "card_name": "B", "text": "Ruling B."}),
-        _FakeHit(
+        FakeHit("r1", 0.9, {"source_type": "ruling", "card_name": "A", "text": "Ruling A."}),
+        FakeHit("r2", 0.8, {"source_type": "ruling", "card_name": "B", "text": "Ruling B."}),
+        FakeHit(
             "p1", 0.1, {"source_type": "rule", "rule_id": "704.5b", "text": "Draw from empty."}
         ),
     ]
@@ -538,7 +431,7 @@ def _post_query(query):
 def test_rules_search_is_off_at_zero(monkeypatch):
     monkeypatch.setattr(main.settings, "hybrid_top_k", 2)
     monkeypatch.setattr(main.settings, "rules_top_k", 0)
-    _override(dense_points=_ruling_hits_and_one_rule())
+    override(dense_points=_ruling_hits_and_one_rule())
     body = _post_query("draw from an empty library")
     assert [r["match_type"] for r in body["results"]] == ["vector_hit", "vector_hit"]
 
@@ -546,7 +439,7 @@ def test_rules_search_is_off_at_zero(monkeypatch):
 def test_rules_search_adds_rules_the_main_search_missed(monkeypatch):
     monkeypatch.setattr(main.settings, "hybrid_top_k", 2)
     monkeypatch.setattr(main.settings, "rules_top_k", 1)
-    _override(dense_points=_ruling_hits_and_one_rule())
+    override(dense_points=_ruling_hits_and_one_rule())
     body = _post_query("draw from an empty library")
     rule_hits = [r for r in body["results"] if r["match_type"] == "rule_vector_hit"]
     assert [r["rule_id"] for r in rule_hits] == ["704.5b"]
@@ -555,7 +448,7 @@ def test_rules_search_adds_rules_the_main_search_missed(monkeypatch):
 
 def test_rules_search_skips_rules_already_in_the_results(monkeypatch):
     monkeypatch.setattr(main.settings, "rules_top_k", 1)
-    _override(dense_points=_ruling_hits_and_one_rule())
+    override(dense_points=_ruling_hits_and_one_rule())
     body = _post_query("draw from an empty library")
     rule_ids = [r["rule_id"] for r in body["results"] if r["rule_id"]]
     assert rule_ids == ["704.5b"]
@@ -574,7 +467,7 @@ def test_query_results_and_citations_carry_card_details_and_headings():
         }
     ]
     rules = [{"rule_id": "702", "text": "Keyword Abilities", "parent_id": None}, *HEXPROOF_RULES]
-    _override(cards=cards, rules=rules, answerer=_FakeAnswerer("Bolt [1] vs hexproof [2]."))
+    override(cards=cards, rules=rules, answerer=FakeAnswerer("Bolt [1] vs hexproof [2]."))
     try:
         body = (
             TestClient(app)
@@ -597,7 +490,7 @@ def test_query_results_and_citations_carry_card_details_and_headings():
 def test_enrichment_does_not_change_the_llm_context():
     seen = []
 
-    class _Recording(_FakeAnswerer):
+    class _Recording(FakeAnswerer):
         def generate(self, query, context):
             seen.append(context)
             return super().generate(query, context)
@@ -610,7 +503,7 @@ def test_enrichment_does_not_change_the_llm_context():
             "image_uri": "https://cards.scryfall.io/normal/front/b/o/bolt.jpg?1",
         }
     ]
-    _override(cards=cards, rules=HEXPROOF_RULES, answerer=_Recording())
+    override(cards=cards, rules=HEXPROOF_RULES, answerer=_Recording())
     try:
         TestClient(app).post("/api/v1/query", json={"query": "Lightning Bolt vs hexproof"})
     finally:

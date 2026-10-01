@@ -1,23 +1,16 @@
 import json
 
 import pytest
-from conftest import admin_client, memory_engine
+from conftest import ChunksAnswerer, CountingAnswerer, admin_client, make_deps, setup_trample
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from starlette.requests import Request
-from test_gating_flow import _ChunksAnswerer, _CountingAnswerer, _setup
-from test_query import _FakeDenseModel, _FakeHit, _FakeQdrantClient, _FakeSparseModel
 
 from mtg_api import main
-from mtg_api.card_matcher import CardMatcher
-from mtg_api.embedder import Embedder
 from mtg_api.history import list_history
-from mtg_api.keyword_matcher import KeywordMatcher
 from mtg_api.llm import StreamChunk
 from mtg_api.main import app
 from mtg_api.models import QueryRequest
-from mtg_api.rules_index import RulesIndex
-from mtg_api.sparse_embedder import SparseEmbedder
 from mtg_api.streaming import join_all
 from mtg_api.usage import llm_usage
 
@@ -41,10 +34,10 @@ def _stream(json_body, client=None):
 
 
 def test_stream_sends_results_thinking_deltas_then_done():
-    answerer = _ChunksAnswerer(
+    answerer = ChunksAnswerer(
         [StreamChunk(text="Yes "), StreamChunk(text="[1].", finish_reason="STOP")]
     )
-    _setup(answerer=answerer)
+    setup_trample(answerer=answerer)
     resp = _stream({"query": "trample"})
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/event-stream")
@@ -63,7 +56,7 @@ def test_stream_sends_results_thinking_deltas_then_done():
 
 
 def test_cache_hit_streams_results_then_done():
-    _setup()
+    setup_trample()
     _stream({"query": "trample"})
     events = _events(_stream({"query": "trample"}))
     assert [name for name, _ in events] == ["results", "done"]
@@ -74,7 +67,7 @@ def test_cache_hit_streams_results_then_done():
 def test_degraded_request_streams_results_then_done(monkeypatch):
     monkeypatch.setattr(main.settings, "gating_enabled", True)
     monkeypatch.setattr(main.settings, "ip_daily_llm_limit", 0)
-    _setup()
+    setup_trample()
     events = _events(_stream({"query": "trample"}))
     assert [name for name, _ in events] == ["results", "done"]
     assert events[0][1]["degraded"] == "ip_quota"
@@ -82,7 +75,7 @@ def test_degraded_request_streams_results_then_done(monkeypatch):
 
 
 def test_failure_with_no_text_sends_error_then_done():
-    _setup(answerer=_ChunksAnswerer([], RuntimeError("Gemini 500")))
+    setup_trample(answerer=ChunksAnswerer([], RuntimeError("Gemini 500")))
     events = _events(_stream({"query": "trample"}))
     assert [name for name, _ in events] == ["results", "thinking", "error", "done"]
     assert events[2][1] == {"message": "Gemini 500"}
@@ -90,13 +83,13 @@ def test_failure_with_no_text_sends_error_then_done():
 
 
 def test_validation_errors_are_plain_http():
-    _setup()
+    setup_trample()
     assert _stream({"query": "x" * 501}).status_code == 422
     assert _stream({"query": "trample", "fresh": True}).status_code == 403
 
 
 def test_second_answer_from_one_ip_is_429_while_one_is_in_progress():
-    _setup()
+    setup_trample()
     release = main.generation_slots.acquire("testclient", total_limit=4, ip_limit=1)
     try:
         assert _stream({"query": "trample"}).status_code == 429
@@ -107,12 +100,12 @@ def test_second_answer_from_one_ip_is_429_while_one_is_in_progress():
 
 def test_global_cap_is_429(monkeypatch):
     monkeypatch.setattr(main.settings, "max_concurrent_generations", 0)
-    _setup()
+    setup_trample()
     assert _stream({"query": "trample"}).status_code == 429
 
 
 def test_cache_hits_and_retrieval_only_need_no_slot(monkeypatch):
-    _setup()
+    setup_trample()
     _stream({"query": "trample"})
     monkeypatch.setattr(main.settings, "max_concurrent_generations", 0)
     assert _stream({"query": "trample"}).status_code == 200  # cache hit
@@ -122,12 +115,12 @@ def test_cache_hits_and_retrieval_only_need_no_slot(monkeypatch):
 def test_eval_mode_skips_the_caps(monkeypatch):
     monkeypatch.setattr(main.settings, "eval_mode", True)
     monkeypatch.setattr(main.settings, "max_concurrent_generations", 0)
-    _setup()
+    setup_trample()
     assert _stream({"query": "trample"}).status_code == 200
 
 
 def test_admin_skips_the_per_ip_cap_but_not_the_global_one(monkeypatch):
-    _setup()
+    setup_trample()
     client = admin_client(monkeypatch)
     release = main.generation_slots.acquire("testclient", total_limit=4, ip_limit=1)
     try:
@@ -140,19 +133,7 @@ def test_admin_skips_the_per_ip_cap_but_not_the_global_one(monkeypatch):
 
 
 def test_closing_the_stream_early_still_finishes_the_answer():
-    engine = memory_engine()
-    hits = [_FakeHit("p1", 1.0, {"source_type": "rule", "rule_id": "702.19b", "text": "T."})]
-    deps = main.QueryDeps(
-        matcher=CardMatcher([]),
-        keyword_matcher=KeywordMatcher([]),
-        dense_embedder=Embedder(_FakeDenseModel()),
-        sparse_embedder=SparseEmbedder(_FakeSparseModel()),
-        client=_FakeQdrantClient(hits),
-        answerer=_CountingAnswerer(),
-        engine=engine,
-        rules_index=RulesIndex([]),
-        data_version="v1",
-    )
+    deps = make_deps(answerer=CountingAnswerer())
     http_request = Request(
         {"type": "http", "method": "POST", "path": "/", "headers": [], "client": ("1.2.3.4", 1)}
     )
@@ -160,7 +141,7 @@ def test_closing_the_stream_early_still_finishes_the_answer():
     assert next(frames).startswith("event: results")
     frames.close()  # the visitor left
     join_all()
-    with engine.connect() as conn:
+    with deps.engine.connect() as conn:
         outcomes = [r.outcome for r in conn.execute(select(llm_usage))]
     assert outcomes == ["generated"]
-    assert list_history(engine)[0]["answer"] == "Yes [1]."
+    assert list_history(deps.engine)[0]["answer"] == "Yes [1]."

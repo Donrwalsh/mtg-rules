@@ -1,10 +1,9 @@
 import hashlib
 
 import pytest
-from conftest import StreamsFromGenerate, memory_engine
+from conftest import FakeAnswerer, FakeHit, StreamsFromGenerate, memory_engine, override
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
-from test_query import _FakeAnswerer, _FakeHit, _override
 
 from mtg_api import main
 from mtg_api.history import list_history
@@ -35,8 +34,8 @@ class _RecordingAnswerer(StreamsFromGenerate):
 
 def _two_rule_hits():
     return [
-        _FakeHit("p1", 1.0, {"source_type": "rule", "rule_id": "702.19b", "text": "Trample."}),
-        _FakeHit("p2", 0.5, {"source_type": "rule", "rule_id": "702.2c", "text": "Deathtouch."}),
+        FakeHit("p1", 1.0, {"source_type": "rule", "rule_id": "702.19b", "text": "Trample."}),
+        FakeHit("p2", 0.5, {"source_type": "rule", "rule_id": "702.2c", "text": "Deathtouch."}),
     ]
 
 
@@ -46,7 +45,7 @@ def _post(json):
 
 def test_generate_false_skips_answerer():
     answerer = _RecordingAnswerer()
-    _override(dense_points=_two_rule_hits(), answerer=answerer)
+    override(dense_points=_two_rule_hits(), answerer=answerer)
     resp = _post({"query": "trample", "generate": False})
     assert resp.status_code == 200
     assert answerer.calls == []
@@ -57,25 +56,25 @@ def test_generate_false_skips_answerer():
 
 
 def test_overrides_rejected_when_eval_mode_off():
-    _override()
+    override()
     resp = _post({"query": "trample", "overrides": {"hybrid_top_k": 1}})
     assert resp.status_code == 403
 
 
 def test_empty_overrides_are_fine_when_eval_mode_off():
-    _override()
+    override()
     assert _post({"query": "trample", "overrides": {}}).status_code == 200
 
 
 def test_unknown_override_key_is_422(eval_mode):
-    _override()
+    override()
     resp = _post({"query": "trample", "overrides": {"gemini_api_key": "x", "hybrid_top_k": 1}})
     assert resp.status_code == 422
     assert "gemini_api_key" in resp.json()["detail"]
 
 
 def test_bad_override_type_is_422(eval_mode):
-    _override()
+    override()
     resp = _post({"query": "trample", "overrides": {"hybrid_top_k": "lots"}})
     assert resp.status_code == 422
     assert "hybrid_top_k" in resp.json()["detail"]
@@ -84,7 +83,7 @@ def test_bad_override_type_is_422(eval_mode):
 def test_override_applies_to_its_request_only(eval_mode, monkeypatch):
     monkeypatch.setattr(main.settings, "rules_top_k", 0)
     default_top_k = main.settings.hybrid_top_k
-    _override(dense_points=_two_rule_hits())
+    override(dense_points=_two_rule_hits())
 
     overridden = _post({"query": "trample", "overrides": {"hybrid_top_k": 1}})
     following = _post({"query": "trample"})
@@ -99,10 +98,10 @@ def test_generation_override_builds_a_per_request_answerer(eval_mode, monkeypatc
 
     def fake_build_answerer(s):
         seen.append(s)
-        return _FakeAnswerer("Per-request answer.")
+        return FakeAnswerer("Per-request answer.")
 
     monkeypatch.setattr(main, "build_answerer", fake_build_answerer)
-    _override(answerer=_FakeAnswerer("Shared answer."))
+    override(answerer=FakeAnswerer("Shared answer."))
 
     resp = _post({"query": "q", "overrides": {"generation_temperature": 0.7}})
 
@@ -114,7 +113,7 @@ def test_generation_override_builds_a_per_request_answerer(eval_mode, monkeypatc
 def test_retrieval_override_keeps_the_shared_answerer(eval_mode, monkeypatch):
     built = []
     monkeypatch.setattr(main, "build_answerer", lambda s: built.append(s))
-    _override(answerer=_FakeAnswerer("Shared answer."))
+    override(answerer=FakeAnswerer("Shared answer."))
     resp = _post({"query": "q", "overrides": {"hybrid_top_k": 3}})
     assert resp.json()["answer"] == "Shared answer."
     assert built == []
@@ -122,14 +121,14 @@ def test_retrieval_override_keeps_the_shared_answerer(eval_mode, monkeypatch):
 
 def test_eval_source_is_not_saved_to_history(eval_mode):
     engine = memory_engine()
-    _override(engine=engine)
+    override(engine=engine)
     _post({"query": "an eval question", "source": "eval"})
     _post({"query": "a user question"})
     assert [row["query"] for row in list_history(engine)] == ["a user question"]
 
 
 def test_eval_fields_are_null_outside_eval_mode():
-    _override()
+    override()
     body = _post({"query": "q"}).json()
     assert body["context_hash"] is None
     assert body["prompt_version"] is None
@@ -137,15 +136,15 @@ def test_eval_fields_are_null_outside_eval_mode():
 
 
 def test_eval_fields_present_in_eval_mode(eval_mode):
-    _override()
+    override()
     body = _post({"query": "q", "generate": False}).json()
     assert body["prompt_version"] == PROMPT_VERSION
     assert body["generator"] == f"gemini:{main.settings.gemini_model}"
 
 
 def test_generator_reflects_model_override(eval_mode, monkeypatch):
-    monkeypatch.setattr(main, "build_answerer", lambda s: _FakeAnswerer())
-    _override()
+    monkeypatch.setattr(main, "build_answerer", lambda s: FakeAnswerer())
+    override()
     body = _post({"query": "q", "overrides": {"gemini_model": "gemini-x"}}).json()
     assert body["generator"] == "gemini:gemini-x"
 
@@ -164,13 +163,13 @@ def test_build_answerer_builds_gemini():
 def test_history_records_the_answering_model(monkeypatch):
     monkeypatch.setattr(main.settings, "gemini_model", "gemini-x")
     engine = memory_engine()
-    _override(engine=engine)
+    override(engine=engine)
     _post({"query": "q"})
     assert list_history(engine)[0]["model"] == "gemini-x"
 
 
 def test_context_hash_is_stable_and_hashes_the_llm_context(eval_mode):
-    _override(dense_points=_two_rule_hits())
+    override(dense_points=_two_rule_hits())
     first = _post({"query": "trample", "generate": False}).json()
     second = _post({"query": "trample"}).json()
 
@@ -181,7 +180,7 @@ def test_context_hash_is_stable_and_hashes_the_llm_context(eval_mode):
 
 
 def test_results_carry_source_type():
-    _override(dense_points=_two_rule_hits())
+    override(dense_points=_two_rule_hits())
     results = _post({"query": "trample"}).json()["results"]
     assert {r["source_type"] for r in results} == {"rule"}
 
@@ -265,25 +264,25 @@ def test_config_never_includes_secrets(eval_mode, monkeypatch, tmp_path):
 
 
 def test_eval_fields_include_token_usage(eval_mode):
-    _override()
+    override()
     body = _post({"query": "q"}).json()
     assert body["usage"] == {"input_tokens": 1000, "output_tokens": 100, "thinking_tokens": 200}
 
 
 def test_usage_is_null_outside_eval_mode():
-    _override()
+    override()
     assert _post({"query": "q"}).json()["usage"] is None
 
 
 def test_override_accepts_a_valid_thinking_level(eval_mode, monkeypatch):
-    monkeypatch.setattr(main, "build_answerer", lambda s: _FakeAnswerer("An answer."))
-    _override()
+    monkeypatch.setattr(main, "build_answerer", lambda s: FakeAnswerer("An answer."))
+    override()
     resp = _post({"query": "trample", "overrides": {"generation_thinking_level": "low"}})
     assert resp.status_code == 200
 
 
 def test_override_rejects_an_invalid_thinking_level(eval_mode):
-    _override()
+    override()
     resp = _post({"query": "trample", "overrides": {"generation_thinking_level": "loww"}})
     assert resp.status_code == 422
     assert "generation_thinking_level" in resp.json()["detail"]
