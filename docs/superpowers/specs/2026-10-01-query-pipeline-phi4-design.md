@@ -99,13 +99,20 @@ Ollama silently truncates a prompt longer than `num_ctx`. It drops the
 oldest tokens first, which would be our system prompt and its citation
 rules. A truncated answer must never pass for a weak one.
 
-- The adapter raises `ContextOverflow("prompt of N tokens exceeds num_ctx M")`
-  when Ollama reports it hit the window. That flows through the normal
-  generation-failure path: the case's `error`, history and the `Failed` event.
-- **Open fact to settle in the adapter commit:** exactly how Ollama 0.32
-  signals truncation, most likely `prompt_eval_count` at the limit. Verify it
-  with a deliberately oversized prompt before relying on it. Pin the result in
-  a test that uses a fake transport.
+- **How Ollama 0.32 signals truncation** (probed on 2026-10-01 with a
+  1,953-token prompt and `num_ctx` 512). By default, Ollama silently cut the
+  prompt down to **258 tokens** and answered: `prompt_eval_count` was 258,
+  nowhere near the limit, so a heuristic based on that count can't detect
+  truncation. With `"truncate": false` in the request body, Ollama refuses
+  before generating anything. It returns HTTP 400 with
+  `{"error": "<json>"}`, and the inner JSON has
+  `type: "exceed_context_size_error"`, `n_prompt_tokens` and `n_ctx`. This
+  works the same with `stream: true`.
+- The adapter sends `"truncate": false` and turns that 400 into
+  `ContextOverflow("context overflow: prompt of N tokens exceeds num_ctx M")`.
+  No text has been written at that point, so the normal generation-failure
+  path handles it: history's `error`, the `Failed` event, and the eval field
+  below.
 - The eval report adds a `context overruns: k` line (listing the case IDs when
   k > 0) and a `max_prompt_tokens` aggregate, so the remaining headroom is
   visible before anything fails.
@@ -186,6 +193,38 @@ the worker hand-off.
 the commit order below), so every later run in this PR compares against it
 automatically.
 
+## Additions found while planning
+
+Each of these is needed for a decision above. All land before the "before"
+run.
+
+- **`generation_error` eval field.** The blocking JSON response has no error
+  field, so the harness couldn't see why an answer failed. Add
+  `generation_error: str | None` to `QueryResponse`. It is set only in eval
+  mode (like `usage`) and is per-request, so never cached. The harness reads
+  it to flag context overruns.
+- **`context_hash` in run files.** Each case record stores the
+  `context_hash` it was scored against, so the acceptance check can compare
+  it.
+- **Model name in history and usage.** History rows and usage rows record
+  the model that actually answered (`answer_model(s)`), not `gemini_model`.
+- **Answer cache key.** In dev, outside eval mode, the answer cache could
+  serve a Gemini answer to a phi4 request, or the reverse. For non-Gemini
+  providers, `cache_key` adds the generator label. Gemini keys are
+  unchanged, so production's cache survives.
+- **Dev compose.** It passes the new `MTG_API_ANSWER_PROVIDER` /
+  `MTG_API_OLLAMA_*` variables through to the backend (compose only forwards
+  variables it lists). It also adds `extra_hosts:
+  host.docker.internal:host-gateway`, so the backend reaches the host's
+  Ollama on Linux too.
+- **Makefile.** An `ARGS=` pass-through, for
+  `make eval-full ARGS=--fresh-answers`.
+- **`AnswerJob` relays single objects** (typed events) instead of
+  `(name, data)` pairs. `test_streaming.py` changes to match.
+- **`collect` drains the whole stream**, not just up to `Done`. The worker
+  frees its generation slot after emitting `Done`, so returning early would
+  let a client's next request hit a 429 that it doesn't get today.
+
 ## Acceptance: "the refactor changed nothing"
 
 Comparing the "after" run with `baseline-full-phi4.json`, both
@@ -212,7 +251,7 @@ Comparing the "after" run with `baseline-full-phi4.json`, both
 2. Move the shared fakes into `conftest.py` and add the `deps()` fixture (test code only).
 3. Ollama adapter: provider setting, `OllamaAnswerer`, provider-aware
    `generator_label`, optional Gemini key, dev compose `:-`, the
-   `ContextOverflow` check (after verifying Ollama's signal), and the exposed settings.
+   `ContextOverflow` check (`truncate: false`), and the exposed settings.
 4. Harness: two-pass full runs, a baseline per generator plus the report
    header, the Gemini preflight guard, `--fresh-answers`, and the
    overrun/`max_prompt_tokens` reporting.
