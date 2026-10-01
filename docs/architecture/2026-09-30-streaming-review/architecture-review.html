@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Architecture review for mtg-rules</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
+<style>
+  .seam { stroke-dasharray: 4 4; }
+  .deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: #e2e8f0; }
+  .lbl { font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; }
+  .dashed-seam { border-top: 2px dashed #94a3b8; }
+  .faded { opacity: .45; }
+  pre.mermaid { background: transparent; }
+</style>
+</head>
+<body class="bg-stone-50 text-slate-900 font-sans">
+<main class="max-w-5xl mx-auto px-4 sm:px-6 py-12 space-y-12">
+
+<header class="space-y-3">
+  <h1 class="font-serif text-4xl">mtg-rules: architecture review</h1>
+  <p class="text-sm text-slate-500">2026-09-30 · branch <span class="font-mono">feature/streaming-answers</span> · scope: streaming answers + query pipeline (hottest area of the last ~15 commits)</p>
+  <div class="flex flex-wrap gap-4 text-xs text-slate-600 pt-2">
+    <span class="flex items-center gap-1"><span class="inline-block w-4 h-3 border border-slate-500 bg-white"></span>module</span>
+    <span class="flex items-center gap-1"><span class="inline-block w-6 dashed-seam"></span>seam</span>
+    <span class="flex items-center gap-1"><span class="inline-block w-6 h-0.5 bg-red-600"></span>leakage / caller-held invariant</span>
+    <span class="flex items-center gap-1"><span class="inline-block w-4 h-3 deep"></span>deep module</span>
+  </div>
+  <p class="text-xs text-slate-500">No GLOSSARY.md or ADRs exist yet, so no candidate conflicts with a recorded decision. Domain terms below come from the streaming-answers spec.</p>
+</header>
+
+<section id="candidates" class="space-y-14">
+
+<!-- 1 -->
+<article id="c1" class="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">1 · Deepen the answer allowance: gate, slot, reservation, settlement</h2>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">Strong</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">local-substitutable</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-600 leading-6">
+    <li>mtg-api/src/mtg_api/main.py — _gate, _record, _reserve, _finalize, _start_query L603–737</li>
+    <li>mtg-api/src/mtg_api/usage.py — check_gate, reserve_usage, finalize_usage, record_usage, worst_case_cost</li>
+    <li>mtg-api/src/mtg_api/streaming.py — GenerationSlots</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="lbl text-slate-500 mb-3">Before: the caller holds the ordering</div>
+      <div class="space-y-1.5 text-xs">
+        <div class="border-l-4 border-slate-400 bg-slate-50 px-3 py-2"><span class="lbl">_gate → check_gate</span> <span class="text-slate-400">L611</span></div>
+        <div class="border-l-4 border-slate-400 bg-slate-50 px-3 py-2"><span class="lbl">generation_slots.acquire</span> <span class="text-slate-400">L660</span></div>
+        <div class="border-l-4 border-red-500 bg-red-50 px-3 py-2"><span class="lbl text-red-700">_retrieve (seconds)</span> <span class="text-red-600">· gate result is stale here</span></div>
+        <div class="border-l-4 border-slate-400 bg-slate-50 px-3 py-2"><span class="lbl">_reserve → reserve_usage</span> <span class="text-slate-400">L713, may return None</span></div>
+        <div class="border-l-4 border-red-500 bg-red-50 px-3 py-2"><span class="lbl text-red-700">release handed to thread</span> <span class="text-red-600">· or released in except</span></div>
+        <div class="border-l-4 border-slate-400 bg-slate-50 px-3 py-2"><span class="lbl">_finalize → finalize_usage | _record</span> <span class="text-slate-400">two paths</span></div>
+      </div>
+      <p class="text-xs text-slate-500 mt-3">8 functions · 3 modules · ordering lives in <span class="font-mono">_start_query</span></p>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="lbl text-slate-500 mb-3">After: one interface, the ordering inside it</div>
+      <div class="border-2 border-slate-800 rounded-md overflow-hidden">
+        <div class="bg-white px-3 py-2 font-mono text-xs border-b-2 border-dashed border-slate-400">admit(caller) → Refused | Allowance<br/>allowance.settle(acc, failed)</div>
+        <div class="deep px-3 py-4 space-y-1 text-xs">
+          <div class="faded">gate + reserve as one step</div>
+          <div class="faded">slot acquire / idempotent release</div>
+          <div class="faded">reserve-failed fallback to record</div>
+          <div class="faded">outcome strings · answers_remaining</div>
+          <div class="faded">fail-closed logging</div>
+        </div>
+      </div>
+      <p class="text-xs text-slate-500 mt-3">The <span class="font-mono">_start_query</span> caller can't get the order wrong.</p>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <div><div class="lbl text-slate-500">Problem</div>The budget check runs before retrieval and the reservation runs after it, so concurrent callers can all pass the gate. The slot release is passed implicitly to the worker thread.</div>
+    <div><div class="lbl text-slate-500">Solution</div>One allowance module: <span class="font-mono">admit</span> does the gate check, takes a slot, and reserves together. <span class="font-mono">settle</span> is idempotent and also releases the slot.</div>
+    <div><div class="lbl text-slate-500">Wins</div><ul class="list-disc pl-4">
+      <li>Locality: spend bugs in one module</li>
+      <li>Close gate/reserve race</li>
+      <li>Delete _gate/_reserve/_finalize/_record wrappers</li>
+      <li>Tests: admit/settle sequences, in-memory SQLite</li>
+    </ul></div>
+  </div>
+</article>
+
+<!-- 2 -->
+<article id="c2" class="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">2 · Pull the query pipeline out of main.py</h2>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">Strong</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-600 leading-6">
+    <li>mtg-api/src/mtg_api/main.py L280–750 — QueryDeps, _Started, _head/_done, _AnswerWork (14 fields), _run_answer, _start_query (154 lines)</li>
+    <li>mtg-api/tests/test_query_stream.py L142–166 — builds a Starlette Request to call private _start_query</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="lbl text-slate-500 mb-3">Before: mass diagram</div>
+      <div class="flex items-end gap-6 h-56">
+        <div class="flex flex-col items-center gap-1">
+          <div class="w-16 bg-red-200 border border-red-400" style="height:150px"></div>
+          <div class="lbl text-slate-500">interface</div>
+        </div>
+        <div class="flex flex-col items-center gap-1">
+          <div class="w-16 bg-slate-300 border border-slate-500" style="height:190px"></div>
+          <div class="lbl text-slate-500">implementation</div>
+        </div>
+        <div class="text-xs text-slate-600 space-y-1 pb-6">
+          <div>The only seam is HTTP + <span class="font-mono">Request</span></div>
+          <div>3 hand-built <span class="font-mono">_Started</span> exits</div>
+          <div><span class="font-mono">_save</span> × 3 sites, 7 kwargs</div>
+          <div>global vs per-request eval_mode</div>
+          <div>tests reach private <span class="font-mono">_sse(_start_query())</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="lbl text-slate-500 mb-3">After: mass diagram</div>
+      <div class="flex items-end gap-6 h-56">
+        <div class="flex flex-col items-center gap-1">
+          <div class="w-16 bg-emerald-200 border border-emerald-500" style="height:30px"></div>
+          <div class="lbl text-slate-500">interface</div>
+        </div>
+        <div class="flex flex-col items-center gap-1">
+          <div class="w-16 deep" style="height:190px"></div>
+          <div class="lbl text-slate-500">implementation</div>
+        </div>
+        <div class="text-xs text-slate-600 space-y-1 pb-6">
+          <div class="font-mono">start(query, caller, deps)</div>
+          <div class="font-mono">  → AnswerStream(head, events)</div>
+          <div>cache-hit / retrieval-only / generate become internal</div>
+          <div>routes ≈ 5 lines each</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <div><div class="lbl text-slate-500">Problem</div><span class="font-mono">_start_query</span> does about ten jobs, and you can only test it through HTTP or private names.</div>
+    <div><div class="lbl text-slate-500">Solution</div>A <span class="font-mono">query_pipeline</span> module that takes a plain <span class="font-mono">Caller</span> (not a <span class="font-mono">Request</span>) and returns a typed head plus an event stream.</div>
+    <div><div class="lbl text-slate-500">Wins</div><ul class="list-disc pl-4">
+      <li>Interface is the test surface</li>
+      <li>Leverage: blocking + stream share one start()</li>
+      <li>Locality: history/cache saves in one place</li>
+      <li>Natural home for candidate 1</li>
+    </ul></div>
+  </div>
+</article>
+
+<!-- 3 -->
+<article id="c3" class="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">3 · Deepen the answer stream on the web side</h2>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">Strong</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">ports &amp; adapters (fetch + fixture)</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-600 leading-6">
+    <li>mtg-web/src/routes/+page.svelte — run L99–139, ask L198–244, shown L68–77, rAF helpers</li>
+    <li>mtg-web/src/lib/api.ts — streamQuery, StreamHead/StreamDone/StreamHandlers L105–167</li>
+    <li>mtg-web/src/lib/fixtures/index.ts — headOf/doneOf/mockStream L298–392</li>
+    <li>mtg-web/src/lib/stream.ts (35 lines), sse.ts</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="lbl text-slate-500 mb-2">Before</div>
+      <pre class="mermaid">
+flowchart TD
+  P["+page.svelte<br/>knows 5 event names,<br/>error→done rule,<br/>broken-stream recovery"]
+  SQ[streamQuery] --> SSE[SseParser]
+  MS[mockStream] --> HD[headOf / doneOf]
+  P -->|handlers| SQ
+  P -->|handlers| MS
+  P -.fabricates citation_stats.-> R[QueryResponse]
+  P -.draft / shownDraft / rAF.-> D[draft state]
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#991b1b;
+  class P,R,D leak
+      </pre>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="lbl text-slate-500 mb-2">After</div>
+      <pre class="mermaid">
+flowchart TD
+  P["+page.svelte<br/>renders AnswerView"]
+  AS["answerStream reducer<br/>(state, event) → AnswerView<br/>loading · streaming · result · failed · rateLimited"]
+  F[fetch adapter] -->|events| AS
+  X[fixture adapter] -->|events| AS
+  AS --> P
+  classDef deep fill:#0f172a,color:#e2e8f0,stroke:#0f172a,stroke-width:3px;
+  class AS deep
+      </pre>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <div><div class="lbl text-slate-500">Problem</div>The page component carries the stream protocol and its recovery logic, and it has no tests. The head/done field split is written out three times (Python, TS, fixtures).</div>
+    <div><div class="lbl text-slate-500">Solution</div>An event-in, view-out reducer. The fetch and fixture sources become two adapters that yield the same events.</div>
+    <div><div class="lbl text-slate-500">Wins</div><ul class="list-disc pl-4">
+      <li>Two adapters justify the seam</li>
+      <li>Table tests over event sequences</li>
+      <li>Catch delta-before-results ordering</li>
+      <li>Delete headOf/doneOf</li>
+    </ul></div>
+  </div>
+</article>
+
+<!-- 4 -->
+<article id="c4" class="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">4 · One owner for citation numbering and markers</h2>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-600 leading-6">
+    <li>mtg-api: llm.py build_context/source_label · citations.py cite_answer · enrich.py · main.py (3 enrich_citations sites)</li>
+    <li>mtg-web: lib/stream.ts MARKER · fixtures/index.ts L377–391 · +page.svelte L226–238</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="lbl text-slate-500 mb-3">Before: "source n = result n−1" written in 4 places</div>
+      <svg viewBox="0 0 360 200" class="w-full h-52">
+        <g font-size="10" font-family="ui-monospace,monospace">
+          <rect x="130" y="80" width="100" height="36" fill="#fee2e2" stroke="#dc2626"/>
+          <text x="180" y="96" text-anchor="middle" fill="#991b1b">numbering +</text>
+          <text x="180" y="109" text-anchor="middle" fill="#991b1b">marker grammar</text>
+          <rect x="5" y="10" width="95" height="30" fill="#fff" stroke="#64748b"/><text x="52" y="29" text-anchor="middle">llm.py</text>
+          <rect x="260" y="10" width="95" height="30" fill="#fff" stroke="#64748b"/><text x="307" y="29" text-anchor="middle">citations.py</text>
+          <rect x="5" y="160" width="95" height="30" fill="#fff" stroke="#64748b"/><text x="52" y="179" text-anchor="middle">stream.ts</text>
+          <rect x="260" y="160" width="95" height="30" fill="#fff" stroke="#64748b"/><text x="307" y="179" text-anchor="middle">fixtures + page</text>
+          <line x1="100" y1="35" x2="140" y2="80" stroke="#dc2626"/>
+          <line x1="260" y1="35" x2="220" y2="80" stroke="#dc2626"/>
+          <line x1="100" y1="165" x2="140" y2="116" stroke="#dc2626"/>
+          <line x1="260" y1="165" x2="220" y2="116" stroke="#dc2626"/>
+          <text x="180" y="145" text-anchor="middle" fill="#991b1b">two regexes disagree on [1-3], [1;2]</text>
+          <text x="180" y="62" text-anchor="middle" fill="#991b1b">cite_answer mutates; must run before dump</text>
+        </g>
+      </svg>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="lbl text-slate-500 mb-3">After</div>
+      <div class="space-y-3">
+        <div class="border-2 border-slate-800 rounded-md overflow-hidden">
+          <div class="bg-white px-3 py-2 font-mono text-xs border-b-2 border-dashed border-slate-400">NumberedSources: .context · .live() · .finalize(answer) → CitedAnswer</div>
+          <div class="deep px-3 py-3 text-xs faded">numbering · enrich after context · no mutation</div>
+        </div>
+        <div class="border-2 border-slate-800 rounded-md overflow-hidden">
+          <div class="bg-white px-3 py-2 font-mono text-xs border-b-2 border-dashed border-slate-400">draftCitations(draft, results)</div>
+          <div class="deep px-3 py-3 text-xs faded">client marker grammar</div>
+        </div>
+        <div class="text-xs text-slate-600 border border-slate-300 rounded px-3 py-2">shared marker-case corpus (JSON) run by both test suites</div>
+      </div>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <div><div class="lbl text-slate-500">Problem</div>Callers have to remember the order (enrich after context, cite before dump). The client and server marker grammars can drift apart.</div>
+    <div><div class="lbl text-slate-500">Solution</div>The server returns a value from <span class="font-mono">build_context</span> that owns numbering and finalization. The client gets one grammar module, and both sides share a corpus of marker test cases.</div>
+    <div><div class="lbl text-slate-500">Wins</div><ul class="list-disc pl-4">
+      <li>Ordering bugs become impossible</li>
+      <li>Locality: numbering in one place</li>
+      <li>Drift caught by shared corpus</li>
+    </ul></div>
+  </div>
+</article>
+
+<!-- 5 -->
+<article id="c5" class="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">5 · Make the answerer seam real</h2>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">true external (mock)</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-600 leading-6">
+    <li>mtg-api/src/mtg_api/llm.py GeminiAnswerer · main.py QueryDeps.answerer: GeminiAnswerer, "STOP" check L526</li>
+    <li>usage.py estimate_generation (reads accumulator.received)</li>
+    <li>tests: conftest.StreamsFromGenerate, test_query._FakeAnswerer, test_gating_flow._CountingAnswerer/_ChunksAnswerer/_Peeking, test_eval_mode._RecordingAnswerer</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="lbl text-slate-500 mb-3">Before: five ad-hoc fakes, no port</div>
+      <div class="relative h-52">
+        <div class="absolute left-1/2 -translate-x-1/2 top-0 px-3 py-2 border border-slate-500 bg-white text-xs lbl">_run_answer</div>
+        <div class="absolute left-0 right-0 top-16 border-t-2 border-red-500"></div>
+        <div class="absolute right-0 top-11 text-[10px] text-red-600">"STOP", accumulator internals leak up</div>
+        <div class="absolute left-0 top-24 px-2 py-1 border border-slate-500 bg-white text-xs">GeminiAnswerer</div>
+        <div class="absolute left-0 right-0 top-36 flex flex-wrap gap-1">
+          <span class="px-1.5 py-0.5 border border-dashed border-slate-400 text-[10px]">_FakeAnswerer</span>
+          <span class="px-1.5 py-0.5 border border-dashed border-slate-400 text-[10px]">_CountingAnswerer</span>
+          <span class="px-1.5 py-0.5 border border-dashed border-slate-400 text-[10px]">_ChunksAnswerer</span>
+          <span class="px-1.5 py-0.5 border border-dashed border-slate-400 text-[10px]">_Peeking</span>
+          <span class="px-1.5 py-0.5 border border-dashed border-slate-400 text-[10px]">_RecordingAnswerer</span>
+          <span class="px-1.5 py-0.5 border border-red-400 text-[10px] text-red-700">StreamsFromGenerate bridge</span>
+        </div>
+      </div>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="lbl text-slate-500 mb-3">After: a port with two adapters</div>
+      <div class="relative h-52">
+        <div class="absolute left-1/2 -translate-x-1/2 top-0 px-3 py-2 border border-slate-500 bg-white text-xs lbl">pipeline</div>
+        <div class="absolute left-0 right-0 top-14 dashed-seam"></div>
+        <div class="absolute left-0 right-0 top-16 text-center font-mono text-[11px]">Answerer.stream(q, ctx) → chunks · outcome()</div>
+        <div class="absolute left-4 top-28 px-3 py-3 deep text-xs rounded">GeminiAnswerer<br/><span class="faded">STOP · estimation</span></div>
+        <div class="absolute right-4 top-28 px-3 py-3 border-2 border-slate-800 text-xs rounded">ScriptedAnswerer<br/><span class="text-slate-500">chunks, raise_after</span></div>
+        <div class="absolute left-0 right-0 bottom-0 text-center text-[11px] text-slate-500">one contract test, both adapters</div>
+      </div>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <div><div class="lbl text-slate-500">Problem</div>The pipeline is typed against the Gemini class, and Gemini-specific outcome logic leaks into <span class="font-mono">main.py</span> and <span class="font-mono">usage.py</span>.</div>
+    <div><div class="lbl text-slate-500">Solution</div>An <span class="font-mono">Answerer</span> port whose <span class="font-mono">outcome()</span> reports whether the answer completed, the finish reason, and the generation estimate. One scripted fake in conftest.</div>
+    <div><div class="lbl text-slate-500">Wins</div><ul class="list-disc pl-4">
+      <li>Delete 5 fakes + bridge</li>
+      <li>Provider details stay behind the seam</li>
+      <li>Retire test-only generate()</li>
+    </ul></div>
+  </div>
+</article>
+
+<!-- 6 -->
+<article id="c6" class="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">6 · Lifespan-owned answer runner</h2>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-200 text-slate-700">Speculative</span>
+    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-600 leading-6">
+    <li>mtg-api/src/mtg_api/streaming.py — AnswerJob, module-level _live, join_all</li>
+    <li>mtg-api/src/mtg_api/main.py L280 — global generation_slots</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-4 text-xs space-y-2">
+      <div class="lbl text-slate-500">Before</div>
+      <div class="flex gap-2">
+        <div class="border border-red-400 px-2 py-2 bg-red-50">global _live set<br/><span class="text-red-600">test-only join_all</span></div>
+        <div class="border border-red-400 px-2 py-2 bg-red-50">global slots<br/><span class="text-red-600">tests mutate</span></div>
+        <div class="border border-slate-400 px-2 py-2">daemon threads<br/><span class="text-slate-500">die on shutdown → pending rows</span></div>
+      </div>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-4 text-xs space-y-2">
+      <div class="lbl text-slate-500">After</div>
+      <div class="deep rounded px-3 py-3">AnswerRunner (created in lifespan)<br/><span class="faded">slots · jobs · drain on shutdown</span></div>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-3 gap-4 text-sm">
+    <div><div class="lbl text-slate-500">Problem</div>Thread lifecycle state lives in globals, and nothing drains running answers at shutdown.</div>
+    <div><div class="lbl text-slate-500">Solution</div>A runner instance owned by the app lifespan. It would likely be absorbed by candidates 1 and 2.</div>
+    <div><div class="lbl text-slate-500">Wins</div><ul class="list-disc pl-4"><li>Per-test runner, no globals</li><li>Fewer stranded pending rows</li></ul></div>
+  </div>
+</article>
+
+</section>
+
+<section id="top-recommendation" class="rounded-xl deep p-8 space-y-3">
+  <div class="lbl text-emerald-300">Top recommendation</div>
+  <h2 class="font-serif text-3xl"><a href="#c1" class="underline decoration-emerald-400">Deepen the answer allowance</a>, done inside <a href="#c2" class="underline decoration-emerald-400">the extracted query pipeline</a></h2>
+  <p class="text-slate-300 text-sm max-w-3xl">The allowance is the only candidate where the shallow shape already causes a real defect: the gate check and the reservation are split around retrieval, and the slot release is passed implicitly to the worker thread. Those are money bugs. Extracting the pipeline gives the allowance a home and a test surface that doesn't go through HTTP. Do the web-side answer stream (3) next; it is independent.</p>
+</section>
+
+</main>
+</body>
+</html>
