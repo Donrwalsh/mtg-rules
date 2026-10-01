@@ -97,3 +97,14 @@ def test_wire_order_of_head_and_done():
         "usage",
         "generation_error",
     ]
+
+
+def test_head_is_a_snapshot_the_answer_cannot_change():
+    # The worker marks results as cited while the head may still be unsent.
+    result = QueryResult(
+        source="rule", title="702.19b", text="T.", score=1.0, match_type="vector_hit"
+    )
+    response = QueryResponse(query="trample", results=[result])
+    head = StreamHead.of(response, [])
+    result.cited = True
+    assert head.results[0].cited is False

@@ -109,8 +109,10 @@ class StreamHead(BaseModel):
 
     @classmethod
     def of(cls, response: QueryResponse, sources: list[Citation]) -> StreamHead:
+        # Copies, not the response's objects: the worker marks results as
+        # cited while this head may not have been sent yet.
         return cls(
-            results=response.results,
+            results=[r.model_copy() for r in response.results],
             degraded=response.degraded,
             answers_remaining=response.answers_remaining,
             cached_at=response.cached_at,

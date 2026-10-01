@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -46,7 +45,6 @@ from mtg_api.qdrant_check import check_qdrant
 from mtg_api.query_pipeline import AnswerStream, Caller, QueryDeps, Refused
 from mtg_api.rules_index import RulesIndex, load_rules_index
 from mtg_api.sparse_embedder import SparseEmbedder, load_bm25_sparse_embedder
-from mtg_api.streaming import sse_event
 from mtg_api.usage import (
     check_gating_config,
     ip_bucket,
@@ -189,20 +187,7 @@ def _start(request: QueryRequest, http_request: Request, d: QueryDeps) -> Answer
 def query(
     request: QueryRequest, http_request: Request, d: QueryDeps = Depends(get_query_deps)
 ) -> QueryResponse:
-    stream = _start(request, http_request, d)
-    fields = {k: v for k, v in stream.head.items() if k != "sources"}
-    for name, data in stream.events:
-        if name == "done":
-            fields.update(data)
-    return QueryResponse(query=request.query, **fields)
-
-
-def _sse(stream: AnswerStream) -> Iterator[str]:
-    """Relays the answer job as SSE. Closing this (the client left) only
-    stops the relay; the job finishes on its own thread."""
-    yield sse_event("results", stream.head)
-    for name, data in stream.events:
-        yield sse_event(name, data)
+    return query_pipeline.collect(request.query, _start(request, http_request, d))
 
 
 @app.post("/api/v1/query/stream")
@@ -213,7 +198,7 @@ def query_stream(
     # plain HTTP error.
     stream = _start(request, http_request, d)
     return StreamingResponse(
-        _sse(stream),
+        query_pipeline.sse_frames(stream),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

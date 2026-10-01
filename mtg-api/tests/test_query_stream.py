@@ -137,7 +137,7 @@ def test_closing_the_stream_early_still_finishes_the_answer():
     stream = query_pipeline.start(
         QueryRequest(query="trample"), Caller("1.2.3.4", is_admin=False, may_refresh=False), deps
     )
-    frames = main._sse(stream)
+    frames = query_pipeline.sse_frames(stream)
     assert next(frames).startswith("event: results")
     frames.close()  # the visitor left
     join_all()
@@ -145,3 +145,11 @@ def test_closing_the_stream_early_still_finishes_the_answer():
         outcomes = [r.outcome for r in conn.execute(select(llm_usage))]
     assert outcomes == ["generated"]
     assert list_history(deps.engine)[0]["answer"] == "Yes [1]."
+
+
+def test_blocking_and_streamed_answers_agree():
+    setup_trample()
+    streamed = _events(_stream({"query": "deathtouch"}))
+    blocking = TestClient(app).post("/api/v1/query", json={"query": "trample"}).json()
+    head, done = streamed[0][1], streamed[-1][1]
+    assert set(blocking) == (set(head) | set(done) | {"query"}) - {"sources"}

@@ -40,7 +40,6 @@ from mtg_api.llm import (
     prompt_chars,
 )
 from mtg_api.models import (
-    Citation,
     CitationStats,
     QueryRequest,
     QueryResponse,
@@ -51,7 +50,7 @@ from mtg_api.models import (
 from mtg_api.retrieval import RetrievalDeps, retrieve
 from mtg_api.rules_index import RulesIndex
 from mtg_api.sparse_embedder import SparseEmbedder
-from mtg_api.streaming import AnswerJob, Emit, GenerationSlots
+from mtg_api.streaming import AnswerJob, Emit, GenerationSlots, sse_event
 from mtg_api.usage import (
     Gate,
     check_gate,
@@ -85,6 +84,31 @@ class Caller:
     # An admin request that carries the X-Admin-Request marker: may ask for
     # a fresh answer.
     may_refresh: bool
+
+
+@dataclass(frozen=True)
+class Thinking:
+    """The answer is being written; no text yet."""
+
+
+@dataclass(frozen=True)
+class Delta:
+    text: str
+
+
+@dataclass(frozen=True)
+class Failed:
+    """Generation failed before writing any text. Done still follows."""
+
+    message: str
+
+
+@dataclass(frozen=True)
+class Done:
+    body: StreamDone
+
+
+Event = Thinking | Delta | Failed | Done
 
 
 def resolve_settings(overrides: dict[str, Any]) -> Settings:
@@ -200,19 +224,8 @@ class QueryDeps:
 
 @dataclass
 class AnswerStream:
-    """start()'s result: the `results` event, and the events after it
-    (always ending with `done`)."""
-
-    head: dict
-    events: Iterator[tuple[str, dict]]
-
-
-def _head(response: QueryResponse, sources: list[Citation]) -> dict:
-    return StreamHead.of(response, sources).model_dump(mode="json")
-
-
-def _done(response: QueryResponse) -> dict:
-    return StreamDone.of(response).model_dump(mode="json")
+    head: StreamHead  # always first
+    events: Iterator[Event]  # always ends with exactly one Done
 
 
 @dataclass
@@ -259,12 +272,12 @@ def _run_answer(work: _AnswerWork, emit: Emit) -> None:
     acc = StreamAccumulator()
     failure = None
     try:
-        emit("thinking", {})
+        emit(Thinking())
         try:
             for chunk in work.answerer.stream(work.request.query, work.context):
                 acc.add(chunk)
                 if chunk.text:
-                    emit("delta", {"text": chunk.text})
+                    emit(Delta(chunk.text))
         except Exception as exc:
             logger.exception("Answer generation failed (%s)", generator_label(s))
             failure = str(exc)
@@ -319,8 +332,8 @@ def _run_answer(work: _AnswerWork, emit: Emit) -> None:
         if work.key and answer and complete:
             _cache_put(d.engine, work.key, work.request.query, response, work.record["now"])
         if failure and answer is None:
-            emit("error", {"message": failure})
-        emit("done", _done(response))
+            emit(Failed(failure))
+        emit(Done(StreamDone.of(response)))
     finally:
         if work.release:
             work.release()
@@ -404,7 +417,7 @@ def start(request: QueryRequest, caller: Caller, d: QueryDeps) -> AnswerStream:
                 cached=True,
             )
             return AnswerStream(
-                _head(cached_response, []), iter([("done", _done(cached_response))])
+                StreamHead.of(cached_response, []), iter([Done(StreamDone.of(cached_response))])
             )
 
     generating = request.generate and gate.degraded is None
@@ -456,7 +469,9 @@ def start(request: QueryRequest, caller: Caller, d: QueryDeps) -> AnswerStream:
                 citation_stats=CitationStats().model_dump(),
                 rule_references=[],
             )
-            return AnswerStream(_head(head_response, []), iter([("done", _done(head_response))]))
+            return AnswerStream(
+                StreamHead.of(head_response, []), iter([Done(StreamDone.of(head_response))])
+            )
 
         live_sources = [citation_for(n, r) for n, r in sources.items()]
         enrich_citations(live_sources, d.matcher, d.rules_index)
@@ -486,4 +501,34 @@ def start(request: QueryRequest, caller: Caller, d: QueryDeps) -> AnswerStream:
         if release:
             release()
         raise
-    return AnswerStream(_head(head_response, live_sources), job.events())
+    return AnswerStream(StreamHead.of(head_response, live_sources), job.events())
+
+
+def sse_frames(stream: AnswerStream) -> Iterator[str]:
+    """The stream as SSE frames. Closing this (the client left) only stops
+    the relay; the answer finishes on its own thread."""
+    yield sse_event("results", stream.head.model_dump(mode="json"))
+    for event in stream.events:
+        match event:
+            case Thinking():
+                yield sse_event("thinking", {})
+            case Delta(text):
+                yield sse_event("delta", {"text": text})
+            case Failed(message):
+                yield sse_event("error", {"message": message})
+            case Done(body):
+                yield sse_event("done", body.model_dump(mode="json"))
+
+
+def collect(query: str, stream: AnswerStream) -> QueryResponse:
+    """The stream as one response, for the blocking endpoint. Reads to the
+    end, not just to Done: the worker frees its generation slot after
+    sending Done, and the caller's next request must find it free, as it
+    always has."""
+    done = None
+    for event in stream.events:
+        if isinstance(event, Done):
+            done = event
+    if done is None:
+        raise AssertionError("answer stream ended without done")
+    return done.body.response(query, stream.head)

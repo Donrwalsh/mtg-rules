@@ -15,7 +15,7 @@ from fastapi.encoders import jsonable_encoder
 
 logger = logging.getLogger(__name__)
 
-Emit = Callable[[str, dict], None]
+Emit = Callable[[object], None]
 
 _END = object()
 _live: set[threading.Thread] = set()
@@ -45,7 +45,7 @@ class AnswerJob:
 
     def _run(self) -> None:
         try:
-            self._work(lambda name, data: self._queue.put((name, data)))
+            self._work(self._queue.put)
         except Exception:
             logger.exception("Answer job failed")
         finally:
@@ -53,7 +53,7 @@ class AnswerJob:
             with _live_lock:
                 _live.discard(self._thread)
 
-    def events(self) -> Iterator[tuple[str, dict]]:
+    def events(self) -> Iterator[object]:
         while (item := self._queue.get()) is not _END:
             yield item
 
