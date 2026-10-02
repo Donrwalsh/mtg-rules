@@ -15,6 +15,7 @@ from pydantic import TypeAdapter, ValidationError
 from qdrant_client import QdrantClient
 from sqlalchemy.engine import Engine
 
+from mtg_api.allowance import GenerationSlots
 from mtg_api.answer_cache import cache_key, get_cached, normalize_query, put_cached
 from mtg_api.card_matcher import CardMatcher
 from mtg_api.citations import citation_for, cite_answer
@@ -50,7 +51,7 @@ from mtg_api.models import (
 from mtg_api.retrieval import RetrievalDeps, retrieve
 from mtg_api.rules_index import RulesIndex
 from mtg_api.sparse_embedder import SparseEmbedder
-from mtg_api.streaming import AnswerJob, Emit, GenerationSlots, sse_event
+from mtg_api.streaming import AnswerJob, Emit, sse_event
 from mtg_api.usage import (
     Gate,
     check_gate,
