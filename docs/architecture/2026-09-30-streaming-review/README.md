@@ -6,8 +6,8 @@ The vocabulary is the `codebase-design` skill's: **module**, **interface**, **im
 
 | # | Write-up | Strength | Touches |
 |---|---|---|---|
-| 1 | [Deepen the answer allowance](01-answer-allowance.md) | Strong | `main.py`, `usage.py`, `streaming.py` |
-| 2 | [Pull the query pipeline out of `main.py`](02-query-pipeline.md) | Strong | `main.py`, `retrieval.py`, `models.py` |
+| 1 | [Deepen the answer allowance](01-answer-allowance.md) | Strong · **done** (2026-10-02) | `main.py`, `usage.py`, `streaming.py` |
+| 2 | [Pull the query pipeline out of `main.py`](02-query-pipeline.md) | Strong · **done** (2026-10-01) | `main.py`, `retrieval.py`, `models.py` |
 | 3 | [Deepen the answer stream on the web side](03-web-answer-stream.md) | Strong | `+page.svelte`, `api.ts`, `stream.ts`, fixtures |
 | 4 | [One owner for citation numbering and marker grammar](04-citations.md) | Worth exploring | `citations.py`, `llm.py`, `enrich.py`, `stream.ts`, `segments.ts` |
 | 5 | [Make the answerer seam real](05-answerer-seam.md) | Worth exploring | `llm.py`, `usage.py`, test fakes |

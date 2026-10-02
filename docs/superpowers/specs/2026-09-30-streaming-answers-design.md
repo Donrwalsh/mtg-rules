@@ -155,6 +155,11 @@ refuse the request with an HTTP status runs here, so decision 14 holds:
    context's length. The gap is one retrieval (well under a second), and
    the slot caps limit how many requests can sit in it.
 
+   *Superseded 2026-10-02:* the answer allowance
+   ([spec](2026-10-02-answer-allowance-design.md)) takes the slot after
+   retrieval and re-checks the gate, takes the slot and reserves under one
+   lock, so there is no gap any more.
+
 **Phase 2: generation (worker thread).** A `GenerationJob` owns the
 slot, the reservation id, `context`, `sources` and a `queue.Queue` of
 events. Its thread:
@@ -227,6 +232,12 @@ after phase 1 hands them over.
 - A row left `pending` (process crash, or a bug in the worker) keeps its
   worst-case cost for good, which is the conservative failure. No sweeper
   is needed. The admin usage page shows `pending` as its own outcome.
+- **Answer allowance (2026-10-02).** `allowance.py` owns the gate, the
+  slots and these rows behind one interface (`admit` → `start_answer` →
+  `settle` / `cancel` / `close`). The check and the reservation happen
+  under one process-wide lock, so `daily_budget_usd` is exact within the
+  process. An answer whose job never starts is settled as `error` at zero
+  cost instead of staying `pending`.
 - `record_usage` stays for the `cached` / `degraded_*` outcomes.
 
 **Estimated cost when `usageMetadata` is missing or incomplete**
