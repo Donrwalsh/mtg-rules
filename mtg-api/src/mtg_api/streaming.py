@@ -1,6 +1,6 @@
-"""Plumbing for streamed answers: SSE framing, a worker thread whose events
-can be relayed to a client (or to no one), and caps on concurrent
-generations. Knows nothing about queries."""
+"""Plumbing for streamed answers: SSE framing, and a worker thread whose
+events can be relayed to a client (or to no one). Knows nothing about
+queries."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ import json
 import logging
 import queue
 import threading
-from collections import Counter
 from collections.abc import Callable, Iterator
 
 from fastapi.encoders import jsonable_encoder
@@ -64,43 +63,3 @@ def join_all(timeout: float = 5.0) -> None:
         threads = list(_live)
     for thread in threads:
         thread.join(timeout)
-
-
-class GenerationSlots:
-    """How many answers are being written, in total and per IP bucket. In
-    memory: the API runs as one process."""
-
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._total = 0
-        self._by_bucket: Counter[str] = Counter()
-
-    def acquire(
-        self, bucket: str, *, total_limit: int, ip_limit: int | None
-    ) -> Callable[[], None] | None:
-        """A release function, or None when a cap is full. ip_limit=None
-        leaves this request out of the per-IP count."""
-        with self._lock:
-            if self._total >= total_limit:
-                return None
-            if ip_limit is not None and self._by_bucket[bucket] >= ip_limit:
-                return None
-            self._total += 1
-            if ip_limit is not None:
-                self._by_bucket[bucket] += 1
-
-        released = False
-
-        def release() -> None:
-            nonlocal released
-            with self._lock:
-                if released:
-                    return
-                released = True
-                self._total -= 1
-                if ip_limit is not None:
-                    self._by_bucket[bucket] -= 1
-                    if not self._by_bucket[bucket]:
-                        del self._by_bucket[bucket]
-
-        return release

@@ -1,7 +1,7 @@
 import json
 import threading
 
-from mtg_api.streaming import AnswerJob, GenerationSlots, join_all, sse_event
+from mtg_api.streaming import AnswerJob, join_all, sse_event
 
 
 def test_sse_event_frames_name_and_json():
@@ -42,24 +42,3 @@ def test_job_that_raises_still_ends_its_events():
         raise RuntimeError("bug")
 
     assert list(AnswerJob(work).start().events()) == [("thinking", {})]
-
-
-def test_slots_cap_per_ip_and_release():
-    slots = GenerationSlots()
-    release = slots.acquire("a", total_limit=4, ip_limit=1)
-    assert release is not None
-    assert slots.acquire("a", total_limit=4, ip_limit=1) is None
-    assert slots.acquire("b", total_limit=4, ip_limit=1) is not None
-    release()
-    release()  # idempotent: doesn't free a slot it doesn't hold
-    again = slots.acquire("a", total_limit=4, ip_limit=1)
-    assert again is not None
-    assert slots.acquire("a", total_limit=4, ip_limit=1) is None
-
-
-def test_slots_cap_the_total_even_without_an_ip_limit():
-    slots = GenerationSlots()
-    assert slots.acquire("admin", total_limit=2, ip_limit=None) is not None
-    assert slots.acquire("admin", total_limit=2, ip_limit=None) is not None
-    assert slots.acquire("admin", total_limit=2, ip_limit=None) is None
-    assert slots.acquire("visitor", total_limit=2, ip_limit=1) is None

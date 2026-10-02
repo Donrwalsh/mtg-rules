@@ -5,9 +5,7 @@ from conftest import (
     ChunksAnswerer,
     CountingAnswerer,
     FailingEngine,
-    StreamsFromGenerate,
     admin_client,
-    memory_engine,
     setup_trample,
 )
 from fastapi.testclient import TestClient
@@ -16,7 +14,7 @@ from sqlalchemy import select
 from mtg_api import main
 from mtg_api.answer_cache import answer_cache, cache_key
 from mtg_api.history import list_history
-from mtg_api.llm import Generation, StreamChunk
+from mtg_api.llm import StreamChunk
 from mtg_api.main import app, get_data_version
 from mtg_api.usage import llm_usage, record_usage
 
@@ -303,22 +301,6 @@ def test_cut_off_answer_is_marked_and_saved_with_a_reason(gated):
     assert body["answer_complete"] is False
     assert list_history(engine)[0]["error"] == "answer cut off (finish reason: MAX_TOKENS)"
     assert _outcomes(engine) == ["generated"]
-
-
-def test_reservation_is_pending_while_the_answer_is_written(gated):
-    engine = memory_engine()
-    seen = []
-
-    class _Peeking(StreamsFromGenerate):
-        def generate(self, query, context):
-            seen.extend(_rows(engine))
-            return Generation("Yes [1].", finish_reason="STOP")
-
-    setup_trample(answerer=_Peeking(), engine=engine)
-    _post({"query": "trample"})
-    assert [r["outcome"] for r in seen] == ["pending"]
-    assert seen[0]["cost_usd"] > 0
-    assert _outcomes(engine) == ["generated"]  # the same row, finalized
 
 
 def test_failure_after_partial_text_keeps_the_text_and_estimates_cost(gated):

@@ -4,6 +4,9 @@
 > Strength: **Strong** · Dependency category: **local-substitutable** (in-memory SQLite) + in-process (slots, lock)
 > Companion docs: [02 query pipeline](02-query-pipeline.md) (natural home for this module), [06 answer runner](06-answer-runner.md) (owns the slots' lifetime).
 
+> **Status: done.** Decisions on the open questions:
+> [spec 2026-10-02](../../superpowers/specs/2026-10-02-answer-allowance-design.md).
+
 ## Summary
 
 The permission to write one LLM answer is called the **answer allowance** in this doc. Deciding it, holding it and paying for it currently takes eight functions in three modules: `check_gate`, `reserve_usage`, `finalize_usage` and `record_usage` in `usage.py`, `GenerationSlots` in `streaming.py`, and `_gate`, `_reserve`, `_finalize` and `_record` in `main.py`. `_start_query` and `_run_answer` must call them in the right order, pass the right flags, and hand the slot's release function from the request thread to the worker thread.

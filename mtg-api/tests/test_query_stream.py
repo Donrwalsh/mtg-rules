@@ -1,10 +1,10 @@
 import json
 
 import pytest
-from conftest import ChunksAnswerer, admin_client, setup_trample
+from conftest import ChunksAnswerer, setup_trample
 from fastapi.testclient import TestClient
 
-from mtg_api import main, query_pipeline
+from mtg_api import main
 from mtg_api.llm import StreamChunk
 from mtg_api.main import app
 
@@ -82,20 +82,12 @@ def test_validation_errors_are_plain_http():
     assert _stream({"query": "trample", "fresh": True}).status_code == 403
 
 
-def test_second_answer_from_one_ip_is_429_while_one_is_in_progress():
-    setup_trample()
-    release = query_pipeline.generation_slots.acquire("testclient", total_limit=4, ip_limit=1)
-    try:
-        assert _stream({"query": "trample"}).status_code == 429
-    finally:
-        release()
-    assert _stream({"query": "trample"}).status_code == 200
-
-
 def test_global_cap_is_429(monkeypatch):
     monkeypatch.setattr(main.settings, "max_concurrent_generations", 0)
     setup_trample()
-    assert _stream({"query": "trample"}).status_code == 429
+    response = _stream({"query": "trample"})
+    assert response.status_code == 429
+    assert response.json()["detail"] == "Too many answers in progress. Try again in a moment."
 
 
 def test_cache_hits_and_retrieval_only_need_no_slot(monkeypatch):
@@ -111,19 +103,6 @@ def test_eval_mode_skips_the_caps(monkeypatch):
     monkeypatch.setattr(main.settings, "max_concurrent_generations", 0)
     setup_trample()
     assert _stream({"query": "trample"}).status_code == 200
-
-
-def test_admin_skips_the_per_ip_cap_but_not_the_global_one(monkeypatch):
-    setup_trample()
-    client = admin_client(monkeypatch)
-    release = query_pipeline.generation_slots.acquire("testclient", total_limit=4, ip_limit=1)
-    try:
-        assert _stream({"query": "trample"}, client).status_code == 200
-    finally:
-        release()
-    monkeypatch.setattr(main.settings, "max_concurrent_generations", 0)
-    # A new question: "trample" is now a cache hit, which needs no slot.
-    assert _stream({"query": "deathtouch"}, client).status_code == 429
 
 
 def test_blocking_and_streamed_answers_agree():
