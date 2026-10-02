@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy import JSON, Column, DateTime, Integer, Table, Text, select
 from sqlalchemy.engine import Engine
 
-from mtg_api.config import OVERRIDABLE_SETTINGS, Settings
+from mtg_api.config import OVERRIDABLE_SETTINGS, Settings, generator_label
 from mtg_api.history import metadata
 from mtg_api.llm import PROMPT_VERSION
 from mtg_api.usage import as_utc
@@ -44,6 +44,9 @@ def cache_key(query: str, s: Settings, data_version: str) -> str:
         "data_version": data_version,
         "settings": {name: getattr(s, name) for name in OVERRIDABLE_SETTINGS},
     }
+    if s.answer_provider != "gemini":
+        # Gemini keys stay exactly as they were, so production's cache survives.
+        parts["generator"] = generator_label(s)
     encoded = json.dumps(parts, sort_keys=True, default=str)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 

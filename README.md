@@ -363,7 +363,7 @@ make eval-show                      # reprint the latest run's report (RUN=<run>
 make eval-sweep EXPS="dense70 topk15"
 ```
 
-All run targets accept `EXP=`, `TAG="a b"` and `ID="x y"`. Each target is
+All run targets accept `EXP=`, `TAG="a b"`, `ID="x y"`, and `ARGS=` for any other flag. Each target is
 a thin wrapper around `python -m mtg_evals ...` (`--help` lists every
 option). On Windows without GNU make, install it with
 `winget install ezwinports.make`, or call the module directly:
@@ -395,7 +395,8 @@ whenever the answer prompt changes.
 Every run writes `evals/runs/<UTC time>-<sha>[-dirty]-<mode>[-<exp>].json`
 (gitignored). The run file holds the metadata, the API config, per-case
 scores and aggregates. The committed baselines are
-`evals/baseline-retrieval.json` and `evals/baseline-full.json`. The report
+`evals/baseline-retrieval.json`, `evals/baseline-full.json` (Gemini) and
+`evals/baseline-full-phi4.json` (see Running evals on phi4). The report
 lists REGRESSIONS and FIXED cases with a reason each, and warns about
 added or removed cases, a changed `eval.yaml`, and config differences the
 experiment doesn't explain. The exit code is 1 if any case regressed and 2
@@ -406,6 +407,56 @@ Experiments live in `evals/experiments/<name>.yaml` as `description` +
 settings, `rules_top_k`, `card_ruling_limit`, `collection_name`, `gemini_model`,
 `generation_temperature` and `generation_max_tokens`. Any other key gets
 a 422.
+
+### Running evals on phi4
+
+Full-mode evals can generate answers with a local `phi4` on Ollama instead
+of Gemini, so they cost nothing. Set this in the repo-root `.env`:
+
+```bash
+MTG_API_EVAL_MODE=true
+MTG_API_ANSWER_PROVIDER=ollama
+MTG_API_OLLAMA_MODEL=phi4:latest
+MTG_API_GEMINI_API_KEY=            # blank: Gemini spend is impossible
+```
+
+Then recreate the backend (`docker compose up -d --build backend`). The
+harness doesn't read `.env`, so export the judge in the shell that runs it:
+`export EVAL_JUDGE_MODEL=qwen2.5:14b` (plus `EVAL_JUDGE_BASE_URL` if Ollama
+isn't on `localhost:11434`).
+`curl localhost:8000/api/v1/config` should report
+`"generator": "ollama:phi4:latest"`. The API container reaches the host's
+Ollama at `http://host.docker.internal:11434`
+(`MTG_API_OLLAMA_URL`). The dev compose file maps that name on Linux too.
+
+- **No accidental Gemini runs.** A full run refuses a `gemini:*`
+  generator unless you pass `--allow-gemini`. The provider is chosen for
+  the whole environment and can't be overridden per request.
+- **One baseline per generator.** phi4 runs compare against
+  `evals/baseline-full-phi4.json`, Gemini runs against
+  `evals/baseline-full.json`, and a run never falls back to another
+  generator's baseline. The report names the baseline it used.
+  `baseline --mode full` promotes a run to its own generator's file.
+- **`--fresh-answers`** generates every answer again (the cache is still
+  written), so a run really exercises generation:
+  `make eval-full ARGS=--fresh-answers`.
+- **Context window.** Ollama runs phi4 with `MTG_API_OLLAMA_NUM_CTX` tokens
+  (default 6144) for prompt plus answer. A prompt that doesn't fit is
+  refused, never truncated. The answer fails with
+  `context overflow: prompt of N tokens exceeds num_ctx M`, and the report
+  counts it under `context overruns`. `max prompt tokens` shows how much
+  headroom is left. The largest dev-split prompt was about 4,000 tokens with
+  the answer included. A bigger window costs speed: on a 10 GB RTX 3080,
+  phi4 wrote 11.1 tok/s at 4096 and 8.1–8.6 tok/s at 8192.
+- **One model at a time.** phi4 and `qwen2.5:14b` take about 9 GB each, so
+  a 10 GB card holds one of them, and loading the other takes 19–56 s. A
+  full run therefore writes every answer first and then grades them all,
+  which means two loads per run instead of two per case.
+- **Settings in the run file.** `answer_provider`, `ollama_model`,
+  `ollama_num_ctx`, `ollama_seed` (0), `ollama_num_predict_default` (1024,
+  used when `generation_max_tokens` is unset) and the two Ollama timeouts
+  (180 s total, 120 s between chunks) are exposed by `/api/v1/config`, so
+  every run file and baseline records them.
 
 ## Production deployment
 

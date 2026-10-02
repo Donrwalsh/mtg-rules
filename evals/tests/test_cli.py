@@ -16,7 +16,13 @@ def dirs(tmp_path, monkeypatch):
     runs.mkdir()
     monkeypatch.setattr(cli, "RUNS_DIR", runs)
     monkeypatch.setattr(cli, "EVALS_DIR", tmp_path)
-    monkeypatch.setattr(cli, "baseline_path", lambda mode: tmp_path / f"baseline-{mode}.json")
+    from mtg_evals import paths
+
+    monkeypatch.setattr(
+        cli,
+        "baseline_path",
+        lambda mode, generator=None: tmp_path / paths.baseline_path(mode, generator).name,
+    )
     return tmp_path
 
 
@@ -151,3 +157,39 @@ def test_show_on_the_baseline_itself_skips_comparison(dirs):
 
 def test_show_without_runs_is_a_usage_error(dirs):
     assert runner.invoke(cli.app, ["show"]).exit_code == 2
+
+
+def _phi4(run):
+    run["metadata"]["api_config"]["generator"] = "ollama:phi4:latest"
+    return run
+
+
+def test_phi4_run_compares_against_its_own_baseline_and_names_it(dirs):
+    _write(dirs / "baseline-full.json", _run(BASE, mode="full"))
+    _write(dirs / "baseline-full-phi4.json", _phi4(_run(BASE, mode="full")))
+    _write(dirs / "runs" / "20260102T000000Z-abc-full.json", _phi4(_run(BASE, mode="full")))
+
+    result = runner.invoke(cli.app, ["show"])
+
+    assert result.exit_code == 0, result.output
+    assert "baseline: baseline-full-phi4.json (ollama:phi4:latest · abc1234 · " in result.output
+
+
+def test_phi4_run_never_falls_back_to_the_gemini_baseline(dirs):
+    _write(dirs / "baseline-full.json", _run(BASE, mode="full"))
+    _write(dirs / "runs" / "20260102T000000Z-abc-full.json", _phi4(_run(BASE, mode="full")))
+
+    result = runner.invoke(cli.app, ["show"])
+
+    assert "no baseline for full at baseline-full-phi4.json" in result.output
+    assert "REGRESSIONS" not in result.output
+
+
+def test_baseline_promotes_a_phi4_run_to_its_own_file(dirs):
+    _write(dirs / "runs" / "20260102T000000Z-abc-full.json", _phi4(_run(BASE, mode="full")))
+
+    result = runner.invoke(cli.app, ["baseline", "--mode", "full"])
+
+    assert result.exit_code == 0, result.output
+    assert (dirs / "baseline-full-phi4.json").exists()
+    assert not (dirs / "baseline-full.json").exists()

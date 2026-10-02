@@ -197,3 +197,43 @@ def test_fetch_card_rulings_passes_limit_and_filter_to_scroll():
     conditions = call["scroll_filter"].must
     assert any(c.key == "source_type" for c in conditions)
     assert any(c.key == "oracle_id" for c in conditions)
+
+
+def test_retrieve_puts_card_matches_first_and_drops_vector_duplicates():
+    from conftest import FakeDenseModel, FakeHit, FakeQdrantClient, FakeSparseModel
+
+    from mtg_api.card_matcher import CardMatcher
+    from mtg_api.config import settings
+    from mtg_api.embedder import Embedder
+    from mtg_api.keyword_matcher import KeywordMatcher
+    from mtg_api.retrieval import RetrievalDeps, retrieve
+    from mtg_api.sparse_embedder import SparseEmbedder
+
+    cards = [{"oracle_id": "oid-1", "name": "Counterspell", "oracle_text": "Counter target spell."}]
+    hits = [
+        FakeHit(
+            "p1",
+            1.0,
+            {
+                "source_type": "oracle",
+                "oracle_id": "oid-1",
+                "card_name": "Counterspell",
+                "text": "x",
+            },
+        ),
+        FakeHit("p2", 0.5, {"source_type": "rule", "rule_id": "702.19b", "text": "Trample."}),
+    ]
+    deps = RetrievalDeps(
+        matcher=CardMatcher(cards),
+        keyword_matcher=KeywordMatcher([]),
+        dense_embedder=Embedder(FakeDenseModel()),
+        sparse_embedder=SparseEmbedder(FakeSparseModel()),
+        client=FakeQdrantClient(dense_points=hits),
+    )
+
+    results = retrieve("how does Counterspell work", settings, deps)
+
+    assert [(r.match_type, r.title) for r in results] == [
+        ("card_name_match", "Counterspell"),
+        ("vector_hit", "702.19b"),
+    ]

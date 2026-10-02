@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+import fakes
 import pytest
 import yaml
 from fakes import FakeApi, FakeJudge, rule_result
@@ -53,6 +54,7 @@ def eval_file(tmp_path):
 
 
 def _run(tmp_path, eval_file, api, mode="retrieval", judge=None, **opts):
+    opts.setdefault("allow_gemini", True)
     options = RunOptions(mode=mode, eval_file=eval_file, api_url="http://fake", **opts)
     return execute(
         options,
@@ -220,3 +222,77 @@ def test_thinking_level_is_a_generation_key():
     from mtg_evals.runner import GENERATION_KEYS
 
     assert "generation_thinking_level" in GENERATION_KEYS
+
+
+def test_full_run_generates_every_answer_before_judging_any(tmp_path, eval_file):
+    log = []
+
+    class LoggingApi(FakeApi):
+        def query(self, question, *, generate, overrides):
+            if generate:
+                log.append("generate")
+            return super().query(question, generate=generate, overrides=overrides)
+
+    class LoggingJudge(FakeJudge):
+        def grade(self, case, answer):
+            log.append("judge")
+            return super().grade(case, answer)
+
+    _run(tmp_path, eval_file, LoggingApi(RESULTS), mode="full", judge=LoggingJudge())
+    assert log == ["generate"] * 3 + ["judge"] * 3
+
+
+def test_fresh_answers_generate_again_but_still_fill_the_cache(tmp_path, eval_file):
+    _run(tmp_path, eval_file, FakeApi(RESULTS), mode="full", judge=FakeJudge())
+    api = FakeApi(RESULTS)
+    run, _ = _run(tmp_path, eval_file, api, mode="full", judge=FakeJudge(), fresh_answers=True)
+    assert [c["generate"] for c in api.calls].count(True) == 3
+    assert not any(c["full"]["answer_cached"] for c in run["cases"].values())
+
+
+def test_full_run_against_gemini_needs_allow_gemini(tmp_path, eval_file):
+    with pytest.raises(PreflightError, match="--allow-gemini"):
+        _run(
+            tmp_path,
+            eval_file,
+            FakeApi(RESULTS),
+            mode="full",
+            judge=FakeJudge(),
+            allow_gemini=False,
+        )
+
+
+def test_retrieval_run_against_gemini_is_not_guarded(tmp_path, eval_file):
+    _run(tmp_path, eval_file, FakeApi(RESULTS), allow_gemini=False)
+
+
+def test_local_generator_needs_no_flag(tmp_path, eval_file):
+    config = dict(fakes.CONFIG, generator="ollama:phi4:latest")
+    _run(
+        tmp_path,
+        eval_file,
+        FakeApi(RESULTS, config=config),
+        mode="full",
+        judge=FakeJudge(),
+        allow_gemini=False,
+    )
+
+
+def test_context_overflow_is_flagged_and_counted(tmp_path, eval_file):
+    api = FakeApi(
+        RESULTS,
+        answer=None,
+        generation_error="context overflow: prompt of 7000 tokens exceeds num_ctx 6144",
+    )
+    run, _ = _run(tmp_path, eval_file, api, mode="full", judge=FakeJudge(), ids=["trample"])
+    full = run["cases"]["trample"]["full"]
+    assert full["context_overflow"] is True
+    assert full["generation_error"].startswith("context overflow:")
+    assert run["aggregates"]["overall"]["context_overruns"] == 1
+
+
+def test_max_prompt_tokens_and_context_hash_are_recorded(tmp_path, eval_file):
+    run, _ = _run(tmp_path, eval_file, FakeApi(RESULTS), mode="full", judge=FakeJudge())
+    assert run["aggregates"]["overall"]["max_prompt_tokens"] == 100
+    assert run["aggregates"]["overall"]["context_overruns"] == 0
+    assert len(run["cases"]["trample"]["context_hash"]) == 64

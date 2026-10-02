@@ -15,8 +15,8 @@ def test_sse_event_frames_name_and_json():
 
 def test_job_relays_events_in_order_then_ends():
     def work(emit):
-        emit("thinking", {})
-        emit("done", {"answer": "x"})
+        emit(("thinking", {}))
+        emit(("done", {"answer": "x"}))
 
     assert list(AnswerJob(work).start().events()) == [
         ("thinking", {}),
@@ -28,7 +28,7 @@ def test_job_finishes_without_anyone_reading():
     finished = threading.Event()
 
     def work(emit):
-        emit("delta", {"text": "a"})
+        emit(("delta", {"text": "a"}))
         finished.set()
 
     AnswerJob(work).start()
@@ -38,7 +38,7 @@ def test_job_finishes_without_anyone_reading():
 
 def test_job_that_raises_still_ends_its_events():
     def work(emit):
-        emit("thinking", {})
+        emit(("thinking", {}))
         raise RuntimeError("bug")
 
     assert list(AnswerJob(work).start().events()) == [("thinking", {})]

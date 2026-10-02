@@ -11,6 +11,8 @@ from mtg_api.models import QueryResult
 if TYPE_CHECKING:
     import httpx
 
+    from mtg_api.config import Settings
+
 # Bump by hand whenever _SYSTEM_PROMPT or the user-message template changes:
 # eval answer caches are keyed on it.
 PROMPT_VERSION = 1
@@ -239,3 +241,169 @@ class GeminiAnswerer:
         for chunk in self.stream(query, context):
             acc.add(chunk)
         return acc.generation()
+
+
+# Prefix of a ContextOverflow's message. The eval harness matches on it.
+CONTEXT_OVERFLOW_PREFIX = "context overflow:"
+
+# Ollama's done_reason in Gemini's finishReason terms, which is what the
+# pipeline checks ("STOP" means a complete answer).
+_OLLAMA_FINISH_REASONS = {"stop": "STOP", "length": "MAX_TOKENS"}
+
+
+class ContextOverflow(RuntimeError):
+    """The prompt doesn't fit in the model's context window. Ollama refused
+    it rather than silently dropping its start (the system prompt)."""
+
+    def __init__(self, prompt_tokens: int | None, num_ctx: int | None):
+        super().__init__(
+            f"{CONTEXT_OVERFLOW_PREFIX} prompt of {prompt_tokens} tokens exceeds num_ctx {num_ctx}"
+        )
+        self.prompt_tokens = prompt_tokens
+        self.num_ctx = num_ctx
+
+
+def _ollama_error(response: httpx.Response) -> Exception:
+    # Ollama answers errors with {"error": "<message>"}. For an overlong
+    # prompt that message is itself JSON: llama.cpp's
+    # exceed_context_size_error, carrying both token counts.
+    try:
+        message = response.json().get("error", "")
+    except ValueError:
+        message = response.text[:200]
+    try:
+        inner = json.loads(message).get("error")
+    except (ValueError, AttributeError):
+        inner = None
+    if isinstance(inner, dict) and inner.get("type") == "exceed_context_size_error":
+        return ContextOverflow(inner.get("n_prompt_tokens"), inner.get("n_ctx"))
+    return RuntimeError(f"Ollama HTTP {response.status_code}: {message}")
+
+
+def _parse_ollama_line(data: dict) -> StreamChunk:
+    if "error" in data:
+        raise RuntimeError(f"Ollama error: {data['error']}")
+    text = (data.get("message") or {}).get("content", "")
+    if not data.get("done"):
+        return StreamChunk(text=text)
+    reason = data.get("done_reason")
+    return StreamChunk(
+        text=text,
+        input_tokens=data.get("prompt_eval_count"),
+        output_tokens=data.get("eval_count"),
+        thinking_tokens=0,
+        finish_reason=_OLLAMA_FINISH_REASONS.get(reason, reason.upper() if reason else None),
+    )
+
+
+class OllamaAnswerer:
+    """Answerer via a local Ollama's native /api/chat. Not the
+    OpenAI-compatible endpoint: only the native one takes num_ctx per request
+    and can refuse an overlong prompt instead of truncating it. For local
+    development and evals only; production has no route to an Ollama."""
+
+    def __init__(
+        self,
+        model: str,
+        base_url: str = "http://localhost:11434",
+        *,
+        num_ctx: int = 6144,
+        seed: int = 0,
+        temperature: float | None = None,
+        num_predict: int = 1024,
+        timeout: float = 180.0,
+        chunk_timeout: float = 120.0,
+        transport: httpx.BaseTransport | None = None,
+    ):
+        self._model = model
+        self._base_url = base_url.rstrip("/")
+        self._num_ctx = num_ctx
+        self._seed = seed
+        self._temperature = temperature
+        self._num_predict = num_predict
+        # Total time for one answer. chunk_timeout bounds each wait between
+        # chunks, which includes loading the model before the first one.
+        self._timeout = timeout
+        self._chunk_timeout = chunk_timeout
+        self._transport = transport
+
+    @property
+    def model(self) -> str:
+        return self._model
+
+    def _body(self, query: str, context: str) -> dict:
+        options: dict = {
+            "num_ctx": self._num_ctx,
+            "seed": self._seed,
+            "num_predict": self._num_predict,
+        }
+        if self._temperature is not None:
+            options["temperature"] = self._temperature
+        return {
+            "model": self._model,
+            "stream": True,
+            # Refuse a prompt longer than num_ctx (HTTP 400) instead of
+            # silently dropping its start, which holds the system prompt.
+            "truncate": False,
+            "messages": [
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": _user_message(query, context)},
+            ],
+            "options": options,
+        }
+
+    def _client(self) -> httpx.Client:
+        import httpx
+
+        return httpx.Client(
+            transport=self._transport, timeout=httpx.Timeout(self._chunk_timeout, connect=10.0)
+        )
+
+    def stream(self, query: str, context: str) -> Iterator[StreamChunk]:
+        deadline = time.monotonic() + self._timeout
+        with (
+            self._client() as client,
+            client.stream(
+                "POST", f"{self._base_url}/api/chat", json=self._body(query, context)
+            ) as response,
+        ):
+            if response.is_error:
+                response.read()
+                raise _ollama_error(response)
+            for line in response.iter_lines():
+                if time.monotonic() > deadline:
+                    raise TimeoutError(f"Ollama answer took longer than {self._timeout:g}s")
+                if line.strip():
+                    yield _parse_ollama_line(json.loads(line))
+
+
+Answerer = GeminiAnswerer | OllamaAnswerer
+
+
+def build_answerer(s: Settings) -> Answerer:
+    if s.answer_provider == "ollama":
+        return OllamaAnswerer(
+            s.ollama_model,
+            s.ollama_url,
+            num_ctx=s.ollama_num_ctx,
+            seed=s.ollama_seed,
+            temperature=s.generation_temperature,
+            num_predict=s.generation_max_tokens or s.ollama_num_predict_default,
+            timeout=s.ollama_timeout_seconds,
+            chunk_timeout=s.ollama_stream_chunk_timeout_seconds,
+        )
+    api_key = s.gemini_api_key.get_secret_value()
+    if not api_key:
+        # Fail at startup (lifespan builds the answerer), not on the
+        # first user query.
+        raise RuntimeError("MTG_API_GEMINI_API_KEY is required")
+    return GeminiAnswerer(
+        api_key,
+        s.gemini_model,
+        base_url=s.gemini_url,
+        temperature=s.generation_temperature,
+        max_tokens=s.generation_max_tokens,
+        thinking_level=s.generation_thinking_level,
+        timeout=s.gemini_timeout_seconds,
+        chunk_timeout=s.gemini_stream_chunk_timeout_seconds,
+    )

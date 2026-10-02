@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from mtg_evals.metrics import ANSWER_ORDER, DECLINE_ORDER, aggregate
 
@@ -159,6 +160,8 @@ FULL_METRICS = [
     ("answer_cache_hit_rate", "answer cache hits", "pct", 0),
     ("judge_cache_hit_rate", "judge cache hits", "pct", 0),
     ("mean_generate_ms", "mean generate ms", "int", 0),
+    ("context_overruns", "context overruns", "int", -1),
+    ("max_prompt_tokens", "max prompt tokens", "int", 0),
 ]
 
 
@@ -205,8 +208,20 @@ def _pass_cell(stats: dict | None) -> str:
     return f"{stats['passed']}/{stats['scored']}"
 
 
+def baseline_line(path: Path | str, base: dict) -> str:
+    meta = base["metadata"]
+    generator = meta["api_config"].get("generator") or "?"
+    sha = meta["git_sha"] + ("-dirty" if meta.get("dirty") else "")
+    date = (meta.get("started_at") or "?")[:10]
+    return f"baseline: {Path(path).name} ({generator} · {sha} · {date})"
+
+
 def render(
-    new: dict, base: dict | None = None, diff: Diff | None = None, skipped: str | None = None
+    new: dict,
+    base: dict | None = None,
+    diff: Diff | None = None,
+    skipped: str | None = None,
+    base_label: str | None = None,
 ) -> str:
     mode = new["metadata"]["mode"]
     lines = [header(new)]
@@ -215,6 +230,8 @@ def render(
         judge = new["metadata"]["judge_model"]
         if judge in (generator, generator.partition(":")[2]):
             lines.append(f"WARNING: the judge ({judge}) is the generator model; grades are biased.")
+    if base is not None and base_label:
+        lines.append(base_label)
 
     now = new["aggregates"]
     before = None
@@ -261,6 +278,14 @@ def render(
     ]
     lines.append("")
     lines.append(f"  failing retrieval ({len(failing)}): {', '.join(failing) or '-'}")
+    if mode == "full":
+        overruns = [
+            case_id
+            for case_id, case in new["cases"].items()
+            if (case.get("full") or {}).get("context_overflow")
+        ]
+        if overruns:
+            lines.append(f"  context overruns ({len(overruns)}): {', '.join(overruns)}")
 
     if diff is not None:
         lines.extend(_render_diff(diff))

@@ -1,0 +1,3 @@
+blocking ['answer', 'answer_complete', 'answers_remaining', 'cached_at', 'citation_stats', 'citations', 'context_hash', 'degraded', 'generation_error', 'generator', 'prompt_version', 'query', 'results', 'rule_references', 'usage']
+results ['answers_remaining', 'cached_at', 'degraded', 'results', 'sources']
+done ['answer', 'answer_complete', 'citation_stats', 'citations', 'context_hash', 'generation_error', 'generator', 'prompt_version', 'results', 'rule_references', 'usage']

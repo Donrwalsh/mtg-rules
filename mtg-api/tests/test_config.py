@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from mtg_api.config import Settings, generator_label
+from mtg_api.config import OVERRIDABLE_SETTINGS, Settings, answer_model, generator_label
 
 
 def test_defaults():
@@ -137,3 +137,33 @@ def test_generation_thinking_level_accepts_each_valid_value():
             Settings(_env_file=None, generation_thinking_level=level).generation_thinking_level
             == level
         )
+
+
+def test_ollama_defaults():
+    s = Settings(_env_file=None)
+    assert s.answer_provider == "gemini"
+    assert s.ollama_url == "http://host.docker.internal:11434"
+    assert s.ollama_model == "phi4:latest"
+    assert (s.ollama_num_ctx, s.ollama_seed, s.ollama_num_predict_default) == (6144, 0, 1024)
+    assert (s.ollama_timeout_seconds, s.ollama_stream_chunk_timeout_seconds) == (180.0, 120.0)
+
+
+def test_generator_label_and_answer_model_for_ollama():
+    s = Settings(
+        _env_file=None,
+        answer_provider="ollama",
+        ollama_model="phi4:latest",
+        generation_thinking_level="low",
+    )
+    assert generator_label(s) == "ollama:phi4:latest"
+    assert answer_model(s) == "phi4:latest"
+
+
+def test_gemini_label_and_answer_model_are_unchanged():
+    s = Settings(_env_file=None, gemini_model="gemini-x", generation_thinking_level="low")
+    assert generator_label(s) == "gemini:gemini-x:think=low"
+    assert answer_model(s) == "gemini-x"
+
+
+def test_answer_provider_is_never_overridable():
+    assert "answer_provider" not in OVERRIDABLE_SETTINGS

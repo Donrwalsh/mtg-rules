@@ -21,7 +21,15 @@ from mtg_evals.paths import (
     default_eval_file,
     default_parsed_dir,
 )
-from mtg_evals.report import diff_runs, exit_code, fmt, header, metric_rows, render
+from mtg_evals.report import (
+    baseline_line,
+    diff_runs,
+    exit_code,
+    fmt,
+    header,
+    metric_rows,
+    render,
+)
 from mtg_evals.runner import RunOptions, execute
 from mtg_evals.validate import validate as validate_eval
 
@@ -88,8 +96,12 @@ def _latest_run(mode: str | None) -> Path:
     raise _fail(f"no {kind} in {RUNS_DIR}; run `mtg-evals run` first")
 
 
-def _baseline(mode: str) -> dict | None:
-    path = baseline_path(mode)
+def _baseline_file(run: dict) -> Path:
+    meta = run["metadata"]
+    return baseline_path(meta["mode"], meta["api_config"].get("generator"))
+
+
+def _load_baseline(path: Path) -> dict | None:
     return _load(path) if path.exists() else None
 
 
@@ -102,6 +114,8 @@ def _run_one(
     api_url: str,
     concurrency: int | None,
     eval_file: Path,
+    fresh_answers: bool = False,
+    allow_gemini: bool = False,
 ) -> tuple[dict, Path]:
     overrides = {}
     if exp:
@@ -120,6 +134,8 @@ def _run_one(
         experiment=exp,
         overrides=overrides,
         concurrency=concurrency,
+        fresh_answers=fresh_answers,
+        allow_gemini=allow_gemini,
     )
     typer.echo(f"running {mode} · {split} · {api_url}" + (f" · exp={exp}" if exp else ""), err=True)
     try:
@@ -135,6 +151,15 @@ EvalOpt = Annotated[Path | None, typer.Option("--eval-file", help="Question set 
 ConcOpt = Annotated[
     int | None, typer.Option("--concurrency", help="Parallel cases (default 4 retrieval, 1 full).")
 ]
+FreshOpt = Annotated[
+    bool,
+    typer.Option(
+        "--fresh-answers", help="Generate every answer again (the cache is still written)."
+    ),
+]
+GeminiOpt = Annotated[
+    bool, typer.Option("--allow-gemini", help="Allow a full run on a billed Gemini generator.")
+]
 
 
 @app.command()
@@ -148,6 +173,8 @@ def run(
     concurrency: ConcOpt = None,
     no_compare: Annotated[bool, typer.Option("--no-compare")] = False,
     eval_file: EvalOpt = None,
+    fresh_answers: FreshOpt = False,
+    allow_gemini: GeminiOpt = False,
 ) -> None:
     """Run the eval set, write a run file and compare it to the baseline."""
     new, path = _run_one(
@@ -159,12 +186,21 @@ def run(
         api_url or default_api_url(),
         concurrency,
         eval_file or default_eval_file(),
+        fresh_answers,
+        allow_gemini,
     )
-    base = None if no_compare else _baseline(mode.value)
+    base_file = _baseline_file(new)
+    base = None if no_compare else _load_baseline(base_file)
     diff = diff_runs(base, new) if base else None
     typer.echo("")
-    skipped = "comparison disabled (--no-compare)" if no_compare else None
-    typer.echo(render(new, base, diff, skipped=skipped))
+    if no_compare:
+        skipped = "comparison disabled (--no-compare)"
+    else:
+        skipped = (
+            f"no baseline for {new['metadata']['mode']} at {base_file.name}; skipping comparison"
+        )
+    label = baseline_line(base_file, base) if base else None
+    typer.echo(render(new, base, diff, skipped=skipped, base_label=label))
     typer.echo(f"\nrun written to {path}")
     raise typer.Exit(exit_code(diff))
 
@@ -181,9 +217,9 @@ def baseline(
     meta = _load(source)["metadata"]
     if meta["mode"] != mode.value:
         raise _fail(f"{source.name} is a {meta['mode']} run, not {mode.value}")
-    target = baseline_path(mode.value)
+    target = baseline_path(mode.value, meta["api_config"].get("generator"))
     shutil.copyfile(source, target)
-    typer.echo(f"baseline-{mode.value} ← {source.name}")
+    typer.echo(f"{target.stem} ← {source.name}")
     notes = []
     if meta.get("experiment"):
         notes.append(f"experiment {meta['experiment']}")
@@ -209,18 +245,21 @@ def show(
     path = _resolve_run(run_file) if run_file else _latest_run(mode and mode.value)
     new = _load(path)
     run_mode = new["metadata"]["mode"]
-    base_file = baseline_path(run_mode)
+    base_file = _baseline_file(new)
     is_baseline = base_file.exists() and base_file.resolve() == path.resolve()
-    base = None if no_compare or is_baseline else _baseline(run_mode)
+    base = None if no_compare or is_baseline else _load_baseline(base_file)
     diff = diff_runs(base, new) if base else None
     if no_compare:
         skipped = "comparison disabled (--no-compare)"
     elif is_baseline:
         skipped = f"this is the {run_mode} baseline; nothing to compare"
     else:
-        skipped = None
+        skipped = (
+            f"no baseline for {new['metadata']['mode']} at {base_file.name}; skipping comparison"
+        )
     typer.echo(f"{path}\n")
-    typer.echo(render(new, base, diff, skipped=skipped))
+    label = baseline_line(base_file, base) if base else None
+    typer.echo(render(new, base, diff, skipped=skipped, base_label=label))
 
 
 @app.command()
@@ -245,6 +284,8 @@ def sweep(
     api_url: ApiOpt = "",
     concurrency: ConcOpt = None,
     eval_file: EvalOpt = None,
+    fresh_answers: FreshOpt = False,
+    allow_gemini: GeminiOpt = False,
 ) -> None:
     """Run several experiments back to back and print them side by side."""
     runs = []
@@ -258,11 +299,16 @@ def sweep(
             api_url or default_api_url(),
             concurrency,
             eval_file or default_eval_file(),
+            fresh_answers,
+            allow_gemini,
         )
         typer.echo(f"  → {path.name}", err=True)
         runs.append((exp, new))
 
-    base = _baseline(mode.value)
+    base_file = _baseline_file(runs[0][1])
+    base = _load_baseline(base_file)
+    if base:
+        typer.echo(baseline_line(base_file, base))
     columns = ([("baseline", base)] if base else []) + runs
     diffs = {exp: diff_runs(base, new) for exp, new in runs} if base else {}
     width = 12
@@ -291,7 +337,7 @@ def sweep(
             for case_id, reason in d.regressions:
                 typer.echo(f"  [{exp}] REGRESSION {case_id}: {reason}")
     else:
-        typer.echo(f"no baseline for {mode.value}; showing experiments only")
+        typer.echo(f"no baseline for {mode.value} at {base_file.name}; showing experiments only")
     raise typer.Exit(max((exit_code(d) for d in diffs.values()), default=0))
 
 

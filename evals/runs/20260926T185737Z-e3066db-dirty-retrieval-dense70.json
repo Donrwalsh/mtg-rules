@@ -1,0 +1,5796 @@
+{
+  "metadata": {
+    "started_at": "2026-09-26T18:57:37.383498+00:00",
+    "git_sha": "e3066db",
+    "dirty": true,
+    "mode": "retrieval",
+    "split": "dev",
+    "tags": [],
+    "ids": [],
+    "experiment": "dense70",
+    "overrides": {
+      "hybrid_dense_weight": 0.7,
+      "hybrid_sparse_weight": 0.3
+    },
+    "api_config": {
+      "settings": {
+        "hybrid_dense_weight": 0.5,
+        "hybrid_sparse_weight": 0.5,
+        "hybrid_top_k": 10,
+        "hybrid_per_branch_limit": 50,
+        "hybrid_score_threshold": 0.0,
+        "card_ruling_limit": 20,
+        "collection_name": "mtg_rules",
+        "ollama_model": "phi4",
+        "generation_temperature": null,
+        "generation_max_tokens": null,
+        "dense_model_name": "BAAI/bge-base-en-v1.5",
+        "sparse_model_name": "Qdrant/bm25",
+        "ollama_url": "http://host.docker.internal:11434"
+      },
+      "generator": "ollama:phi4",
+      "prompt_version": 1,
+      "collection": {
+        "name": "mtg_rules",
+        "points_count": 120883
+      },
+      "data_files": {
+        "rules": "rules_2026-08-25.jsonl",
+        "cards": "cards_2026-09-26.jsonl",
+        "rulings": "rulings_2026-08-25.jsonl"
+      }
+    },
+    "eval_file": "C:\\Users\\Bigbrass\\Desktop\\mtg-rules\\eval.yaml",
+    "eval_sha256": "e8c692fb6a6590956f2ec88867e002e80fa49105d5027fe39f93e51e3fa7c999",
+    "judge_model": null,
+    "judge_prompt_version": null,
+    "concurrency": 4
+  },
+  "cases": {
+    "hexproof-own-target": {
+      "id": "hexproof-own-target",
+      "category": "keyword",
+      "tags": [
+        "keyword",
+        "hexproof",
+        "card-match"
+      ],
+      "question": "Can I target my own creature that has hexproof with Lightning Bolt?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 5,
+        "requirement_ranks": {
+          "rules:702.11b": 5
+        },
+        "matched_cards": [
+          "Lightning Bolt",
+          "Lightning"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [
+          "Lightning"
+        ],
+        "result_count": 21,
+        "context_chars": 2984
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Lightning Bolt",
+          "oracle_id": "4457ed35-7c10-48c8-9776-456485fdf070",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Lightning",
+          "oracle_id": "2284420f-1773-409f-b330-964a1267b13d",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "rule",
+          "rule_id": "702.11",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "rule",
+          "rule_id": "702.11a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "rule",
+          "rule_id": "702.11b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "rule",
+          "rule_id": "702.11c",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "rule",
+          "rule_id": "702.11d",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 8,
+          "source_type": "rule",
+          "rule_id": "702.11e",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 9,
+          "source_type": "rule",
+          "rule_id": "702.11f",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 10,
+          "source_type": "rule",
+          "rule_id": "702.11g",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 11,
+          "source_type": "rule",
+          "rule_id": "702.11h",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Homing Lightning",
+          "oracle_id": "6e7f8e25-49a9-49a0-9bf4-129439344550",
+          "match_type": "vector_hit",
+          "score": 0.9809169541709948
+        },
+        {
+          "rank": 13,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Radiating Lightning",
+          "oracle_id": "9794f397-dd86-4cfe-a431-5f8d8c6b68ea",
+          "match_type": "vector_hit",
+          "score": 0.6908807682415397
+        },
+        {
+          "rank": 14,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Asceticism",
+          "oracle_id": "9396546c-d067-4ce3-9c3d-b62cca970b4f",
+          "match_type": "vector_hit",
+          "score": 0.49974292477296073
+        },
+        {
+          "rank": 15,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Hapatra's Mark",
+          "oracle_id": "143d3fcf-2152-4911-b95a-d23b91662f33",
+          "match_type": "vector_hit",
+          "score": 0.449040266348186
+        },
+        {
+          "rank": 16,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Avalanche Caller",
+          "oracle_id": "c66dc0d3-b98c-40a2-be35-e455b4658828",
+          "match_type": "vector_hit",
+          "score": 0.42424862550571063
+        },
+        {
+          "rank": 17,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Bombadil's Song",
+          "oracle_id": "60092fb4-98db-4f2d-a5d7-24b5f11c8acc",
+          "match_type": "vector_hit",
+          "score": 0.40982415903582653
+        },
+        {
+          "rank": 18,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Bombadil's Song",
+          "oracle_id": "60092fb4-98db-4f2d-a5d7-24b5f11c8acc",
+          "match_type": "vector_hit",
+          "score": 0.40416918303642957
+        },
+        {
+          "rank": 19,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Bombadil's Song",
+          "oracle_id": "60092fb4-98db-4f2d-a5d7-24b5f11c8acc",
+          "match_type": "vector_hit",
+          "score": 0.3994230801874782
+        },
+        {
+          "rank": 20,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Bombadil's Song",
+          "oracle_id": "60092fb4-98db-4f2d-a5d7-24b5f11c8acc",
+          "match_type": "vector_hit",
+          "score": 0.3801706541932691
+        },
+        {
+          "rank": 21,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Glaring Spotlight",
+          "oracle_id": "21570481-190e-4cfa-a5fd-a0642e2af569",
+          "match_type": "vector_hit",
+          "score": 0.37330921642037407
+        }
+      ],
+      "retrieve_ms": 264.4845999311656,
+      "full": null,
+      "error": null
+    },
+    "deathtouch-trample-assignment": {
+      "id": "deathtouch-trample-assignment",
+      "category": "keyword",
+      "tags": [
+        "keyword",
+        "deathtouch",
+        "trample",
+        "combat"
+      ],
+      "question": "My attacker has deathtouch and trample and gets blocked by a 5/5. How much damage do I have to assign to the blocker before the rest can go to the player?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 4,
+        "requirement_ranks": {
+          "rules:702.2c": 4,
+          "rules:702.19b": 10
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 24,
+        "context_chars": 7696
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "rule",
+          "rule_id": "702.2",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "rule",
+          "rule_id": "702.2a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "rule",
+          "rule_id": "702.2b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "rule",
+          "rule_id": "702.2c",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "rule",
+          "rule_id": "702.2d",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "rule",
+          "rule_id": "702.2e",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "rule",
+          "rule_id": "702.2f",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 8,
+          "source_type": "rule",
+          "rule_id": "702.19",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 9,
+          "source_type": "rule",
+          "rule_id": "702.19a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 10,
+          "source_type": "rule",
+          "rule_id": "702.19b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 11,
+          "source_type": "rule",
+          "rule_id": "702.19c",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 12,
+          "source_type": "rule",
+          "rule_id": "702.19d",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 13,
+          "source_type": "rule",
+          "rule_id": "702.19e",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 14,
+          "source_type": "rule",
+          "rule_id": "702.19f",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 15,
+          "source_type": "rule",
+          "rule_id": "702.19g",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 16,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "King Harald's Revenge",
+          "oracle_id": "bc781549-7b2b-440b-93ae-69677acdfdad",
+          "match_type": "vector_hit",
+          "score": 0.7161940496401616
+        },
+        {
+          "rank": 17,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Enlarge",
+          "oracle_id": "405cd74a-6b44-4a80-b53c-ff1406d8ff45",
+          "match_type": "vector_hit",
+          "score": 0.6475334612650052
+        },
+        {
+          "rank": 18,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Isengard Unleashed",
+          "oracle_id": "2b947703-751a-4d95-b5de-e2d6b1fcb502",
+          "match_type": "vector_hit",
+          "score": 0.5497493660416725
+        },
+        {
+          "rank": 19,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Insult // Injury",
+          "oracle_id": "47543892-4d60-4c6b-a6a4-69b9172af01e",
+          "match_type": "vector_hit",
+          "score": 0.5162062873103542
+        },
+        {
+          "rank": 20,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Proud Wildbonder",
+          "oracle_id": "e72f995e-288f-4d32-b067-ae73eea87e67",
+          "match_type": "vector_hit",
+          "score": 0.49814831372073926
+        },
+        {
+          "rank": 21,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Lightning, Army of One",
+          "oracle_id": "585eb5bc-5a3d-44d8-b593-1ff0d67f96a7",
+          "match_type": "vector_hit",
+          "score": 0.4643171948994247
+        },
+        {
+          "rank": 22,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Mirror Shield",
+          "oracle_id": "57f2858e-5793-41fc-9bbb-1fdd3b99fe79",
+          "match_type": "vector_hit",
+          "score": 0.4411207067392467
+        },
+        {
+          "rank": 23,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Mogg Maniac",
+          "oracle_id": "53b86704-4f16-498e-8c2c-e661cb85eb9c",
+          "match_type": "vector_hit",
+          "score": 0.43568346073160885
+        },
+        {
+          "rank": 24,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Master of Cruelties",
+          "oracle_id": "d135c457-9be5-4a6e-a6fb-5b35cfb70cb0",
+          "match_type": "vector_hit",
+          "score": 0.4216056935500594
+        }
+      ],
+      "retrieve_ms": 262.55179999861866,
+      "full": null,
+      "error": null
+    },
+    "trample-blocker-removed": {
+      "id": "trample-blocker-removed",
+      "category": "keyword",
+      "tags": [
+        "keyword",
+        "trample",
+        "combat"
+      ],
+      "question": "My creature with trample was blocked, but the only blocker was removed from combat before damage. Where does its damage go?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 5,
+        "requirement_ranks": {
+          "rules:702.19d": 5
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 17,
+        "context_chars": 6556
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "rule",
+          "rule_id": "702.19",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "rule",
+          "rule_id": "702.19a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "rule",
+          "rule_id": "702.19b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "rule",
+          "rule_id": "702.19c",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "rule",
+          "rule_id": "702.19d",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "rule",
+          "rule_id": "702.19e",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "rule",
+          "rule_id": "702.19f",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 8,
+          "source_type": "rule",
+          "rule_id": "702.19g",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Labyrinth of Skophos",
+          "oracle_id": "9ec5a487-d8ed-459a-8f58-56f6e9a2dfe8",
+          "match_type": "vector_hit",
+          "score": 0.7247325574182205
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Ride Down",
+          "oracle_id": "9d136448-7331-4a61-b2ad-cfeb23dfa464",
+          "match_type": "vector_hit",
+          "score": 0.7016687933924564
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Ride Down",
+          "oracle_id": "9d136448-7331-4a61-b2ad-cfeb23dfa464",
+          "match_type": "vector_hit",
+          "score": 0.6983738846870651
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Proud Wildbonder",
+          "oracle_id": "e72f995e-288f-4d32-b067-ae73eea87e67",
+          "match_type": "vector_hit",
+          "score": 0.6286144515239828
+        },
+        {
+          "rank": 13,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Insult // Injury",
+          "oracle_id": "47543892-4d60-4c6b-a6a4-69b9172af01e",
+          "match_type": "vector_hit",
+          "score": 0.6008168649974016
+        },
+        {
+          "rank": 14,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Enlarge",
+          "oracle_id": "405cd74a-6b44-4a80-b53c-ff1406d8ff45",
+          "match_type": "vector_hit",
+          "score": 0.5927373068012429
+        },
+        {
+          "rank": 15,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Veteran Bodyguard",
+          "oracle_id": "d29078c0-1fb8-437a-81d1-bb319f646941",
+          "match_type": "vector_hit",
+          "score": 0.5205149047879213
+        },
+        {
+          "rank": 16,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Hollowhenge Spirit",
+          "oracle_id": "b34449d1-eab2-4be1-8351-568dc5ced7c3",
+          "match_type": "vector_hit",
+          "score": 0.513118665283302
+        },
+        {
+          "rank": 17,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Ride Down",
+          "oracle_id": "9d136448-7331-4a61-b2ad-cfeb23dfa464",
+          "match_type": "vector_hit",
+          "score": 0.4970321777419044
+        }
+      ],
+      "retrieve_ms": 277.4634000379592,
+      "full": null,
+      "error": null
+    },
+    "ward-targeting": {
+      "id": "ward-targeting",
+      "category": "keyword",
+      "tags": [
+        "keyword",
+        "ward",
+        "targeting"
+      ],
+      "question": "What happens when my opponent targets my creature that has ward 2 with a removal spell?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 2,
+        "requirement_ranks": {
+          "rules:702.21a": 2
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 13,
+        "context_chars": 2139
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "rule",
+          "rule_id": "702.21",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "rule",
+          "rule_id": "702.21a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "rule",
+          "rule_id": "702.21b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Torrent Sculptor // Flamethrower Sonata",
+          "oracle_id": "8a9fe2dd-50a7-4010-96ba-df4dec265e16",
+          "match_type": "vector_hit",
+          "score": 0.8193213519406585
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Armguard Familiar",
+          "oracle_id": "a7955f10-f502-4893-88ad-f36e7ff0af4f",
+          "match_type": "vector_hit",
+          "score": 0.5932940650383335
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Bronze Guardian",
+          "oracle_id": "922a030c-857b-4c61-93df-b70ebb32abd3",
+          "match_type": "vector_hit",
+          "score": 0.5716746830415208
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Adrix and Nev, Twincasters",
+          "oracle_id": "12a6cad9-eb42-43bd-9e68-aaf862cd83db",
+          "match_type": "vector_hit",
+          "score": 0.5230247138970775
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Patchwork Automaton",
+          "oracle_id": "0ba86a50-13df-4b26-8b3a-9e3917ff850f",
+          "match_type": "vector_hit",
+          "score": 0.4823410971054033
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Purple Worm",
+          "oracle_id": "179cc807-5150-4513-88b2-73cb05009b7d",
+          "match_type": "vector_hit",
+          "score": 0.46920695516610295
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Long Goodbye",
+          "oracle_id": "9d63ba8a-a5cd-4fdb-bba3-95612be0077c",
+          "match_type": "vector_hit",
+          "score": 0.4646173676230518
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Frostfist Strider",
+          "oracle_id": "4e4a21a8-9332-4aeb-8519-949feb211294",
+          "match_type": "vector_hit",
+          "score": 0.42061999950402607
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Frostfist Strider",
+          "oracle_id": "4e4a21a8-9332-4aeb-8519-949feb211294",
+          "match_type": "vector_hit",
+          "score": 0.41088655367328986
+        },
+        {
+          "rank": 13,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Frostfist Strider",
+          "oracle_id": "4e4a21a8-9332-4aeb-8519-949feb211294",
+          "match_type": "vector_hit",
+          "score": 0.38657442658851027
+        }
+      ],
+      "retrieve_ms": 276.6122000757605,
+      "full": null,
+      "error": null
+    },
+    "indestructible-zero-toughness": {
+      "id": "indestructible-zero-toughness",
+      "category": "keyword",
+      "tags": [
+        "keyword",
+        "indestructible",
+        "sba"
+      ],
+      "question": "Does indestructible keep a creature alive if an effect reduces its toughness to 0?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": false,
+        "recall": 0.5,
+        "first_hit_rank": 3,
+        "requirement_ranks": {
+          "rules:704.5f": null,
+          "rules:702.12b": 3
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 14,
+        "context_chars": 3322
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "rule",
+          "rule_id": "702.12",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "rule",
+          "rule_id": "702.12a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "rule",
+          "rule_id": "702.12b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "rule",
+          "rule_id": "702.12c",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rules Lawyer",
+          "oracle_id": "0a3d3d5e-fb77-4940-9ece-7ed62bd6413e",
+          "match_type": "vector_hit",
+          "score": 0.7
+        },
+        {
+          "rank": 6,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Withstand Death",
+          "oracle_id": "c462adf3-4ade-4b90-bdec-7247b080471f",
+          "match_type": "vector_hit",
+          "score": 0.5745603847223256
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Indestructibility",
+          "oracle_id": "9aaa0a28-e342-48bd-8f59-0cd289491f98",
+          "match_type": "vector_hit",
+          "score": 0.5414073464340825
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Ogre Enforcer",
+          "oracle_id": "86cc83d8-4a70-4b97-aa4d-160afd4cd6cb",
+          "match_type": "vector_hit",
+          "score": 0.4484746885173225
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Dauntless Escort",
+          "oracle_id": "c0516c2c-d7c9-4763-9180-980f60205a28",
+          "match_type": "vector_hit",
+          "score": 0.4358145567323332
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Bonds of Mortality",
+          "oracle_id": "d93ba2f2-bf9b-444b-adbb-3835662734e7",
+          "match_type": "vector_hit",
+          "score": 0.41024829782207567
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Deathless Angel",
+          "oracle_id": "6098ba4b-ebfe-48da-a33d-b94c021ac559",
+          "match_type": "vector_hit",
+          "score": 0.389889951737895
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Indestructibility",
+          "oracle_id": "9aaa0a28-e342-48bd-8f59-0cd289491f98",
+          "match_type": "vector_hit",
+          "score": 0.3623228574508895
+        },
+        {
+          "rank": 13,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Spearbreaker Behemoth",
+          "oracle_id": "025f8db8-11d1-4c59-8e1f-004c9c843fd8",
+          "match_type": "vector_hit",
+          "score": 0.36123138284430517
+        },
+        {
+          "rank": 14,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Indestructibility",
+          "oracle_id": "9aaa0a28-e342-48bd-8f59-0cd289491f98",
+          "match_type": "vector_hit",
+          "score": 0.3573321329553804
+        }
+      ],
+      "retrieve_ms": 214.34800000861287,
+      "full": null,
+      "error": null
+    },
+    "vigilance-tapping": {
+      "id": "vigilance-tapping",
+      "category": "keyword",
+      "tags": [
+        "keyword",
+        "vigilance",
+        "matcher-noise"
+      ],
+      "question": "Does a creature with vigilance tap when it attacks?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 4,
+        "requirement_ranks": {
+          "rules:702.20b": 4
+        },
+        "matched_cards": [
+          "Vigilance"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [
+          "Vigilance"
+        ],
+        "result_count": 13,
+        "context_chars": 1536
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Vigilance",
+          "oracle_id": "70570170-be76-4c56-9151-c4b6e253f462",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "rule",
+          "rule_id": "702.20",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "rule",
+          "rule_id": "702.20a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "rule",
+          "rule_id": "702.20b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "rule",
+          "rule_id": "702.20c",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Serra's Guardian",
+          "oracle_id": "c50cd7e7-8d53-44af-ac96-3e104587bdb3",
+          "match_type": "vector_hit",
+          "score": 0.761375694719359
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Frondland Felidar",
+          "oracle_id": "bb504fb1-1d19-4d0b-958f-e8f2433e0575",
+          "match_type": "vector_hit",
+          "score": 0.6953038536361246
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Village Survivors",
+          "oracle_id": "c26dd36f-a81a-4d97-9be2-d350e93da79e",
+          "match_type": "vector_hit",
+          "score": 0.47619029519648765
+        },
+        {
+          "rank": 9,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Vigilant Baloth",
+          "oracle_id": "caf1bc69-a8d7-454b-9cc6-2e4d003776a8",
+          "match_type": "vector_hit",
+          "score": 0.41890461641408216
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Benalish Faithbonder",
+          "oracle_id": "278db664-4235-40f0-a926-3074a0e038c1",
+          "match_type": "vector_hit",
+          "score": 0.3536893096529421
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Armory Guard",
+          "oracle_id": "96c67950-df59-430c-94fd-234086c6c8f2",
+          "match_type": "vector_hit",
+          "score": 0.3016709998933851
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Bastion Mastodon",
+          "oracle_id": "48a01671-da1f-4875-bcd5-ca99566ff399",
+          "match_type": "vector_hit",
+          "score": 0.3015367957059594
+        },
+        {
+          "rank": 13,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Verity Circle",
+          "oracle_id": "1b80b910-c0e6-42e3-929c-2b4c85c850fe",
+          "match_type": "vector_hit",
+          "score": 0.2865482611148358
+        }
+      ],
+      "retrieve_ms": 254.04060003347695,
+      "full": null,
+      "error": null
+    },
+    "lifelink-uses-stack": {
+      "id": "lifelink-uses-stack",
+      "category": "keyword",
+      "tags": [
+        "keyword",
+        "lifelink",
+        "matcher-noise"
+      ],
+      "question": "Does lifelink use the stack, or do I gain the life at the same time the damage is dealt?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 3,
+        "requirement_ranks": {
+          "rules:702.15": 3
+        },
+        "matched_cards": [
+          "Lifelink"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [
+          "Lifelink"
+        ],
+        "result_count": 19,
+        "context_chars": 4541
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Lifelink",
+          "oracle_id": "4fe8316a-9cff-43e9-a1d5-993a0c9daf3a",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Lifelink",
+          "oracle_id": "4fe8316a-9cff-43e9-a1d5-993a0c9daf3a",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "rule",
+          "rule_id": "702.15",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "rule",
+          "rule_id": "702.15a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "rule",
+          "rule_id": "702.15b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "rule",
+          "rule_id": "702.15c",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "rule",
+          "rule_id": "702.15d",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 8,
+          "source_type": "rule",
+          "rule_id": "702.15e",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 9,
+          "source_type": "rule",
+          "rule_id": "702.15f",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Cradle of Vitality",
+          "oracle_id": "956250da-532a-4457-8696-73915be56943",
+          "match_type": "vector_hit",
+          "score": 0.7
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Moment of Heroism",
+          "oracle_id": "a167d593-cded-43e1-b9bb-2287dbd0cbec",
+          "match_type": "vector_hit",
+          "score": 0.6105139668813214
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Archangel of Thune",
+          "oracle_id": "4f2d4538-dc1d-4c09-964b-b0d7c240fb7d",
+          "match_type": "vector_hit",
+          "score": 0.5417434749642228
+        },
+        {
+          "rank": 13,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rhox Faithmender",
+          "oracle_id": "2abe9303-d498-4aad-b6b2-8b5064bd2ffd",
+          "match_type": "vector_hit",
+          "score": 0.5163537861343256
+        },
+        {
+          "rank": 14,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Serra Ascendant",
+          "oracle_id": "27ad3e00-6ffb-48f7-8469-8868d066d1e2",
+          "match_type": "vector_hit",
+          "score": 0.469543510097269
+        },
+        {
+          "rank": 15,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Dina, Soul Steeper",
+          "oracle_id": "2121bcb4-f5fe-447f-9112-c7e5b5c45baf",
+          "match_type": "vector_hit",
+          "score": 0.46085351530285007
+        },
+        {
+          "rank": 16,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Tenacity",
+          "oracle_id": "7dfe701f-6572-4733-9da5-09397600bba7",
+          "match_type": "vector_hit",
+          "score": 0.4551486134773907
+        },
+        {
+          "rank": 17,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Serene Steward",
+          "oracle_id": "559463f8-396f-40e0-9515-a1be6397ca31",
+          "match_type": "vector_hit",
+          "score": 0.43592583253894324
+        },
+        {
+          "rank": 18,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Trudge Garden",
+          "oracle_id": "be175e92-567a-42e3-ad54-136c0631fe0e",
+          "match_type": "vector_hit",
+          "score": 0.39136638091911236
+        },
+        {
+          "rank": 19,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Cleric of Life's Bond",
+          "oracle_id": "d7721c5e-b3c5-45c8-b757-935603dfe44b",
+          "match_type": "vector_hit",
+          "score": 0.3866424862375635
+        }
+      ],
+      "retrieve_ms": 335.83410002756864,
+      "full": null,
+      "error": null
+    },
+    "first-strike-double-strike": {
+      "id": "first-strike-double-strike",
+      "category": "keyword",
+      "tags": [
+        "keyword",
+        "first-strike",
+        "double-strike",
+        "combat"
+      ],
+      "question": "How does combat damage work when one creature has first strike and another has double strike?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 8,
+        "requirement_ranks": {
+          "rules:702.4b": 8
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 18,
+        "context_chars": 4616
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "rule",
+          "rule_id": "702.7",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "rule",
+          "rule_id": "702.7a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "rule",
+          "rule_id": "702.7b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "rule",
+          "rule_id": "702.7c",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "rule",
+          "rule_id": "702.7d",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "rule",
+          "rule_id": "702.4",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "rule",
+          "rule_id": "702.4a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 8,
+          "source_type": "rule",
+          "rule_id": "702.4b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 9,
+          "source_type": "rule",
+          "rule_id": "702.4c",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 10,
+          "source_type": "rule",
+          "rule_id": "702.4d",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 11,
+          "source_type": "rule",
+          "rule_id": "702.4e",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Battle Mastery",
+          "oracle_id": "a06c7c1a-8534-40fb-8bb8-59f8f2530567",
+          "match_type": "vector_hit",
+          "score": 0.7621529325533547
+        },
+        {
+          "rank": 13,
+          "source_type": "rule",
+          "rule_id": "510.4",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.7483898981164472
+        },
+        {
+          "rank": 14,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Markov Blademaster",
+          "oracle_id": "774e474a-f2a1-4b62-8cfe-40ad509f9062",
+          "match_type": "vector_hit",
+          "score": 0.7
+        },
+        {
+          "rank": 15,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rage Reflection",
+          "oracle_id": "03fb26b1-6d9c-455b-9b2f-a052a9222db7",
+          "match_type": "vector_hit",
+          "score": 0.5563049415273114
+        },
+        {
+          "rank": 16,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Seize the Initiative",
+          "oracle_id": "f6653d90-cd30-4b2b-9592-97d5769dc3d8",
+          "match_type": "vector_hit",
+          "score": 0.5378507341941459
+        },
+        {
+          "rank": 17,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Thunder Strike",
+          "oracle_id": "a5f25e80-7a6a-4629-8201-901e0fcd4a02",
+          "match_type": "vector_hit",
+          "score": 0.535550555929441
+        },
+        {
+          "rank": 18,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Extremely Slow Zombie",
+          "oracle_id": "058aaeab-289e-43a8-9718-e38089a235d5",
+          "match_type": "vector_hit",
+          "score": 0.5228321209566626
+        }
+      ],
+      "retrieve_ms": 200.34099998883903,
+      "full": null,
+      "error": null
+    },
+    "empty-library-draw": {
+      "id": "empty-library-draw",
+      "category": "cr-only",
+      "tags": [
+        "cr-only",
+        "sba",
+        "matcher-noise"
+      ],
+      "question": "What happens if I have to draw a card but my library is empty?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": false,
+        "recall": 0.0,
+        "first_hit_rank": null,
+        "requirement_ranks": {
+          "rules:704.5b": null
+        },
+        "matched_cards": [
+          "Library"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [
+          "Library"
+        ],
+        "result_count": 16,
+        "context_chars": 3224
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Library",
+          "oracle_id": "33a7d29a-ebc0-4606-91b6-7381e2a16016",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Library",
+          "oracle_id": "33a7d29a-ebc0-4606-91b6-7381e2a16016",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Library",
+          "oracle_id": "33a7d29a-ebc0-4606-91b6-7381e2a16016",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Library",
+          "oracle_id": "33a7d29a-ebc0-4606-91b6-7381e2a16016",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Library",
+          "oracle_id": "33a7d29a-ebc0-4606-91b6-7381e2a16016",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Library",
+          "oracle_id": "33a7d29a-ebc0-4606-91b6-7381e2a16016",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Abundance",
+          "oracle_id": "eccc9a54-2b56-4a02-9926-258d5b2e25fb",
+          "match_type": "vector_hit",
+          "score": 0.7855984399606821
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Abundance",
+          "oracle_id": "eccc9a54-2b56-4a02-9926-258d5b2e25fb",
+          "match_type": "vector_hit",
+          "score": 0.7261346460020671
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Split Screen",
+          "oracle_id": "e54b5dfc-5046-4653-9ee8-55e8a9e9529a",
+          "match_type": "vector_hit",
+          "score": 0.5974006352034581
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Jace, Wielder of Mysteries",
+          "oracle_id": "5277a68e-1ceb-4b40-8e10-3d0564f5d7be",
+          "match_type": "vector_hit",
+          "score": 0.5510271953458621
+        },
+        {
+          "rank": 11,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Blank Card",
+          "oracle_id": "d3e7bc24-c2b0-4be3-b9d9-8a8d23b93bc7",
+          "match_type": "vector_hit",
+          "score": 0.5273203533398988
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Laboratory Maniac",
+          "oracle_id": "aa286dd5-aa19-446d-9003-684d81eb57ca",
+          "match_type": "vector_hit",
+          "score": 0.49649018461934946
+        },
+        {
+          "rank": 13,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Shared Fate",
+          "oracle_id": "e23bf5fe-e494-473e-8502-606106ee1820",
+          "match_type": "vector_hit",
+          "score": 0.4644936794491272
+        },
+        {
+          "rank": 14,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "See Beyond",
+          "oracle_id": "4f9942ee-d3fd-4c01-93eb-870d642ebd83",
+          "match_type": "vector_hit",
+          "score": 0.4602698502491482
+        },
+        {
+          "rank": 15,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Jace, Wielder of Mysteries",
+          "oracle_id": "5277a68e-1ceb-4b40-8e10-3d0564f5d7be",
+          "match_type": "vector_hit",
+          "score": 0.45284742167470615
+        },
+        {
+          "rank": 16,
+          "source_type": "rule",
+          "rule_id": "121.3",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.4517497739425339
+        }
+      ],
+      "retrieve_ms": 278.85610004886985,
+      "full": null,
+      "error": null
+    },
+    "legend-rule": {
+      "id": "legend-rule",
+      "category": "cr-only",
+      "tags": [
+        "cr-only",
+        "sba",
+        "legendary"
+      ],
+      "question": "What happens if I control two legendary permanents with the same name?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": false,
+        "recall": 0.0,
+        "first_hit_rank": null,
+        "requirement_ranks": {
+          "rules:704.5j": null
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 10,
+        "context_chars": 2177
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Leyline of Singularity",
+          "oracle_id": "bc9f159b-984d-4b9f-8904-b38b5cb79636",
+          "match_type": "vector_hit",
+          "score": 0.746641893012213
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "In Bolas's Clutches",
+          "oracle_id": "201a4455-1b6b-4e13-a0d5-4cf2116e1673",
+          "match_type": "vector_hit",
+          "score": 0.7256738590000394
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Mirror Box",
+          "oracle_id": "3bed1944-58dc-4679-9aee-7be4d94fb55c",
+          "match_type": "vector_hit",
+          "score": 0.7066760358012535
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Clever Impersonator",
+          "oracle_id": "d4ec0df9-a4a3-48cf-a0aa-b1aea5c49142",
+          "match_type": "vector_hit",
+          "score": 0.7
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "In Bolas's Clutches",
+          "oracle_id": "201a4455-1b6b-4e13-a0d5-4cf2116e1673",
+          "match_type": "vector_hit",
+          "score": 0.6329419391240053
+        },
+        {
+          "rank": 6,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Mirror Box",
+          "oracle_id": "3bed1944-58dc-4679-9aee-7be4d94fb55c",
+          "match_type": "vector_hit",
+          "score": 0.5827135622072888
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Clone Legion",
+          "oracle_id": "690bd111-5b32-4156-b650-9afad3d6ef3d",
+          "match_type": "vector_hit",
+          "score": 0.5691558062244231
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Sakashima of a Thousand Faces",
+          "oracle_id": "8ecdaf4b-4442-42da-9714-4257a83faf50",
+          "match_type": "vector_hit",
+          "score": 0.5431237421973351
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Sakashima of a Thousand Faces",
+          "oracle_id": "8ecdaf4b-4442-42da-9714-4257a83faf50",
+          "match_type": "vector_hit",
+          "score": 0.5398810251345104
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Mirror Box",
+          "oracle_id": "3bed1944-58dc-4679-9aee-7be4d94fb55c",
+          "match_type": "vector_hit",
+          "score": 0.5160112963237026
+        }
+      ],
+      "retrieve_ms": 262.54669995978475,
+      "full": null,
+      "error": null
+    },
+    "artifact-summoning-sickness": {
+      "id": "artifact-summoning-sickness",
+      "category": "cr-only",
+      "tags": [
+        "cr-only",
+        "summoning-sickness"
+      ],
+      "question": "Can a noncreature artifact use a tap ability the turn it enters the battlefield?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": false,
+        "recall": 0.0,
+        "first_hit_rank": null,
+        "requirement_ranks": {
+          "rules:302.6": null
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 10,
+        "context_chars": 2965
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Sly Requisitioner",
+          "oracle_id": "15ea4698-86b4-47c5-a9a7-60af16063a61",
+          "match_type": "vector_hit",
+          "score": 0.7
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Inspiring Statuary",
+          "oracle_id": "78b2b68d-6e27-49f3-8373-6e19faf6f679",
+          "match_type": "vector_hit",
+          "score": 0.6362170649375276
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Guardian Idol",
+          "oracle_id": "829d2e11-192f-4093-99f8-e13767b321a2",
+          "match_type": "vector_hit",
+          "score": 0.6139617568337536
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Hidden Guerrillas",
+          "oracle_id": "4337f35b-baab-4640-9e1c-05f61c49bbdd",
+          "match_type": "vector_hit",
+          "score": 0.5084688906139686
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Deserter's Quarters",
+          "oracle_id": "aa8e0e77-4bbe-42d3-a3db-034fd114f9d7",
+          "match_type": "vector_hit",
+          "score": 0.4137348123742035
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Mishra, Eminent One",
+          "oracle_id": "d3438037-3efd-4ce0-88ec-6d48ab521992",
+          "match_type": "vector_hit",
+          "score": 0.4077624475740029
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Orb of Origin",
+          "oracle_id": "d911e3a0-7b85-44fe-a622-e087f00d0d2b",
+          "match_type": "vector_hit",
+          "score": 0.36917724253483575
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Inspiring Statuary",
+          "oracle_id": "78b2b68d-6e27-49f3-8373-6e19faf6f679",
+          "match_type": "vector_hit",
+          "score": 0.36714976693865947
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Karn's Touch",
+          "oracle_id": "b5f9920d-7af5-4876-8823-6efbf2b4d9b9",
+          "match_type": "vector_hit",
+          "score": 0.3426370530649236
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Archway of Innovation",
+          "oracle_id": "bfa20bc7-4626-4a52-87f4-6e2763cb8ed5",
+          "match_type": "vector_hit",
+          "score": 0.33732583418088913
+        }
+      ],
+      "retrieve_ms": 227.60640003252774,
+      "full": null,
+      "error": null
+    },
+    "put-land-not-land-drop": {
+      "id": "put-land-not-land-drop",
+      "category": "cr-only",
+      "tags": [
+        "cr-only",
+        "lands"
+      ],
+      "question": "If a spell puts a land onto the battlefield, does that count as my land drop for the turn?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 1,
+        "requirement_ranks": {
+          "rules:305.4": 1
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 10,
+        "context_chars": 1460
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "rule",
+          "rule_id": "305.4",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.7133455535821822
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Terrain Generator",
+          "oracle_id": "a949c96c-362c-45a3-bd5c-ce5ce153ee9e",
+          "match_type": "vector_hit",
+          "score": 0.5122373626561428
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Dirtcowl Wurm",
+          "oracle_id": "608293f1-34aa-4e55-8389-73f975858de6",
+          "match_type": "vector_hit",
+          "score": 0.403721601812473
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rampant Growth",
+          "oracle_id": "8539f295-5d58-4436-a73a-b9277c4c7795",
+          "match_type": "vector_hit",
+          "score": 0.3984840688052598
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Burgeoning",
+          "oracle_id": "88cf4c1a-5863-45fc-b76d-7ad33b175b2b",
+          "match_type": "vector_hit",
+          "score": 0.35688012292915416
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Kellan, the Kid",
+          "oracle_id": "afacc200-16ff-40f3-9d43-268438131d24",
+          "match_type": "vector_hit",
+          "score": 0.3247252820280513
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Groundswell",
+          "oracle_id": "ddbacb74-1f98-4607-a92e-d14973b9d0ef",
+          "match_type": "vector_hit",
+          "score": 0.3048976978199678
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Chulane, Teller of Tales",
+          "oracle_id": "ebf7ce9b-9e5e-4557-9e28-76556997f0ee",
+          "match_type": "vector_hit",
+          "score": 0.3
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Worms of the Earth",
+          "oracle_id": "9638ec0c-c8bf-4aa5-a7ca-8677e4b9f241",
+          "match_type": "vector_hit",
+          "score": 0.2659175653097589
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Gretchen Titchwillow",
+          "oracle_id": "cedeea30-b580-4ea7-bbc3-7358fed8ae61",
+          "match_type": "vector_hit",
+          "score": 0.24849487316312985
+        }
+      ],
+      "retrieve_ms": 414.3391000106931,
+      "full": null,
+      "error": null
+    },
+    "all-targets-illegal": {
+      "id": "all-targets-illegal",
+      "category": "cr-only",
+      "tags": [
+        "cr-only",
+        "targeting",
+        "resolution"
+      ],
+      "question": "What happens to a spell if its only target becomes illegal before it resolves?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": false,
+        "recall": 0.0,
+        "first_hit_rank": null,
+        "requirement_ranks": {
+          "rules:608.2b": null
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 10,
+        "context_chars": 2878
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Silence the Believers",
+          "oracle_id": "3c2de008-5747-49c0-89c1-83331cb55896",
+          "match_type": "vector_hit",
+          "score": 0.7
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Kiora's Dismissal",
+          "oracle_id": "6f866b14-dcdd-4c7d-b935-6db431d83b86",
+          "match_type": "vector_hit",
+          "score": 0.5364177268761249
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Nature's Panoply",
+          "oracle_id": "b3126751-27fe-42d3-a001-33ecee72b528",
+          "match_type": "vector_hit",
+          "score": 0.41681622872158736
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Desperate Stand",
+          "oracle_id": "f8252564-3e61-4ed5-bef1-6ec22882854b",
+          "match_type": "vector_hit",
+          "score": 0.39752552615246345
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Trash the Town",
+          "oracle_id": "b47f7f1e-2d81-4b1b-870d-4c1a4f020505",
+          "match_type": "vector_hit",
+          "score": 0.3769342251474074
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Solidarity of Heroes",
+          "oracle_id": "3319b2df-7354-44b5-afa1-b9bc4a577254",
+          "match_type": "vector_hit",
+          "score": 0.3572211071411953
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Consign to Dust",
+          "oracle_id": "8ac493f2-9519-44d7-b6ac-8c020ad2cede",
+          "match_type": "vector_hit",
+          "score": 0.3511988980553712
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rustler Rampage",
+          "oracle_id": "ef0c0f28-e1ee-42a1-9878-95a0ceb0a9fa",
+          "match_type": "vector_hit",
+          "score": 0.3471644517817054
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rouse the Mob",
+          "oracle_id": "bc8b2b89-7118-4662-beda-9108cd08491b",
+          "match_type": "vector_hit",
+          "score": 0.3336883942946679
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Jailbreak Scheme",
+          "oracle_id": "bc7f39e1-97bf-4725-a84a-2a04121530c6",
+          "match_type": "vector_hit",
+          "score": 0.3269741403862046
+        }
+      ],
+      "retrieve_ms": 389.9956999812275,
+      "full": null,
+      "error": null
+    },
+    "damage-wears-off": {
+      "id": "damage-wears-off",
+      "category": "cr-only",
+      "tags": [
+        "cr-only",
+        "damage",
+        "turn-structure"
+      ],
+      "question": "Does damage marked on a creature carry over into the next turn?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": false,
+        "recall": 0.0,
+        "first_hit_rank": null,
+        "requirement_ranks": {
+          "rules:514.2": null
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 10,
+        "context_chars": 1513
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Martyrdom",
+          "oracle_id": "f6a6da20-52c8-4921-9884-29d3a3051b0d",
+          "match_type": "vector_hit",
+          "score": 0.7
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Martyrdom",
+          "oracle_id": "f6a6da20-52c8-4921-9884-29d3a3051b0d",
+          "match_type": "vector_hit",
+          "score": 0.5523807691660277
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Kaervek, the Spiteful",
+          "oracle_id": "b338d879-189d-4b74-9d63-42920fdb9855",
+          "match_type": "vector_hit",
+          "score": 0.5096505255462871
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Carom",
+          "oracle_id": "05775dea-d7f0-4e0b-af4d-ba8d320dc4c0",
+          "match_type": "vector_hit",
+          "score": 0.41235652983145527
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Might Sliver",
+          "oracle_id": "92f5f80c-de1a-44e8-93f1-e405241c1e82",
+          "match_type": "vector_hit",
+          "score": 0.3983657205791464
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Mirrorwood Treefolk",
+          "oracle_id": "fec51ab9-484f-46a8-b2b0-772a61d89e41",
+          "match_type": "vector_hit",
+          "score": 0.39409050794391254
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Benalish Marshal",
+          "oracle_id": "2cc439e8-d112-44e6-bc5a-6e99333c519a",
+          "match_type": "vector_hit",
+          "score": 0.3621979401375013
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rally the Ranks",
+          "oracle_id": "eeb07c8a-21d1-43fa-a5f3-ee3fe328a671",
+          "match_type": "vector_hit",
+          "score": 0.34711737080170135
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Martyrdom",
+          "oracle_id": "f6a6da20-52c8-4921-9884-29d3a3051b0d",
+          "match_type": "vector_hit",
+          "score": 0.34510163447179676
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Turn the Tables",
+          "oracle_id": "bd5ad7c3-4477-4278-9875-d2ffbb0e8089",
+          "match_type": "vector_hit",
+          "score": 0.3394903968469628
+        }
+      ],
+      "retrieve_ms": 386.447099968791,
+      "full": null,
+      "error": null
+    },
+    "copy-not-cast": {
+      "id": "copy-not-cast",
+      "category": "cr-only",
+      "tags": [
+        "cr-only",
+        "copy",
+        "triggers",
+        "matcher-noise"
+      ],
+      "question": "When a spell gets copied, does the copy count as casting a spell for \"whenever you cast\" triggers?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": false,
+        "recall": 0.0,
+        "first_hit_rank": null,
+        "requirement_ranks": {
+          "rules:707.10": null
+        },
+        "matched_cards": [
+          "Copy",
+          "Copied"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [
+          "Copy"
+        ],
+        "result_count": 12,
+        "context_chars": 2129
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Copy",
+          "oracle_id": "88c78601-87f0-45e7-b2e0-e7ffcfb1cb70",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Copied",
+          "oracle_id": "460d6aa7-432c-46a3-8acd-8174416fa6d1",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Mizzix, Replica Rider",
+          "oracle_id": "24a7e1d2-0bc9-40a9-a606-f0017bde3dab",
+          "match_type": "vector_hit",
+          "score": 0.7071789431043063
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Twincast",
+          "oracle_id": "8f878efc-850f-43d2-a6fe-5ea8d1dd5afb",
+          "match_type": "vector_hit",
+          "score": 0.7
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Mirari",
+          "oracle_id": "8f6a2fce-719e-4745-80d3-aabce5c9bafa",
+          "match_type": "vector_hit",
+          "score": 0.6202585605936384
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Doublecast",
+          "oracle_id": "946675f5-8998-4f1b-934b-85ffe6e2f002",
+          "match_type": "vector_hit",
+          "score": 0.6013477051952685
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Doublecast",
+          "oracle_id": "946675f5-8998-4f1b-934b-85ffe6e2f002",
+          "match_type": "vector_hit",
+          "score": 0.549689621817569
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Storm of Saruman",
+          "oracle_id": "cf5f4860-e805-46a3-9352-a2c583e33403",
+          "match_type": "vector_hit",
+          "score": 0.5264602728207259
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Second Guess",
+          "oracle_id": "b036eac6-60db-48ca-b6e1-b42afac959bd",
+          "match_type": "vector_hit",
+          "score": 0.5046402495450698
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Leonin Lightscribe",
+          "oracle_id": "14079b33-cf68-4d16-962c-5c40518c4163",
+          "match_type": "vector_hit",
+          "score": 0.4964877115519435
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Doublecast",
+          "oracle_id": "946675f5-8998-4f1b-934b-85ffe6e2f002",
+          "match_type": "vector_hit",
+          "score": 0.4865167354268908
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Veyran, Voice of Duality",
+          "oracle_id": "d57a6b19-bd06-4b07-8ee1-0b45612ba9e4",
+          "match_type": "vector_hit",
+          "score": 0.4611486628263392
+        }
+      ],
+      "retrieve_ms": 463.90950004570186,
+      "full": null,
+      "error": null
+    },
+    "sacrifice-indestructible": {
+      "id": "sacrifice-indestructible",
+      "category": "cr-only",
+      "tags": [
+        "cr-only",
+        "sacrifice",
+        "indestructible",
+        "matcher-noise"
+      ],
+      "question": "Can I sacrifice an indestructible creature?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": false,
+        "recall": 0.0,
+        "first_hit_rank": null,
+        "requirement_ranks": {
+          "rules:701.21a": null
+        },
+        "matched_cards": [
+          "Sacrifice"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [
+          "Sacrifice"
+        ],
+        "result_count": 18,
+        "context_chars": 2892
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Sacrifice",
+          "oracle_id": "068b3692-411b-44d4-a7e9-005262760cfc",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Sacrifice",
+          "oracle_id": "068b3692-411b-44d4-a7e9-005262760cfc",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Sacrifice",
+          "oracle_id": "068b3692-411b-44d4-a7e9-005262760cfc",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Sacrifice",
+          "oracle_id": "068b3692-411b-44d4-a7e9-005262760cfc",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "rule",
+          "rule_id": "702.12",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "rule",
+          "rule_id": "702.12a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "rule",
+          "rule_id": "702.12b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 8,
+          "source_type": "rule",
+          "rule_id": "702.12c",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Dauntless Escort",
+          "oracle_id": "c0516c2c-d7c9-4763-9180-980f60205a28",
+          "match_type": "vector_hit",
+          "score": 0.8628176723289577
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Eldrazi Monument",
+          "oracle_id": "c7ee1b21-d02e-49ef-95d6-d6dbf2f886ae",
+          "match_type": "vector_hit",
+          "score": 0.8184046142139293
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Falkenrath Aristocrat",
+          "oracle_id": "cd2a87c4-d1c3-4a9e-b2df-e6fe251421c4",
+          "match_type": "vector_hit",
+          "score": 0.746096037200847
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Eldrazi Monument",
+          "oracle_id": "c7ee1b21-d02e-49ef-95d6-d6dbf2f886ae",
+          "match_type": "vector_hit",
+          "score": 0.7321461351985902
+        },
+        {
+          "rank": 13,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Kels, Fight Fixer",
+          "oracle_id": "fe2e27a9-437e-4d22-aa22-982978793cff",
+          "match_type": "vector_hit",
+          "score": 0.714975831775018
+        },
+        {
+          "rank": 14,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Kels, Fight Fixer",
+          "oracle_id": "fe2e27a9-437e-4d22-aa22-982978793cff",
+          "match_type": "vector_hit",
+          "score": 0.6933282110453898
+        },
+        {
+          "rank": 15,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Dauntless Escort",
+          "oracle_id": "c0516c2c-d7c9-4763-9180-980f60205a28",
+          "match_type": "vector_hit",
+          "score": 0.6720383092502591
+        },
+        {
+          "rank": 16,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Kels, Fight Fixer",
+          "oracle_id": "fe2e27a9-437e-4d22-aa22-982978793cff",
+          "match_type": "vector_hit",
+          "score": 0.5762594955953557
+        },
+        {
+          "rank": 17,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Kels, Fight Fixer",
+          "oracle_id": "fe2e27a9-437e-4d22-aa22-982978793cff",
+          "match_type": "vector_hit",
+          "score": 0.4717232707770528
+        },
+        {
+          "rank": 18,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Kels, Fight Fixer",
+          "oracle_id": "fe2e27a9-437e-4d22-aa22-982978793cff",
+          "match_type": "vector_hit",
+          "score": 0.40933476107946143
+        }
+      ],
+      "retrieve_ms": 274.15029995609075,
+      "full": null,
+      "error": null
+    },
+    "commander-damage": {
+      "id": "commander-damage",
+      "category": "cr-only",
+      "tags": [
+        "cr-only",
+        "commander",
+        "multiplayer"
+      ],
+      "question": "How much combat damage from a single commander makes a player lose in Commander?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 3,
+        "requirement_ranks": {
+          "rules:903.10a": 3
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 10,
+        "context_chars": 2763
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rules Lawyer",
+          "oracle_id": "0a3d3d5e-fb77-4940-9ece-7ed62bd6413e",
+          "match_type": "vector_hit",
+          "score": 0.7884499940008577
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Demon of Wailing Agonies",
+          "oracle_id": "2ee46c98-aee7-459a-80fa-4ed9d8a3acda",
+          "match_type": "vector_hit",
+          "score": 0.5632142864157893
+        },
+        {
+          "rank": 3,
+          "source_type": "rule",
+          "rule_id": "903.10a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.5609393331091376
+        },
+        {
+          "rank": 4,
+          "source_type": "rule",
+          "rule_id": "104.3j",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.5462029801989502
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Kediss, Emberclaw Familiar",
+          "oracle_id": "d9c87cc2-943e-49b6-becc-748857549617",
+          "match_type": "vector_hit",
+          "score": 0.5131618526394687
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Popular Entertainer",
+          "oracle_id": "702d7b7b-7935-4cb2-9cd7-06f638f5405f",
+          "match_type": "vector_hit",
+          "score": 0.5119371031179943
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Sword Coast Sailor",
+          "oracle_id": "71248bf6-a6a2-440e-9313-a7abce05a84b",
+          "match_type": "vector_hit",
+          "score": 0.4570084341355249
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Tyrant's Familiar",
+          "oracle_id": "63394e24-a456-4cc6-9885-8c62447b050a",
+          "match_type": "vector_hit",
+          "score": 0.42833592470773496
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Aethersnatch",
+          "oracle_id": "45892ec2-8996-444f-a61c-5151926baa0b",
+          "match_type": "vector_hit",
+          "score": 0.384713114492697
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Defiant Bloodlord",
+          "oracle_id": "7bf5196d-a16c-418f-943c-2128e40c55da",
+          "match_type": "vector_hit",
+          "score": 0.2695233963232219
+        }
+      ],
+      "retrieve_ms": 224.19969993643463,
+      "full": null,
+      "error": null
+    },
+    "simultaneous-triggers": {
+      "id": "simultaneous-triggers",
+      "category": "cr-only",
+      "tags": [
+        "cr-only",
+        "triggers",
+        "stack"
+      ],
+      "question": "When several of my abilities trigger at the same time, who decides the order they go on the stack?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 1,
+        "requirement_ranks": {
+          "rules:603.3b": 1
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 10,
+        "context_chars": 3924
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "rule",
+          "rule_id": "603.3b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.9684482691649865
+        },
+        {
+          "rank": 2,
+          "source_type": "rule",
+          "rule_id": "603.3",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.6880791735297969
+        },
+        {
+          "rank": 3,
+          "source_type": "rule",
+          "rule_id": "603.3a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.5689224081489181
+        },
+        {
+          "rank": 4,
+          "source_type": "rule",
+          "rule_id": "117.2a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.5493626765174118
+        },
+        {
+          "rank": 5,
+          "source_type": "rule",
+          "rule_id": "603.3c",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.5162909461815726
+        },
+        {
+          "rank": 6,
+          "source_type": "rule",
+          "rule_id": "603.3d",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.4974110779536724
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Another Round",
+          "oracle_id": "8095ca78-db19-4724-a6ff-eacc85fa2274",
+          "match_type": "vector_hit",
+          "score": 0.4952504603956567
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Grip of Chaos",
+          "oracle_id": "ca2e0c8f-7ece-465f-9103-ba60712eacf7",
+          "match_type": "vector_hit",
+          "score": 0.45166508728523214
+        },
+        {
+          "rank": 9,
+          "source_type": "rule",
+          "rule_id": "805.7",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.44896151390257655
+        },
+        {
+          "rank": 10,
+          "source_type": "rule",
+          "rule_id": "117.7",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.44477925416439784
+        }
+      ],
+      "retrieve_ms": 252.22430005669594,
+      "full": null,
+      "error": null
+    },
+    "rest-in-peace-dies": {
+      "id": "rest-in-peace-dies",
+      "category": "card-ruling",
+      "tags": [
+        "card-ruling",
+        "replacement",
+        "dies"
+      ],
+      "question": "With Rest in Peace on the battlefield, do \"when this creature dies\" abilities trigger?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 2,
+        "requirement_ranks": {
+          "rulings:Rest in Peace": 2
+        },
+        "matched_cards": [
+          "Rest in Peace"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 12,
+        "context_chars": 2867
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Rest in Peace",
+          "oracle_id": "087f9ad7-e74f-40e2-8102-1ed2925d0418",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rest in Peace",
+          "oracle_id": "087f9ad7-e74f-40e2-8102-1ed2925d0418",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rest in Peace",
+          "oracle_id": "087f9ad7-e74f-40e2-8102-1ed2925d0418",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rest in Peace",
+          "oracle_id": "087f9ad7-e74f-40e2-8102-1ed2925d0418",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Hushbringer",
+          "oracle_id": "3d21f710-6bbc-41ae-a8e5-02debe3e02bd",
+          "match_type": "vector_hit",
+          "score": 0.5731958161492386
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Hushbringer",
+          "oracle_id": "3d21f710-6bbc-41ae-a8e5-02debe3e02bd",
+          "match_type": "vector_hit",
+          "score": 0.510572097955372
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Teysa Karlov",
+          "oracle_id": "644eeefd-e684-4ca8-8aef-a892ca130c07",
+          "match_type": "vector_hit",
+          "score": 0.47256209964905943
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Day of Black Sun",
+          "oracle_id": "dc857129-533c-41d1-8e8b-1c0443030d69",
+          "match_type": "vector_hit",
+          "score": 0.4634284755014826
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Hushbringer",
+          "oracle_id": "3d21f710-6bbc-41ae-a8e5-02debe3e02bd",
+          "match_type": "vector_hit",
+          "score": 0.44880481956134916
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Drivnod, Carnage Dominus",
+          "oracle_id": "51780f71-bf60-4208-94ea-76fa84790fb6",
+          "match_type": "vector_hit",
+          "score": 0.3814881533379042
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Hushbringer",
+          "oracle_id": "3d21f710-6bbc-41ae-a8e5-02debe3e02bd",
+          "match_type": "vector_hit",
+          "score": 0.3422191450259499
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Pain 101",
+          "oracle_id": "e9975888-c75f-471e-a70d-17449e92226d",
+          "match_type": "vector_hit",
+          "score": 0.31441537440527983
+        }
+      ],
+      "retrieve_ms": 325.4123000660911,
+      "full": null,
+      "error": null
+    },
+    "blood-moon-basics": {
+      "id": "blood-moon-basics",
+      "category": "card-ruling",
+      "tags": [
+        "card-ruling",
+        "lands",
+        "matcher-noise"
+      ],
+      "question": "Does Blood Moon affect my basic Forests?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 2,
+        "requirement_ranks": {
+          "cards:Blood Moon": 2
+        },
+        "matched_cards": [
+          "Blood",
+          "Blood Moon"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [
+          "Blood"
+        ],
+        "result_count": 12,
+        "context_chars": 2771
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Blood",
+          "oracle_id": "03f45075-9423-454f-a256-94dcafb2a779",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Blood Moon",
+          "oracle_id": "94fac5fe-97d5-4c12-a80c-8efff9d853ae",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Blood Moon",
+          "oracle_id": "94fac5fe-97d5-4c12-a80c-8efff9d853ae",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Blood Moon",
+          "oracle_id": "94fac5fe-97d5-4c12-a80c-8efff9d853ae",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Blood Moon",
+          "oracle_id": "94fac5fe-97d5-4c12-a80c-8efff9d853ae",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Blood Moon",
+          "oracle_id": "94fac5fe-97d5-4c12-a80c-8efff9d853ae",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rootpath Purifier",
+          "oracle_id": "442d06e6-8cf6-4980-b2bf-73cfb4d3a468",
+          "match_type": "vector_hit",
+          "score": 0.8561492927727662
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Canopy Vista",
+          "oracle_id": "dcb7e046-f01b-497c-88e5-57794eb30ce5",
+          "match_type": "vector_hit",
+          "score": 0.3689983332392025
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Smoldering Marsh",
+          "oracle_id": "390f1b56-264e-4336-83be-dc1fe79bfdcf",
+          "match_type": "vector_hit",
+          "score": 0.3487668996172676
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Sunken Hollow",
+          "oracle_id": "cd2c90ac-2b04-461c-92f3-939871b6b6a3",
+          "match_type": "vector_hit",
+          "score": 0.33582723969070094
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Cinder Glade",
+          "oracle_id": "dfac0258-e148-4d7d-8ded-fc2466d9caa6",
+          "match_type": "vector_hit",
+          "score": 0.30979299120517845
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Murmuring Bosk",
+          "oracle_id": "42b9d383-3fe2-4fc8-ab86-f80a288d502b",
+          "match_type": "vector_hit",
+          "score": 0.2426142411793773
+        }
+      ],
+      "retrieve_ms": 250.64820004627109,
+      "full": null,
+      "error": null
+    },
+    "doubling-season-loyalty": {
+      "id": "doubling-season-loyalty",
+      "category": "card-ruling",
+      "tags": [
+        "card-ruling",
+        "counters",
+        "planeswalker"
+      ],
+      "question": "With Doubling Season out, how many loyalty counters does my planeswalker enter with, and are my +1 abilities doubled?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 3,
+        "requirement_ranks": {
+          "rulings:Doubling Season": 3
+        },
+        "matched_cards": [
+          "Counters",
+          "Doubling Season"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 16,
+        "context_chars": 3382
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Counters",
+          "oracle_id": "48f0cd77-5daa-46aa-9f70-a98c6df15674",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Doubling Season",
+          "oracle_id": "01546b7d-a233-4176-8843-d732074dc5b6",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Doubling Season",
+          "oracle_id": "01546b7d-a233-4176-8843-d732074dc5b6",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Doubling Season",
+          "oracle_id": "01546b7d-a233-4176-8843-d732074dc5b6",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Doubling Season",
+          "oracle_id": "01546b7d-a233-4176-8843-d732074dc5b6",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Doubling Season",
+          "oracle_id": "01546b7d-a233-4176-8843-d732074dc5b6",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Doubling Season",
+          "oracle_id": "01546b7d-a233-4176-8843-d732074dc5b6",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Spark Double",
+          "oracle_id": "8dcb35e5-ae44-455f-86e3-4a77d496ff34",
+          "match_type": "vector_hit",
+          "score": 0.5650869082910506
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Selesnya Loft Gardens",
+          "oracle_id": "0a4bf88d-106a-413b-9d80-8775c1ff5ded",
+          "match_type": "vector_hit",
+          "score": 0.43660005894054543
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Bioessence Hydra",
+          "oracle_id": "1f79de2a-6cef-4285-b008-5b5527c406ab",
+          "match_type": "vector_hit",
+          "score": 0.3239489545730131
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Spark Double",
+          "oracle_id": "8dcb35e5-ae44-455f-86e3-4a77d496ff34",
+          "match_type": "vector_hit",
+          "score": 0.30477640868421707
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Spark Double",
+          "oracle_id": "8dcb35e5-ae44-455f-86e3-4a77d496ff34",
+          "match_type": "vector_hit",
+          "score": 0.2685507268441648
+        },
+        {
+          "rank": 13,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Bioessence Hydra",
+          "oracle_id": "1f79de2a-6cef-4285-b008-5b5527c406ab",
+          "match_type": "vector_hit",
+          "score": 0.24047404702668856
+        },
+        {
+          "rank": 14,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Settle the Score",
+          "oracle_id": "2f18bb2d-249f-4d7a-a0f7-8a285d365777",
+          "match_type": "vector_hit",
+          "score": 0.2244075034150833
+        },
+        {
+          "rank": 15,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Spark Double",
+          "oracle_id": "8dcb35e5-ae44-455f-86e3-4a77d496ff34",
+          "match_type": "vector_hit",
+          "score": 0.21765896570337903
+        },
+        {
+          "rank": 16,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Everythingamajig",
+          "oracle_id": "41beff6c-1496-4d74-a5d6-0459c2704072",
+          "match_type": "vector_hit",
+          "score": 0.197007121724961
+        }
+      ],
+      "retrieve_ms": 268.2216999819502,
+      "full": null,
+      "error": null
+    },
+    "swords-power-response": {
+      "id": "swords-power-response",
+      "category": "card-ruling",
+      "tags": [
+        "card-ruling",
+        "last-known-information"
+      ],
+      "question": "If I pump my opponent's creature in response to Swords to Plowshares, how much life do they gain?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 2,
+        "requirement_ranks": {
+          "rulings:Swords to Plowshares": 2
+        },
+        "matched_cards": [
+          "Swords to Plowshares"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 11,
+        "context_chars": 2099
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Swords to Plowshares",
+          "oracle_id": "b1544f21-7e98-461b-aed5-e748b0168c52",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Swords to Plowshares",
+          "oracle_id": "b1544f21-7e98-461b-aed5-e748b0168c52",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Emeritus of Truce // Swords to Plowshares",
+          "oracle_id": "e6c41473-2398-4888-9f0c-467dce7c39a4",
+          "match_type": "vector_hit",
+          "score": 0.17349017851430024
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Engulfing Slagwurm",
+          "oracle_id": "0340cfcb-fc96-40d2-8175-31a0093615bb",
+          "match_type": "vector_hit",
+          "score": 0.1713518115644508
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Vampire Lacerator",
+          "oracle_id": "dc261758-0982-4b7d-9986-042c03cc8366",
+          "match_type": "vector_hit",
+          "score": 0.16635981286797896
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Feudkiller's Verdict",
+          "oracle_id": "4dacd89b-5983-4905-9f6c-43aa6a12149d",
+          "match_type": "vector_hit",
+          "score": 0.14991206060301165
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Menagerie Liberator",
+          "oracle_id": "d91dd07a-93e1-4f88-b5f1-faa56df70ed0",
+          "match_type": "vector_hit",
+          "score": 0.141142672395838
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Timely Reinforcements",
+          "oracle_id": "64f4f0ed-e924-459e-86a4-8202fae6ef3e",
+          "match_type": "vector_hit",
+          "score": 0.13911896742495214
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Gladehart Cavalry",
+          "oracle_id": "4d937ea3-bfd4-4cdf-b722-08f2b99ea2a5",
+          "match_type": "vector_hit",
+          "score": 0.13326219530978217
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Pontiff of Blight",
+          "oracle_id": "f5a95092-fb71-4b55-bc54-782bd1c603e1",
+          "match_type": "vector_hit",
+          "score": 0.11158315933178271
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Timely Reinforcements",
+          "oracle_id": "64f4f0ed-e924-459e-86a4-8202fae6ef3e",
+          "match_type": "vector_hit",
+          "score": 0.11048746848650541
+        }
+      ],
+      "retrieve_ms": 316.3004999514669,
+      "full": null,
+      "error": null
+    },
+    "path-optional-search": {
+      "id": "path-optional-search",
+      "category": "card-ruling",
+      "tags": [
+        "card-ruling",
+        "choices"
+      ],
+      "question": "Does my opponent have to search for a basic land when I Path to Exile their creature?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 3,
+        "requirement_ranks": {
+          "rulings:Path to Exile": 3
+        },
+        "matched_cards": [
+          "Path to Exile",
+          "Exile"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 11,
+        "context_chars": 1851
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Path to Exile",
+          "oracle_id": "d683d985-9888-4d21-8b5f-69e69ce4a03b",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Exile",
+          "oracle_id": "8c91d50b-bf58-4d06-b3b7-4b6db867bfce",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Path to Exile",
+          "oracle_id": "d683d985-9888-4d21-8b5f-69e69ce4a03b",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Path to Exile",
+          "oracle_id": "d683d985-9888-4d21-8b5f-69e69ce4a03b",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Winds of Abandon",
+          "oracle_id": "499a4715-6776-461b-bee4-22ed172d455e",
+          "match_type": "vector_hit",
+          "score": 0.3273374865255958
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Settle the Wreckage",
+          "oracle_id": "2a2ea189-b663-4f4a-bb23-ff7a4af25f71",
+          "match_type": "vector_hit",
+          "score": 0.2825135385516625
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Settle the Wreckage",
+          "oracle_id": "2a2ea189-b663-4f4a-bb23-ff7a4af25f71",
+          "match_type": "vector_hit",
+          "score": 0.2825135385516625
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Settle the Wreckage",
+          "oracle_id": "2a2ea189-b663-4f4a-bb23-ff7a4af25f71",
+          "match_type": "vector_hit",
+          "score": 0.2378110832600689
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Settle the Wreckage",
+          "oracle_id": "2a2ea189-b663-4f4a-bb23-ff7a4af25f71",
+          "match_type": "vector_hit",
+          "score": 0.2378110832600689
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Sowing Salt",
+          "oracle_id": "131d2b70-959d-4814-b0c8-38031f141718",
+          "match_type": "vector_hit",
+          "score": 0.21869911508713394
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Grinning Totem",
+          "oracle_id": "fa798a3d-7797-4795-b251-a45f0429d169",
+          "match_type": "vector_hit",
+          "score": 0.21353633182778575
+        }
+      ],
+      "retrieve_ms": 290.88820004835725,
+      "full": null,
+      "error": null
+    },
+    "thoughtseize-empty-hand": {
+      "id": "thoughtseize-empty-hand",
+      "category": "card-ruling",
+      "tags": [
+        "card-ruling"
+      ],
+      "question": "Do I still lose 2 life from Thoughtseize if my opponent has no nonland cards in hand?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 2,
+        "requirement_ranks": {
+          "rulings:Thoughtseize": 2
+        },
+        "matched_cards": [
+          "Thoughtseize"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 10,
+        "context_chars": 1528
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Thoughtseize",
+          "oracle_id": "edd8d1e8-be43-4c38-bb3a-83081fbaf0b5",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Thoughtseize",
+          "oracle_id": "edd8d1e8-be43-4c38-bb3a-83081fbaf0b5",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Witness the End",
+          "oracle_id": "340d2261-9454-4ab0-827c-49c7e76c7781",
+          "match_type": "vector_hit",
+          "score": 0.6168727609103212
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Agonizing Remorse",
+          "oracle_id": "1267dfda-eb1a-4963-9fe3-fa619d924d7a",
+          "match_type": "vector_hit",
+          "score": 0.572084018315463
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Diplomacy of the Wastes",
+          "oracle_id": "8b4670b9-6701-4ca6-afd7-256742267e86",
+          "match_type": "vector_hit",
+          "score": 0.4457193183158573
+        },
+        {
+          "rank": 6,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Diplomacy of the Wastes",
+          "oracle_id": "8b4670b9-6701-4ca6-afd7-256742267e86",
+          "match_type": "vector_hit",
+          "score": 0.42920865262203206
+        },
+        {
+          "rank": 7,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Mind Spike",
+          "oracle_id": "e4399600-cfa9-40ec-bb68-6ed207631a1d",
+          "match_type": "vector_hit",
+          "score": 0.4029230597646374
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Agonizing Remorse",
+          "oracle_id": "1267dfda-eb1a-4963-9fe3-fa619d924d7a",
+          "match_type": "vector_hit",
+          "score": 0.3485578579670695
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Thought Erasure",
+          "oracle_id": "4bae4e34-fcf4-4aee-8da2-5b3ee41a595a",
+          "match_type": "vector_hit",
+          "score": 0.31395059310974044
+        },
+        {
+          "rank": 10,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Grim Reminder",
+          "oracle_id": "12684e95-2652-4c3c-b2c7-021b62344d77",
+          "match_type": "vector_hit",
+          "score": 0.28561572762083864
+        }
+      ],
+      "retrieve_ms": 288.5869999881834,
+      "full": null,
+      "error": null
+    },
+    "platinum-angel-concede": {
+      "id": "platinum-angel-concede",
+      "category": "card-ruling",
+      "tags": [
+        "card-ruling",
+        "game-loss"
+      ],
+      "question": "Can I still lose the game while I control Platinum Angel?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 3,
+        "requirement_ranks": {
+          "rulings:Platinum Angel": 3
+        },
+        "matched_cards": [
+          "Platinum Angel",
+          "Angel"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 12,
+        "context_chars": 3289
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Platinum Angel",
+          "oracle_id": "b148578c-c0bf-4785-b97c-4b6f83028008",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Angel",
+          "oracle_id": "835fdf98-b2ca-4e08-8dc0-4294bc0744ad",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Platinum Angel",
+          "oracle_id": "b148578c-c0bf-4785-b97c-4b6f83028008",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Platinum Angel",
+          "oracle_id": "b148578c-c0bf-4785-b97c-4b6f83028008",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Platinum Angel",
+          "oracle_id": "b148578c-c0bf-4785-b97c-4b6f83028008",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Platinum Angel",
+          "oracle_id": "b148578c-c0bf-4785-b97c-4b6f83028008",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Platinum Angel",
+          "oracle_id": "b148578c-c0bf-4785-b97c-4b6f83028008",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 8,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Platinum Persecutor",
+          "oracle_id": "125563c7-3e10-4786-94b5-9ceedddd3cbb",
+          "match_type": "vector_hit",
+          "score": 0.3316115158896596
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Immortal Coil",
+          "oracle_id": "c85fc672-12d8-4ab0-b18d-ccd590ac063c",
+          "match_type": "vector_hit",
+          "score": 0.3
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Jace, Wielder of Mysteries",
+          "oracle_id": "5277a68e-1ceb-4b40-8e10-3d0564f5d7be",
+          "match_type": "vector_hit",
+          "score": 0.265775429056514
+        },
+        {
+          "rank": 11,
+          "source_type": "rule",
+          "rule_id": "810.8a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.22462487119658217
+        },
+        {
+          "rank": 12,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Platinum Angel Avatar",
+          "oracle_id": "a7e888e1-24d8-45bf-8ceb-4a3c3f989376",
+          "match_type": "vector_hit",
+          "score": 0.17619412731441284
+        }
+      ],
+      "retrieve_ms": 251.77119998261333,
+      "full": null,
+      "error": null
+    },
+    "stifle-draw-step": {
+      "id": "stifle-draw-step",
+      "category": "card-ruling",
+      "tags": [
+        "card-ruling",
+        "stack",
+        "turn-based-actions"
+      ],
+      "question": "Can Stifle counter my opponent's normal draw for the turn?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 2,
+        "requirement_ranks": {
+          "rulings:Stifle": 2
+        },
+        "matched_cards": [
+          "Stifle"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 11,
+        "context_chars": 1789
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Stifle",
+          "oracle_id": "b3b00911-ece7-4484-bc36-f211ce72b6cc",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Stifle",
+          "oracle_id": "b3b00911-ece7-4484-bc36-f211ce72b6cc",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Stifle",
+          "oracle_id": "b3b00911-ece7-4484-bc36-f211ce72b6cc",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Stifle",
+          "oracle_id": "b3b00911-ece7-4484-bc36-f211ce72b6cc",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Compelled Duel",
+          "oracle_id": "256cc907-2a13-4f43-9d37-2e52034cdaf4",
+          "match_type": "vector_hit",
+          "score": 0.4229425656276018
+        },
+        {
+          "rank": 6,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Thwart the Enemy",
+          "oracle_id": "5799baed-3457-4bf2-adf3-239a41dcc1c8",
+          "match_type": "vector_hit",
+          "score": 0.3515354368138235
+        },
+        {
+          "rank": 7,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Hinder",
+          "oracle_id": "c9db6b94-a7b1-4b93-b454-4dead8f85e34",
+          "match_type": "vector_hit",
+          "score": 0.30612571826240387
+        },
+        {
+          "rank": 8,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Feral Contest",
+          "oracle_id": "efbb5b87-d175-477e-a490-85dd98b62de6",
+          "match_type": "vector_hit",
+          "score": 0.29427719319594825
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Jace, Arcane Strategist",
+          "oracle_id": "4126bab7-6a2a-43b2-ba65-77299f9bb8cf",
+          "match_type": "vector_hit",
+          "score": 0.22683177353295714
+        },
+        {
+          "rank": 10,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Hindervines",
+          "oracle_id": "8d13fabc-1e0f-41f2-8873-9f44b68f7e43",
+          "match_type": "vector_hit",
+          "score": 0.21297064964006018
+        },
+        {
+          "rank": 11,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Compelled Duel",
+          "oracle_id": "256cc907-2a13-4f43-9d37-2e52034cdaf4",
+          "match_type": "vector_hit",
+          "score": 0.2056322040150442
+        }
+      ],
+      "retrieve_ms": 290.92359996866435,
+      "full": null,
+      "error": null
+    },
+    "clone-counters": {
+      "id": "clone-counters",
+      "category": "card-ruling",
+      "tags": [
+        "card-ruling",
+        "copy"
+      ],
+      "question": "If Clone copies a creature that has +1/+1 counters on it, does Clone get those counters too?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 3,
+        "requirement_ranks": {
+          "rulings:Clone": 3
+        },
+        "matched_cards": [
+          "Clone",
+          "Counters"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 18,
+        "context_chars": 3179
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Clone",
+          "oracle_id": "42226b87-0746-4ebf-9fd0-108d508462af",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Counters",
+          "oracle_id": "48f0cd77-5daa-46aa-9f70-a98c6df15674",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Clone",
+          "oracle_id": "42226b87-0746-4ebf-9fd0-108d508462af",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Clone",
+          "oracle_id": "42226b87-0746-4ebf-9fd0-108d508462af",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Clone",
+          "oracle_id": "42226b87-0746-4ebf-9fd0-108d508462af",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Clone",
+          "oracle_id": "42226b87-0746-4ebf-9fd0-108d508462af",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Clone",
+          "oracle_id": "42226b87-0746-4ebf-9fd0-108d508462af",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Clone",
+          "oracle_id": "42226b87-0746-4ebf-9fd0-108d508462af",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Clone",
+          "oracle_id": "42226b87-0746-4ebf-9fd0-108d508462af",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Clone",
+          "oracle_id": "42226b87-0746-4ebf-9fd0-108d508462af",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Grumgully, the Generous",
+          "oracle_id": "fa4afcf7-9cf7-4f67-95b9-1f7fe66bf332",
+          "match_type": "vector_hit",
+          "score": 0.5353479901966451
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Clone Legion",
+          "oracle_id": "690bd111-5b32-4156-b650-9afad3d6ef3d",
+          "match_type": "vector_hit",
+          "score": 0.46317305580792556
+        },
+        {
+          "rank": 13,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Mirror-Style Master",
+          "oracle_id": "6a871d70-a46d-4357-8c7d-876f7a004eb7",
+          "match_type": "vector_hit",
+          "score": 0.42233163826968556
+        },
+        {
+          "rank": 14,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Spark Double",
+          "oracle_id": "8dcb35e5-ae44-455f-86e3-4a77d496ff34",
+          "match_type": "vector_hit",
+          "score": 0.4153432683295804
+        },
+        {
+          "rank": 15,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Mirror Image",
+          "oracle_id": "7275fb8c-571a-4c4c-889a-829419332e51",
+          "match_type": "vector_hit",
+          "score": 0.39853615968331996
+        },
+        {
+          "rank": 16,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Clone Legion",
+          "oracle_id": "690bd111-5b32-4156-b650-9afad3d6ef3d",
+          "match_type": "vector_hit",
+          "score": 0.3347366049066423
+        },
+        {
+          "rank": 17,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Bold Plagiarist",
+          "oracle_id": "85277284-1eba-4f87-bf7b-abf1dcbb7691",
+          "match_type": "vector_hit",
+          "score": 0.33161630992825
+        },
+        {
+          "rank": 18,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Spark Double",
+          "oracle_id": "8dcb35e5-ae44-455f-86e3-4a77d496ff34",
+          "match_type": "vector_hit",
+          "score": 0.3032408583538213
+        }
+      ],
+      "retrieve_ms": 292.01989993453026,
+      "full": null,
+      "error": null
+    },
+    "blood-artist-board-wipe": {
+      "id": "blood-artist-board-wipe",
+      "category": "card-ruling",
+      "tags": [
+        "card-ruling",
+        "dies",
+        "look-back",
+        "matcher-noise"
+      ],
+      "question": "If Blood Artist dies at the same time as other creatures, does it trigger for them?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 3,
+        "requirement_ranks": {
+          "rulings:Blood Artist": 3
+        },
+        "matched_cards": [
+          "Blood Artist",
+          "Blood"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [
+          "Blood"
+        ],
+        "result_count": 11,
+        "context_chars": 1764
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Blood Artist",
+          "oracle_id": "310f141c-7f37-4729-aed6-dd9c09db448d",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Blood",
+          "oracle_id": "03f45075-9423-454f-a256-94dcafb2a779",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Blood Artist",
+          "oracle_id": "310f141c-7f37-4729-aed6-dd9c09db448d",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "A-Blood Artist",
+          "oracle_id": "1d96c049-d747-4c98-a5fe-a0c94b6a899c",
+          "match_type": "vector_hit",
+          "score": 0.3144442123066923
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Vengeful Bloodwitch",
+          "oracle_id": "4cdbc466-42fc-471f-beab-397caec18101",
+          "match_type": "vector_hit",
+          "score": 0.25369639281700856
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Blood Cultist",
+          "oracle_id": "031ddf1e-afcf-4b09-8859-4df0f0ab5dcf",
+          "match_type": "vector_hit",
+          "score": 0.18328255757077852
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Blood Cultist",
+          "oracle_id": "031ddf1e-afcf-4b09-8859-4df0f0ab5dcf",
+          "match_type": "vector_hit",
+          "score": 0.13146113225931647
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Hissing Iguanar",
+          "oracle_id": "7c4fc524-4734-4fb8-a5ca-ac2617242c3f",
+          "match_type": "vector_hit",
+          "score": 0.1226762448446408
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Harvester of Souls",
+          "oracle_id": "5987ce77-10ad-4871-900a-5a005fcf4955",
+          "match_type": "vector_hit",
+          "score": 0.11926714745326707
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Vindictive Vampire",
+          "oracle_id": "11ad664e-36d3-4d5b-8a87-59ea715877e0",
+          "match_type": "vector_hit",
+          "score": 0.11916282807481896
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Blood Spatter Analysis",
+          "oracle_id": "aa929252-5dcc-4c9b-9e7c-61d0bef98d6d",
+          "match_type": "vector_hit",
+          "score": 0.11611265307217822
+        }
+      ],
+      "retrieve_ms": 285.6128999264911,
+      "full": null,
+      "error": null
+    },
+    "humility-opalescence": {
+      "id": "humility-opalescence",
+      "category": "interaction",
+      "tags": [
+        "interaction",
+        "layers",
+        "stretch"
+      ],
+      "question": "How do Humility and Opalescence interact when both are on the battlefield?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 3,
+        "requirement_ranks": {
+          "rulings:Humility": 3,
+          "rulings:Opalescence": 5
+        },
+        "matched_cards": [
+          "Humility",
+          "Opalescence"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 12,
+        "context_chars": 4206
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Humility",
+          "oracle_id": "ed7bdb3e-5c51-4547-9266-76a791e0b2b0",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Opalescence",
+          "oracle_id": "59489b46-9d02-4f3c-bcd0-884e7605e9a5",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Humility",
+          "oracle_id": "ed7bdb3e-5c51-4547-9266-76a791e0b2b0",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Humility",
+          "oracle_id": "ed7bdb3e-5c51-4547-9266-76a791e0b2b0",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Opalescence",
+          "oracle_id": "59489b46-9d02-4f3c-bcd0-884e7605e9a5",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Opalescence",
+          "oracle_id": "59489b46-9d02-4f3c-bcd0-884e7605e9a5",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Humility",
+          "oracle_id": "ed7bdb3e-5c51-4547-9266-76a791e0b2b0",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Opalescence",
+          "oracle_id": "59489b46-9d02-4f3c-bcd0-884e7605e9a5",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Opalescence",
+          "oracle_id": "59489b46-9d02-4f3c-bcd0-884e7605e9a5",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 10,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "The Wise Sable",
+          "oracle_id": "c0d27f3e-90a4-47f5-bace-9e91d7a05022",
+          "match_type": "vector_hit",
+          "score": 0.10438672140126797
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Humble",
+          "oracle_id": "d2d41f12-18d8-473b-9308-3f02d7d791f0",
+          "match_type": "vector_hit",
+          "score": 0.10157297380355437
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Humble",
+          "oracle_id": "d2d41f12-18d8-473b-9308-3f02d7d791f0",
+          "match_type": "vector_hit",
+          "score": 0.06785115357961165
+        }
+      ],
+      "retrieve_ms": 288.18020003382117,
+      "full": null,
+      "error": null
+    },
+    "phasing-oblivion-ring": {
+      "id": "phasing-oblivion-ring",
+      "category": "interaction",
+      "tags": [
+        "interaction",
+        "phasing",
+        "triggers"
+      ],
+      "question": "If a permanent phases out, does that trigger leaves-the-battlefield abilities like Oblivion Ring's?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": false,
+        "recall": 0.0,
+        "first_hit_rank": null,
+        "requirement_ranks": {
+          "rules:702.26d": null
+        },
+        "matched_cards": [
+          "Oblivion Ring"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 13,
+        "context_chars": 2702
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Oblivion Ring",
+          "oracle_id": "bd9b9772-f5f9-4c6b-913e-7193bea5d0a7",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Oblivion Ring",
+          "oracle_id": "bd9b9772-f5f9-4c6b-913e-7193bea5d0a7",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Oblivion Ring",
+          "oracle_id": "bd9b9772-f5f9-4c6b-913e-7193bea5d0a7",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Oblivion Ring",
+          "oracle_id": "bd9b9772-f5f9-4c6b-913e-7193bea5d0a7",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Oblivion Ring",
+          "oracle_id": "bd9b9772-f5f9-4c6b-913e-7193bea5d0a7",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Teferi's Protection",
+          "oracle_id": "0d4ecdb1-ec90-497f-a7a4-1c68092b8757",
+          "match_type": "vector_hit",
+          "score": 0.7924441215951457
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Oubliette",
+          "oracle_id": "c753e9e3-9374-4e3c-8622-94576a8c1da3",
+          "match_type": "vector_hit",
+          "score": 0.7363850542658248
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Divine Smite",
+          "oracle_id": "3b06b242-caed-4c8f-b5ab-30e86061286e",
+          "match_type": "vector_hit",
+          "score": 0.5752259955446449
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Disciple of Caelus Nin",
+          "oracle_id": "2e5440ef-6887-4c79-98f5-49db82406d71",
+          "match_type": "vector_hit",
+          "score": 0.5009331118108602
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Oubliette",
+          "oracle_id": "c753e9e3-9374-4e3c-8622-94576a8c1da3",
+          "match_type": "vector_hit",
+          "score": 0.4845072549444368
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Ripples of Potential",
+          "oracle_id": "45bcebd0-5e93-4433-b92f-b4c161d04bd6",
+          "match_type": "vector_hit",
+          "score": 0.4641293503853795
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "The Doctor's Childhood Barn",
+          "oracle_id": "2a21b90a-7ea7-4090-82ec-359ba8ba1aad",
+          "match_type": "vector_hit",
+          "score": 0.3144616423504982
+        },
+        {
+          "rank": 13,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Clever Concealment",
+          "oracle_id": "42bb7ea9-f6e4-4551-8d93-3b1eae84b865",
+          "match_type": "vector_hit",
+          "score": 0.31390509281076545
+        }
+      ],
+      "retrieve_ms": 298.2298999559134,
+      "full": null,
+      "error": null
+    },
+    "deathtouch-pinger": {
+      "id": "deathtouch-pinger",
+      "category": "interaction",
+      "tags": [
+        "interaction",
+        "deathtouch",
+        "noncombat"
+      ],
+      "question": "If Prodigal Sorcerer gains deathtouch, does its 1 damage destroy any creature it hits?",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 4,
+        "requirement_ranks": {
+          "rules:702.2b": 4
+        },
+        "matched_cards": [
+          "Prodigal Sorcerer"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 18,
+        "context_chars": 2843
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Prodigal Sorcerer",
+          "oracle_id": "5e961d15-5972-4e4b-9385-1cd7cd7c6bbe",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "rule",
+          "rule_id": "702.2",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "rule",
+          "rule_id": "702.2a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "rule",
+          "rule_id": "702.2b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "rule",
+          "rule_id": "702.2c",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "rule",
+          "rule_id": "702.2d",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "rule",
+          "rule_id": "702.2e",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 8,
+          "source_type": "rule",
+          "rule_id": "702.2f",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 9,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Touch of Moonglove",
+          "oracle_id": "d3a6bff6-ea85-4e8a-b256-7427d15326b6",
+          "match_type": "vector_hit",
+          "score": 0.920501052900756
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Onyx Mage",
+          "oracle_id": "8a398777-2fa5-4cac-adee-4582e59d410d",
+          "match_type": "vector_hit",
+          "score": 0.8868303514279172
+        },
+        {
+          "rank": 11,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Alchemist's Gift",
+          "oracle_id": "4e698713-6203-44f2-b438-1b26b951536d",
+          "match_type": "vector_hit",
+          "score": 0.7089230857867151
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Master of Cruelties",
+          "oracle_id": "d135c457-9be5-4a6e-a6fb-5b35cfb70cb0",
+          "match_type": "vector_hit",
+          "score": 0.676569176701043
+        },
+        {
+          "rank": 13,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Lace with Moonglove",
+          "oracle_id": "07beecfd-1720-42a1-93f8-f06604c3c228",
+          "match_type": "vector_hit",
+          "score": 0.6320689059169218
+        },
+        {
+          "rank": 14,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Judith, Carnage Connoisseur",
+          "oracle_id": "e86c965b-ac10-4fff-b682-dddd6d9747c6",
+          "match_type": "vector_hit",
+          "score": 0.6066533288874042
+        },
+        {
+          "rank": 15,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Hooded Blightfang",
+          "oracle_id": "342eb666-838c-43d0-bf52-2f704f2a80e3",
+          "match_type": "vector_hit",
+          "score": 0.5032028225740361
+        },
+        {
+          "rank": 16,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Touch of Moonglove",
+          "oracle_id": "d3a6bff6-ea85-4e8a-b256-7427d15326b6",
+          "match_type": "vector_hit",
+          "score": 0.5013576078815468
+        },
+        {
+          "rank": 17,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Undercity Uprising",
+          "oracle_id": "53e540b5-8338-4b21-a61a-c5b7fe652a6e",
+          "match_type": "vector_hit",
+          "score": 0.4701764302100334
+        },
+        {
+          "rank": 18,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Master of Cruelties",
+          "oracle_id": "d135c457-9be5-4a6e-a6fb-5b35cfb70cb0",
+          "match_type": "vector_hit",
+          "score": 0.456289013078297
+        }
+      ],
+      "retrieve_ms": 283.81990001071244,
+      "full": null,
+      "error": null
+    },
+    "standard-meta": {
+      "id": "standard-meta",
+      "category": "negative",
+      "tags": [
+        "negative",
+        "metagame"
+      ],
+      "question": "What's the best deck in Standard right now?",
+      "retrieval": {
+        "pass": null,
+        "sources_pass": null,
+        "recall": null,
+        "first_hit_rank": null,
+        "requirement_ranks": {},
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 10,
+        "context_chars": 627
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Brian Selden Decklist",
+          "oracle_id": "f0fe8504-f7a5-4371-9e0e-d46f7c99a9c8",
+          "match_type": "vector_hit",
+          "score": 0.7
+        },
+        {
+          "rank": 2,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Peer Kröger Decklist",
+          "oracle_id": "814e48f1-fa84-417c-943b-bb46b0b4d176",
+          "match_type": "vector_hit",
+          "score": 0.6444221299072869
+        },
+        {
+          "rank": 3,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Eat to Extinction",
+          "oracle_id": "bf5f348e-d748-48e2-b483-740109e71176",
+          "match_type": "vector_hit",
+          "score": 0.6217298962832548
+        },
+        {
+          "rank": 4,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Ben Rubin Decklist",
+          "oracle_id": "04b1abe8-06f2-43d2-afdc-ebc745b40ac7",
+          "match_type": "vector_hit",
+          "score": 0.6114564362155774
+        },
+        {
+          "rank": 5,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Tend the Sprigs",
+          "oracle_id": "91363d71-eef0-48e8-9a68-8f363ff2790e",
+          "match_type": "vector_hit",
+          "score": 0.5236760296019145
+        },
+        {
+          "rank": 6,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Summoner's Pact",
+          "oracle_id": "782dcbc4-5a11-42f5-b8d9-4572e36d45b3",
+          "match_type": "vector_hit",
+          "score": 0.5041569231615713
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Stinkweed Imp",
+          "oracle_id": "e005bc76-4985-4ec6-b9f6-cf6d0d9f5df4",
+          "match_type": "vector_hit",
+          "score": 0.49229002173374825
+        },
+        {
+          "rank": 8,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Jon Finkel Decklist",
+          "oracle_id": "36bdc4a1-1e48-4fd5-b8dd-8a8c964d89e9",
+          "match_type": "vector_hit",
+          "score": 0.4553137637899247
+        },
+        {
+          "rank": 9,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Brian Hacker Decklist",
+          "oracle_id": "ff61f649-d192-4172-8ad6-93e351b9fe30",
+          "match_type": "vector_hit",
+          "score": 0.42914798206278004
+        },
+        {
+          "rank": 10,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Mark Le Pine Decklist",
+          "oracle_id": "3758e5bd-78e5-456b-bbe0-65fe0dec1623",
+          "match_type": "vector_hit",
+          "score": 0.4179501499353494
+        }
+      ],
+      "retrieve_ms": 197.3352999193594,
+      "full": null,
+      "error": null
+    },
+    "alpha-print-run": {
+      "id": "alpha-print-run",
+      "category": "negative",
+      "tags": [
+        "negative",
+        "history"
+      ],
+      "question": "How many copies of Alpha were printed?",
+      "retrieval": {
+        "pass": null,
+        "sources_pass": null,
+        "recall": null,
+        "first_hit_rank": null,
+        "requirement_ranks": {},
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 10,
+        "context_chars": 2280
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Oracle of the Alpha",
+          "oracle_id": "b77dcee1-f42e-4c9d-b6b7-6d5885826060",
+          "match_type": "vector_hit",
+          "score": 0.7
+        },
+        {
+          "rank": 2,
+          "source_type": "rule",
+          "rule_id": "701.47d",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.6023328559953773
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Oracle of the Alpha",
+          "oracle_id": "b77dcee1-f42e-4c9d-b6b7-6d5885826060",
+          "match_type": "vector_hit",
+          "score": 0.4481413804759089
+        },
+        {
+          "rank": 4,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Alpha Myr",
+          "oracle_id": "4caa8e68-e599-416f-b839-3d009569ff29",
+          "match_type": "vector_hit",
+          "score": 0.44312042727804646
+        },
+        {
+          "rank": 5,
+          "source_type": "rule",
+          "rule_id": "213.1b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.42515350534461055
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Echoes of Eternity",
+          "oracle_id": "23a79523-4be0-4d17-80aa-5ea024cb3463",
+          "match_type": "vector_hit",
+          "score": 0.4244314650519565
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Transcendent Master",
+          "oracle_id": "11332981-f06a-48c7-a7b4-fce68e629e82",
+          "match_type": "vector_hit",
+          "score": 0.3549625883429912
+        },
+        {
+          "rank": 8,
+          "source_type": "rule",
+          "rule_id": "213.1a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.31374189949007236
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Vizier of Many Faces",
+          "oracle_id": "55bceb83-bbba-477f-98ce-6e0a80b91080",
+          "match_type": "vector_hit",
+          "score": 0.3
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Gray Merchant of Alphabet",
+          "oracle_id": "d8870f04-ada3-4688-a8c7-09a3ac0ae5e9",
+          "match_type": "vector_hit",
+          "score": 0.28804650047067476
+        }
+      ],
+      "retrieve_ms": 161.08880005776882,
+      "full": null,
+      "error": null
+    },
+    "next-set-release": {
+      "id": "next-set-release",
+      "category": "negative",
+      "tags": [
+        "negative",
+        "products"
+      ],
+      "question": "When does the next Magic set come out?",
+      "retrieval": {
+        "pass": null,
+        "sources_pass": null,
+        "recall": null,
+        "first_hit_rank": null,
+        "requirement_ranks": {},
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 10,
+        "context_chars": 683
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Wizards",
+          "oracle_id": "b8156d00-2e67-4363-ad1c-0e2fb16d14fc",
+          "match_type": "vector_hit",
+          "score": 0.7
+        },
+        {
+          "rank": 2,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Spectacle Mage // Spectacle Mage",
+          "oracle_id": "1bc867ac-e237-4060-b2b8-a27ebbb0e15d",
+          "match_type": "vector_hit",
+          "score": 0.6920246020719228
+        },
+        {
+          "rank": 3,
+          "source_type": "rule",
+          "rule_id": "206.1",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.6310233478650668
+        },
+        {
+          "rank": 4,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Future Sight",
+          "oracle_id": "93a0e938-b916-47ec-9803-369e885e253c",
+          "match_type": "vector_hit",
+          "score": 0.5435638015685652
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Magus of the Future",
+          "oracle_id": "10758aa7-0f64-499f-8010-514e8fc31b7e",
+          "match_type": "vector_hit",
+          "score": 0.4237636911600857
+        },
+        {
+          "rank": 6,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Magus of the Future",
+          "oracle_id": "10758aa7-0f64-499f-8010-514e8fc31b7e",
+          "match_type": "vector_hit",
+          "score": 0.4154776422825001
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Opening Ceremony",
+          "oracle_id": "f11303c2-6478-4e39-b229-13e99c25cdc1",
+          "match_type": "vector_hit",
+          "score": 0.40664607024156557
+        },
+        {
+          "rank": 8,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Mystic Mischief",
+          "oracle_id": "9589ac02-7789-4eb9-b50d-74cb12ee5a9f",
+          "match_type": "vector_hit",
+          "score": 0.40278700672797896
+        },
+        {
+          "rank": 9,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Mystic Forge // Mystic Forge",
+          "oracle_id": "043cf01f-1b0d-4606-888b-b4f9cc2cccc2",
+          "match_type": "vector_hit",
+          "score": 0.34326092586423407
+        },
+        {
+          "rank": 10,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Jace, Mirror Mage // Jace, Mirror Mage",
+          "oracle_id": "7b1ff79c-a60b-49c0-a660-5f06932ef6ce",
+          "match_type": "vector_hit",
+          "score": 0.34143344420035526
+        }
+      ],
+      "retrieve_ms": 224.73379992879927,
+      "full": null,
+      "error": null
+    },
+    "messy-slang-bolt-hexproof": {
+      "id": "messy-slang-bolt-hexproof",
+      "category": "messy",
+      "tags": [
+        "messy",
+        "slang",
+        "hexproof"
+      ],
+      "question": "can i bolt my own hexproof guy",
+      "retrieval": {
+        "pass": true,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 3,
+        "requirement_ranks": {
+          "rules:702.11b": 3
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 17,
+        "context_chars": 2953
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "rule",
+          "rule_id": "702.11",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "rule",
+          "rule_id": "702.11a",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "rule",
+          "rule_id": "702.11b",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "rule",
+          "rule_id": "702.11c",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "rule",
+          "rule_id": "702.11d",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "rule",
+          "rule_id": "702.11e",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "rule",
+          "rule_id": "702.11f",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 8,
+          "source_type": "rule",
+          "rule_id": "702.11g",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 9,
+          "source_type": "rule",
+          "rule_id": "702.11h",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "keyword_rule_match",
+          "score": 1.0
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Slippery Bogbonder",
+          "oracle_id": "2f946c13-cfab-415f-9df7-6d621761b2fc",
+          "match_type": "vector_hit",
+          "score": 0.5795446752128077
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Asinine Antics",
+          "oracle_id": "0a0a051c-59ed-4286-b842-a34da7ef15d5",
+          "match_type": "vector_hit",
+          "score": 0.5726152233966387
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "My Precious // Allure of Power",
+          "oracle_id": "2e728381-6db0-4c66-883d-82d718fef833",
+          "match_type": "vector_hit",
+          "score": 0.5033083606058194
+        },
+        {
+          "rank": 13,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Just a Li'l Guy",
+          "oracle_id": "685f8e69-4086-4dcc-8e20-bdde069732ea",
+          "match_type": "vector_hit",
+          "score": 0.4791274267483425
+        },
+        {
+          "rank": 14,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Last One Standing",
+          "oracle_id": "b01465ea-cab9-4a59-81a6-8db4648b89f4",
+          "match_type": "vector_hit",
+          "score": 0.4026667142163498
+        },
+        {
+          "rank": 15,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Slippery Bogbonder",
+          "oracle_id": "2f946c13-cfab-415f-9df7-6d621761b2fc",
+          "match_type": "vector_hit",
+          "score": 0.397639706911072
+        },
+        {
+          "rank": 16,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "I Am Untouchable",
+          "oracle_id": "9694dfb6-21db-44a1-93ef-3871c0d51b8a",
+          "match_type": "vector_hit",
+          "score": 0.37348263933657183
+        },
+        {
+          "rank": 17,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Slippery Bogbonder",
+          "oracle_id": "2f946c13-cfab-415f-9df7-6d621761b2fc",
+          "match_type": "vector_hit",
+          "score": 0.3652871772222398
+        }
+      ],
+      "retrieve_ms": 192.2093000030145,
+      "full": null,
+      "error": null
+    },
+    "messy-lowercase-cards": {
+      "id": "messy-lowercase-cards",
+      "category": "messy",
+      "tags": [
+        "messy",
+        "lowercase",
+        "card-match",
+        "interaction"
+      ],
+      "question": "does rest in peace stop blood artist from triggering",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": true,
+        "recall": 1.0,
+        "first_hit_rank": 4,
+        "requirement_ranks": {
+          "rulings:Rest in Peace": 4
+        },
+        "matched_cards": [
+          "Blood Artist",
+          "Rest in Peace",
+          "Blood"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [
+          "Blood"
+        ],
+        "result_count": 14,
+        "context_chars": 2230
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Blood Artist",
+          "oracle_id": "310f141c-7f37-4729-aed6-dd9c09db448d",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Rest in Peace",
+          "oracle_id": "087f9ad7-e74f-40e2-8102-1ed2925d0418",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 3,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Blood",
+          "oracle_id": "03f45075-9423-454f-a256-94dcafb2a779",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rest in Peace",
+          "oracle_id": "087f9ad7-e74f-40e2-8102-1ed2925d0418",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Blood Artist",
+          "oracle_id": "310f141c-7f37-4729-aed6-dd9c09db448d",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rest in Peace",
+          "oracle_id": "087f9ad7-e74f-40e2-8102-1ed2925d0418",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Rest in Peace",
+          "oracle_id": "087f9ad7-e74f-40e2-8102-1ed2925d0418",
+          "match_type": "card_ruling_match",
+          "score": 1.0
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Blood Hypnotist",
+          "oracle_id": "32845ed6-2328-462e-be3a-579589748588",
+          "match_type": "vector_hit",
+          "score": 0.5984240450057926
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Deathreap Ritual",
+          "oracle_id": "b26e3596-5b28-4eb6-b3e2-03f63d8c6d49",
+          "match_type": "vector_hit",
+          "score": 0.5329161878577643
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Blood Petal Celebrant",
+          "oracle_id": "219cf182-0942-4569-91e9-9bc9bb1d06d0",
+          "match_type": "vector_hit",
+          "score": 0.452261492083317
+        },
+        {
+          "rank": 11,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Witch of the Moors",
+          "oracle_id": "7ad97dd9-1342-4ed4-bea9-1bb21d748e04",
+          "match_type": "vector_hit",
+          "score": 0.40501111552629576
+        },
+        {
+          "rank": 12,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Grisly Ritual",
+          "oracle_id": "56c78349-e4fa-48ba-ae8e-d2312ae6edc6",
+          "match_type": "vector_hit",
+          "score": 0.329576610916047
+        },
+        {
+          "rank": 13,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Restless Bloodseeker // Bloodsoaked Reveler",
+          "oracle_id": "7aef5d2e-b66d-4822-b563-44d21d008272",
+          "match_type": "vector_hit",
+          "score": 0.27617974933682693
+        },
+        {
+          "rank": 14,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Lingering Tormentor",
+          "oracle_id": "276b1bd8-8918-4226-bab3-100cf5aa3c24",
+          "match_type": "vector_hit",
+          "score": 0.2732169514460925
+        }
+      ],
+      "retrieve_ms": 246.24500004574656,
+      "full": null,
+      "error": null
+    },
+    "messy-misspelled-keyword": {
+      "id": "messy-misspelled-keyword",
+      "category": "messy",
+      "tags": [
+        "messy",
+        "misspelling",
+        "indestructible",
+        "card-match"
+      ],
+      "question": "wrath of god vs indestructable creature, does it survive?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": false,
+        "recall": 0.0,
+        "first_hit_rank": null,
+        "requirement_ranks": {
+          "rules:702.12b": null
+        },
+        "matched_cards": [
+          "Wrath of God"
+        ],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 10,
+        "context_chars": 1356
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "card",
+          "rule_id": null,
+          "card_name": "Wrath of God",
+          "oracle_id": "34515b16-c9a4-4f98-8c77-416a7a523407",
+          "match_type": "card_name_match",
+          "score": 1.0
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Mogis, God of Slaughter",
+          "oracle_id": "e5912d21-e188-4b9e-8e92-a6e8196353c6",
+          "match_type": "vector_hit",
+          "score": 0.48856707974802904
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Erebos, Bleak-Hearted",
+          "oracle_id": "a5690dc9-f12e-4ecc-b528-f2f83c79c3c8",
+          "match_type": "vector_hit",
+          "score": 0.44823375827085055
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Erebos, God of the Dead",
+          "oracle_id": "1cfc7b12-a595-492d-81ee-bd100ba7de6a",
+          "match_type": "vector_hit",
+          "score": 0.40393129725917476
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Kaya's Wrath",
+          "oracle_id": "bc8de6c7-c69d-4add-8f25-825d945874f9",
+          "match_type": "vector_hit",
+          "score": 0.3975581827373454
+        },
+        {
+          "rank": 6,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Iroas, God of Victory",
+          "oracle_id": "36041cf2-159f-4809-9377-930ac4db545f",
+          "match_type": "vector_hit",
+          "score": 0.38491829139790895
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Purphoros, God of the Forge",
+          "oracle_id": "4fdbbec2-e921-4b63-958d-f9ba1e417197",
+          "match_type": "vector_hit",
+          "score": 0.3580089144780639
+        },
+        {
+          "rank": 8,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Athreos, God of Passage",
+          "oracle_id": "af206aed-1f58-4f5a-ba42-0e0d1f282940",
+          "match_type": "vector_hit",
+          "score": 0.3542352911327814
+        },
+        {
+          "rank": 9,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "Seraph of the Suns",
+          "oracle_id": "8354b70e-43fc-4581-bb53-b913335bf460",
+          "match_type": "vector_hit",
+          "score": 0.34317328639326894
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Erebos, Bleak-Hearted",
+          "oracle_id": "a5690dc9-f12e-4ecc-b528-f2f83c79c3c8",
+          "match_type": "vector_hit",
+          "score": 0.3395463949340459
+        }
+      ],
+      "retrieve_ms": 225.28980008792132,
+      "full": null,
+      "error": null
+    },
+    "messy-terse-hand-size": {
+      "id": "messy-terse-hand-size",
+      "category": "messy",
+      "tags": [
+        "messy",
+        "terse"
+      ],
+      "question": "max hand size?",
+      "retrieval": {
+        "pass": false,
+        "sources_pass": false,
+        "recall": 0.0,
+        "first_hit_rank": null,
+        "requirement_ranks": {
+          "rules:402.2": null
+        },
+        "matched_cards": [],
+        "expected_missing": [],
+        "forbidden_hits": [],
+        "result_count": 10,
+        "context_chars": 2644
+      },
+      "results": [
+        {
+          "rank": 1,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Twenty-Toed Toad",
+          "oracle_id": "cce643fb-cd88-457c-8f13-c203554df675",
+          "match_type": "vector_hit",
+          "score": 0.7166013829261806
+        },
+        {
+          "rank": 2,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Trusted Advisor",
+          "oracle_id": "430e4e74-33ee-49f2-aef5-6d09079c5eb7",
+          "match_type": "vector_hit",
+          "score": 0.5930322736355192
+        },
+        {
+          "rank": 3,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Thought Eater",
+          "oracle_id": "88e18dc9-8b11-4369-9860-a687925cdcb4",
+          "match_type": "vector_hit",
+          "score": 0.5552785559359511
+        },
+        {
+          "rank": 4,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Minamo Scrollkeeper",
+          "oracle_id": "9ad4f876-e923-4a09-8e70-eb826aacf89d",
+          "match_type": "vector_hit",
+          "score": 0.554511392234793
+        },
+        {
+          "rank": 5,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Doctor Octopus, Master Planner",
+          "oracle_id": "2fecfbef-e521-4025-94ea-451c9abde3de",
+          "match_type": "vector_hit",
+          "score": 0.5309771291642571
+        },
+        {
+          "rank": 6,
+          "source_type": "rule",
+          "rule_id": "402",
+          "card_name": null,
+          "oracle_id": null,
+          "match_type": "vector_hit",
+          "score": 0.5282236108529774
+        },
+        {
+          "rank": 7,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Twenty-Toed Toad",
+          "oracle_id": "cce643fb-cd88-457c-8f13-c203554df675",
+          "match_type": "vector_hit",
+          "score": 0.5243563830947499
+        },
+        {
+          "rank": 8,
+          "source_type": "oracle",
+          "rule_id": null,
+          "card_name": "The Vanquisher",
+          "oracle_id": "3aebafe3-5d5d-4163-bd52-70c71a9c23e2",
+          "match_type": "vector_hit",
+          "score": 0.5033017682279076
+        },
+        {
+          "rank": 9,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Doctor Octopus, Master Planner",
+          "oracle_id": "2fecfbef-e521-4025-94ea-451c9abde3de",
+          "match_type": "vector_hit",
+          "score": 0.48831932075279466
+        },
+        {
+          "rank": 10,
+          "source_type": "ruling",
+          "rule_id": null,
+          "card_name": "Venser's Journal",
+          "oracle_id": "f7907327-4df3-4bb2-a274-03d9e266af2f",
+          "match_type": "vector_hit",
+          "score": 0.47724963369234386
+        }
+      ],
+      "retrieve_ms": 121.60129996482283,
+      "full": null,
+      "error": null
+    }
+  },
+  "aggregates": {
+    "overall": {
+      "cases": 38,
+      "errors": 0,
+      "scored": 35,
+      "passed": 18,
+      "pass_rate": 0.5142857142857142,
+      "mean_recall": 0.7,
+      "mean_first_hit_rank": 3.12,
+      "forbidden_hits": 9,
+      "expected_missing": 0,
+      "mean_results": 13.236842105263158,
+      "mean_context_chars": 2798.8947368421054
+    },
+    "by_category": {
+      "card-ruling": {
+        "cases": 10,
+        "scored": 10,
+        "passed": 8,
+        "pass_rate": 0.8
+      },
+      "cr-only": {
+        "cases": 10,
+        "scored": 10,
+        "passed": 3,
+        "pass_rate": 0.3
+      },
+      "interaction": {
+        "cases": 3,
+        "scored": 3,
+        "passed": 2,
+        "pass_rate": 0.6666666666666666
+      },
+      "keyword": {
+        "cases": 8,
+        "scored": 8,
+        "passed": 4,
+        "pass_rate": 0.5
+      },
+      "messy": {
+        "cases": 4,
+        "scored": 4,
+        "passed": 1,
+        "pass_rate": 0.25
+      },
+      "negative": {
+        "cases": 3,
+        "scored": 0,
+        "passed": 0,
+        "pass_rate": null
+      }
+    }
+  }
+}
