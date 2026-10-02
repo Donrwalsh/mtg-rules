@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -15,7 +15,7 @@ from pydantic import TypeAdapter, ValidationError
 from qdrant_client import QdrantClient
 from sqlalchemy.engine import Engine
 
-from mtg_api.allowance import GenerationSlots
+from mtg_api.allowance import Allowances, GenerationsBusy, Spend
 from mtg_api.answer_cache import cache_key, get_cached, normalize_query, put_cached
 from mtg_api.card_matcher import CardMatcher
 from mtg_api.citations import citation_for, cite_answer
@@ -34,7 +34,6 @@ from mtg_api.keyword_matcher import KeywordMatcher
 from mtg_api.llm import (
     PROMPT_VERSION,
     Answerer,
-    Generation,
     StreamAccumulator,
     build_answerer,
     build_context,
@@ -52,16 +51,7 @@ from mtg_api.retrieval import RetrievalDeps, retrieve
 from mtg_api.rules_index import RulesIndex
 from mtg_api.sparse_embedder import SparseEmbedder
 from mtg_api.streaming import AnswerJob, Emit, sse_event
-from mtg_api.usage import (
-    Gate,
-    check_gate,
-    cost_usd,
-    estimate_generation,
-    finalize_usage,
-    record_usage,
-    reserve_usage,
-    worst_case_cost,
-)
+from mtg_api.usage import estimate_generation
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +64,9 @@ class Refused(Exception):
         super().__init__(detail)
         self.status = status
         self.detail = detail
+
+
+BUSY = "Too many answers in progress. Try again in a moment."
 
 
 @dataclass(frozen=True)
@@ -136,7 +129,6 @@ def resolve_settings(overrides: dict[str, Any]) -> Settings:
     return settings.model_copy(update=validated)
 
 
-_DEGRADED_OUTCOMES = {"ip_quota": "degraded_ip", "global_budget": "degraded_global"}
 # Fields that describe one request, not the cached answer.
 _PER_REQUEST_FIELDS = {
     "query",
@@ -149,22 +141,6 @@ _PER_REQUEST_FIELDS = {
     "usage",
     "generation_error",
 }
-
-
-def _gate(engine: Engine, s: Settings, bucket: str, now: datetime) -> Gate:
-    try:
-        return check_gate(engine, s, bucket, now)
-    except Exception:
-        # Fail closed: without the usage table there's no way to know the spend.
-        logger.exception("Usage gate unavailable; answering retrieval-only")
-        return Gate("global_budget", 0)
-
-
-def _record(engine: Engine, **fields) -> None:
-    try:
-        record_usage(engine, **fields)
-    except Exception:
-        logger.exception("Failed to record LLM usage")
 
 
 def _cache_get(engine: Engine, key: str) -> tuple[dict, datetime] | None:
@@ -217,9 +193,6 @@ def _save_history(
         logger.exception("Failed to persist query history")
 
 
-generation_slots = GenerationSlots()
-
-
 @dataclass
 class QueryDeps:
     matcher: CardMatcher
@@ -231,6 +204,7 @@ class QueryDeps:
     engine: Engine
     rules_index: RulesIndex
     data_version: str
+    allowances: Allowances
 
     def retrieval(self) -> RetrievalDeps:
         return RetrievalDeps(
@@ -248,14 +222,6 @@ class AnswerStream:
     events: Iterator[Event]  # always ends with exactly one Done
 
 
-def _reserve(engine: Engine, record: dict, cost: float) -> int | None:
-    try:
-        return reserve_usage(engine, cost=cost, **record)
-    except Exception:
-        logger.exception("Failed to reserve LLM usage")
-        return None
-
-
 def start(request: QueryRequest, caller: Caller, deps: QueryDeps) -> AnswerStream:
     """Answer one question. Raises Refused (422 too long or a bad override,
     403 fresh or overrides not allowed, 429 too many answers in progress)
@@ -265,38 +231,26 @@ def start(request: QueryRequest, caller: Caller, deps: QueryDeps) -> AnswerStrea
     reading."""
     s, answerer = _resolve(request, caller, deps)
     now = datetime.now(UTC)
-    tracked = request.generate and not s.eval_mode
-    record = {
-        "now": now,
-        "ip_bucket": caller.ip_bucket,
-        "is_admin": caller.is_admin,
-        "model": answer_model(s),
-    }
-
-    # The gate here, the slot and the reservation below are what review doc
-    # 01's answer allowance replaces.
-    gate = Gate(None, 0)
-    remaining = None
-    if tracked and s.gating_enabled and not caller.is_admin:
-        gate = _gate(deps.engine, s, caller.ip_bucket, now)
-        remaining = gate.answers_remaining
+    admission = deps.allowances.admit(
+        s,
+        ip_bucket=caller.ip_bucket,
+        is_admin=caller.is_admin,
+        generate=request.generate,
+        model=answer_model(s),
+    )
 
     key = (
         cache_key(request.query, s, deps.data_version)
-        if tracked and s.answer_cache_enabled
+        if request.generate and not s.eval_mode and s.answer_cache_enabled
         else None
     )
     if key and not request.fresh:
-        # The global budget being exhausted applies to the next new question
-        # too, so don't promise answers a cache hit didn't use.
-        cache_remaining = 0 if gate.degraded == "global_budget" else remaining
-        hit = _cached(request, deps, key, cache_remaining)
+        hit = _cached(request, deps, key)
         if hit is not None:
-            _record(deps.engine, outcome="cached", **record)
+            hit.answers_remaining = admission.served_from_cache()
             return _finished(deps, s, request, hit, cached=True)
 
-    generating = request.generate and gate.degraded is None
-    release = _acquire_slot(s, caller) if generating and not s.eval_mode else None
+    spend: Spend | None = None
     try:
         results = retrieve(request.query, s, deps.retrieval())
         context, sources = build_context(results)
@@ -304,28 +258,25 @@ def start(request: QueryRequest, caller: Caller, deps: QueryDeps) -> AnswerStrea
         enrich_results(results, deps.matcher, deps.rules_index)
         eval_fields = _eval_fields(s, context)
 
-        if tracked and gate.degraded:
-            _record(deps.engine, outcome=_DEGRADED_OUTCOMES[gate.degraded], **record)
-        if generating and tracked and remaining is not None:
-            remaining = max(0, remaining - 1)
+        if request.generate and admission.degraded is None:
+            try:
+                spend = admission.start_answer(prompt_chars(request.query, context))
+            except GenerationsBusy:
+                raise Refused(429, BUSY) from None
+        remaining = spend.answers_remaining if spend else admission.retrieval_only()
 
         head = QueryResponse(
             query=request.query,
             results=results,
-            degraded=gate.degraded,
+            degraded=admission.degraded,
             answers_remaining=remaining,
             **eval_fields,
         )
-        if not generating:
+        if spend is None:
             return _finished(deps, s, request, head)
 
         live_sources = [citation_for(n, r) for n, r in sources.items()]
         enrich_citations(live_sources, deps.matcher, deps.rules_index)
-        reservation = (
-            _reserve(deps.engine, record, worst_case_cost(prompt_chars(request.query, context), s))
-            if tracked
-            else None
-        )
         writer = _AnswerWriter(
             s=s,
             request=request,
@@ -334,18 +285,16 @@ def start(request: QueryRequest, caller: Caller, deps: QueryDeps) -> AnswerStrea
             context=context,
             sources=sources,
             results=results,
-            record=record,
-            tracked=tracked,
-            reservation=reservation,
+            now=now,
+            spend=spend,
             key=key,
             answers_remaining=remaining,
             eval_fields=eval_fields,
-            release=release,
         )
         job = AnswerJob(writer.run).start()
     except BaseException:
-        if release:
-            release()
+        if spend:
+            spend.cancel()
         raise
     return AnswerStream(StreamHead.of(head, live_sources), job.events())
 
@@ -363,9 +312,7 @@ def _resolve(request: QueryRequest, caller: Caller, deps: QueryDeps) -> tuple[Se
     return s, answerer
 
 
-def _cached(
-    request: QueryRequest, deps: QueryDeps, key: str, remaining: int | None
-) -> QueryResponse | None:
+def _cached(request: QueryRequest, deps: QueryDeps, key: str) -> QueryResponse | None:
     """The cached answer to this question, or None (a miss, or a row that no
     longer parses, which the new answer will overwrite)."""
     hit = _cache_get(deps.engine, key)
@@ -373,9 +320,7 @@ def _cached(
         return None
     stored, generated_at = hit
     try:
-        response = QueryResponse(
-            **stored, query=request.query, cached_at=generated_at, answers_remaining=remaining
-        )
+        response = QueryResponse(**stored, query=request.query, cached_at=generated_at)
     except Exception:
         logger.exception("Malformed answer-cache row for key %s; treating as a miss", key)
         return None
@@ -401,17 +346,6 @@ def _finished(
     return AnswerStream(StreamHead.of(response, []), iter([Done(StreamDone.of(response))]))
 
 
-def _acquire_slot(s: Settings, caller: Caller) -> Callable[[], None]:
-    release = generation_slots.acquire(
-        caller.ip_bucket,
-        total_limit=s.max_concurrent_generations,
-        ip_limit=None if caller.is_admin else s.max_concurrent_generations_per_ip,
-    )
-    if release is None:
-        raise Refused(429, "Too many answers in progress. Try again in a moment.")
-    return release
-
-
 def _eval_fields(s: Settings, context: str) -> dict:
     if not s.eval_mode:
         return {}
@@ -434,13 +368,11 @@ class _AnswerWriter:
     context: str
     sources: dict[int, QueryResult]
     results: list[QueryResult]
-    record: dict  # now / ip_bucket / is_admin / model for the usage row
-    tracked: bool
-    reservation: int | None
+    now: datetime
+    spend: Spend
     key: str | None
     answers_remaining: int | None
     eval_fields: dict
-    release: Callable[[], None] | None
 
     def run(self, emit: Emit) -> None:
         s, d = self.s, self.deps
@@ -458,7 +390,7 @@ class _AnswerWriter:
                 failure = str(exc)
 
             generation = estimate_generation(acc, prompt_chars(self.request.query, self.context), s)
-            self._finalize("error" if failure else "generated", generation)
+            self.spend.settle(generation, failed=failure is not None)
 
             # Keep whatever was written, even when the stream failed after it.
             answer = acc.text if (acc.text or failure is None) else None
@@ -492,34 +424,12 @@ class _AnswerWriter:
             )
             _save_history(d.engine, s, self.request, response, error=error)
             if self.key and answer and complete:
-                _cache_put(d.engine, self.key, self.request.query, response, self.record["now"])
+                _cache_put(d.engine, self.key, self.request.query, response, self.now)
             if failure and answer is None:
                 emit(Failed(failure))
             emit(Done(StreamDone.of(response)))
         finally:
-            if self.release:
-                self.release()
-
-    def _finalize(self, outcome: str, generation: Generation) -> None:
-        if not self.tracked:
-            return
-        cost = cost_usd(generation, self.s)
-        if self.reservation is None:
-            # The reservation insert failed; record the answer as before.
-            _record(
-                self.deps.engine, outcome=outcome, generation=generation, cost=cost, **self.record
-            )
-            return
-        try:
-            finalize_usage(
-                self.deps.engine,
-                self.reservation,
-                outcome=outcome,
-                generation=generation,
-                cost=cost,
-            )
-        except Exception:
-            logger.exception("Failed to finalize LLM usage")
+            self.spend.close()
 
 
 def sse_frames(stream: AnswerStream) -> Iterator[str]:

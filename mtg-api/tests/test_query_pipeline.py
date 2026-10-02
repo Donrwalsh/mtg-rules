@@ -1,10 +1,18 @@
 """start() without HTTP: no TestClient, no dependency overrides, no ASGI scope."""
 
 import pytest
-from conftest import ChunksAnswerer, CountingAnswerer, FakeAnswerer, make_deps
+from conftest import (
+    ChunksAnswerer,
+    CountingAnswerer,
+    FakeAnswerer,
+    FakeQdrantClient,
+    make_deps,
+    trample_hits,
+)
 from sqlalchemy import select
 
 from mtg_api import query_pipeline
+from mtg_api.allowance import GenerationSlots
 from mtg_api.config import settings
 from mtg_api.history import list_history
 from mtg_api.llm import StreamChunk
@@ -81,16 +89,47 @@ def test_refusals_before_any_work(fields, status):
     assert answerer.calls == 0
 
 
-def test_busy_is_429_and_starts_nothing():
+class _CountingClient(FakeQdrantClient):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.searches = 0
+
+    def query_points(self, *args, **kwargs):
+        self.searches += 1
+        return super().query_points(*args, **kwargs)
+
+
+def test_busy_is_429_after_retrieval_and_starts_nothing():
     answerer = CountingAnswerer()
-    release = query_pipeline.generation_slots.acquire(CALLER.ip_bucket, total_limit=4, ip_limit=1)
-    try:
-        with pytest.raises(Refused) as exc:
-            _ask(deps=make_deps(answerer=answerer))
-    finally:
-        release()
+    slots = GenerationSlots()
+    slots.acquire(CALLER.ip_bucket, total_limit=4, ip_limit=1)
+    deps = make_deps(answerer=answerer, slots=slots)
+    deps.client = _CountingClient(trample_hits())
+    with pytest.raises(Refused) as exc:
+        _ask(deps=deps)
     assert exc.value.status == 429
+    assert exc.value.detail == "Too many answers in progress. Try again in a moment."
+    assert deps.client.searches > 0  # the slot is taken after retrieval now
     assert answerer.calls == 0
+
+
+def test_an_answer_that_never_starts_costs_nothing_and_frees_its_slot(monkeypatch):
+    class _Unstartable:
+        def __init__(self, work):
+            pass
+
+        def start(self):
+            raise RuntimeError("no threads left")
+
+    deps = make_deps()
+    monkeypatch.setattr(query_pipeline, "AnswerJob", _Unstartable)
+    with pytest.raises(RuntimeError):
+        _ask(deps=deps)
+    with deps.engine.connect() as conn:
+        rows = conn.execute(select(llm_usage)).mappings().all()
+    assert [(r["outcome"], r["cost_usd"]) for r in rows] == [("error", 0.0)]
+    monkeypatch.undo()
+    assert [type(e) for e in _ask(query="deathtouch", deps=deps).events][-1] is Done
 
 
 def test_admin_with_the_marker_may_ask_for_a_fresh_answer():
