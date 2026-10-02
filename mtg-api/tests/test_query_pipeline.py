@@ -1,5 +1,7 @@
 """start() without HTTP: no TestClient, no dependency overrides, no ASGI scope."""
 
+from datetime import UTC, datetime
+
 import pytest
 from conftest import (
     ChunksAnswerer,
@@ -11,7 +13,7 @@ from conftest import (
 )
 from sqlalchemy import select
 
-from mtg_api import query_pipeline
+from mtg_api import query_pipeline, usage
 from mtg_api.allowance import GenerationSlots
 from mtg_api.config import settings
 from mtg_api.history import list_history
@@ -111,6 +113,38 @@ def test_busy_is_429_after_retrieval_and_starts_nothing():
     assert exc.value.detail == "Too many answers in progress. Try again in a moment."
     assert deps.client.searches > 0  # the slot is taken after retrieval now
     assert answerer.calls == 0
+
+
+def test_the_budget_closing_during_retrieval_degrades_without_answering(monkeypatch):
+    monkeypatch.setattr(settings, "gating_enabled", True)
+    monkeypatch.setattr(settings, "gemini_input_price_per_mtok", 1.0)
+    monkeypatch.setattr(settings, "gemini_output_price_per_mtok", 2.0)
+    monkeypatch.setattr(settings, "daily_budget_usd", 1.0)
+    answerer = CountingAnswerer()
+    deps = make_deps(answerer=answerer)
+    real_retrieve = query_pipeline.retrieve
+
+    def spend_the_budget_then_retrieve(*args, **kwargs):
+        usage.record_usage(
+            deps.engine,
+            now=datetime.now(UTC),
+            ip_bucket="9.9.9.9",
+            is_admin=False,
+            outcome="generated",
+            model="m",
+            cost=1.0,
+        )
+        return real_retrieve(*args, **kwargs)
+
+    monkeypatch.setattr(query_pipeline, "retrieve", spend_the_budget_then_retrieve)
+    stream = _ask(deps=deps)
+    assert stream.head.degraded == "global_budget"
+    assert [type(e) for e in stream.events] == [Done]
+    assert answerer.calls == 0
+    with deps.engine.connect() as conn:
+        outcomes = [r.outcome for r in conn.execute(select(llm_usage).order_by(llm_usage.c.id))]
+    assert outcomes[-1] == "degraded_global"
+    assert "pending" not in outcomes
 
 
 def test_an_answer_that_never_starts_costs_nothing_and_frees_its_slot(monkeypatch):

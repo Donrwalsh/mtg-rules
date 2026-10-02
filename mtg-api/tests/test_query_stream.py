@@ -85,7 +85,9 @@ def test_validation_errors_are_plain_http():
 def test_global_cap_is_429(monkeypatch):
     monkeypatch.setattr(main.settings, "max_concurrent_generations", 0)
     setup_trample()
-    assert _stream({"query": "trample"}).status_code == 429
+    response = _stream({"query": "trample"})
+    assert response.status_code == 429
+    assert response.json()["detail"] == "Too many answers in progress. Try again in a moment."
 
 
 def test_cache_hits_and_retrieval_only_need_no_slot(monkeypatch):

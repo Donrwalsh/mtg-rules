@@ -243,12 +243,16 @@ def test_global_slots_full_is_busy_even_for_an_admin():
         _admit(a, _settings(max_concurrent_generations=0), admin=True).start_answer(0)
 
 
-def test_lock_timeout_is_busy():
+def test_lock_timeout_is_busy(caplog):
     lock = threading.Lock()
     lock.acquire()
     a = _allowances(lock=lock, lock_timeout=0.01)
-    with pytest.raises(GenerationsBusy):
+    with (
+        caplog.at_level(logging.WARNING, logger="mtg_api.allowance"),
+        pytest.raises(GenerationsBusy),
+    ):
         _admit(a).start_answer(0)
+    assert "lock busy" in caplog.text
 
 
 # -- Untracked and ungated -----------------------------------------------------

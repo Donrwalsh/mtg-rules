@@ -235,8 +235,9 @@ after phase 1 hands them over.
 - **Answer allowance (2026-10-02).** `allowance.py` owns the gate, the
   slots and these rows behind one interface (`admit` → `start_answer` →
   `settle` / `cancel` / `close`). The check and the reservation happen
-  under one process-wide lock, so `daily_budget_usd` is exact within the
-  process. An answer whose job never starts is settled as `error` at zero
+  under one process-wide lock, so concurrent answers can no longer overshoot
+  `daily_budget_usd`: within the process, spend stays within the budget plus
+  at most one answer's worst case. An answer whose job never starts is settled as `error` at zero
   cost instead of staying `pending`.
 - `record_usage` stays for the `cached` / `degraded_*` outcomes.
 

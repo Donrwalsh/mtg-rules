@@ -1,6 +1,7 @@
-"""How a question becomes an answer: refusals, the usage gate, the answer
-cache, generation slots, retrieval, and the answer written on a worker
-thread. The routes in main.py are thin adapters over start()."""
+"""How a question becomes an answer: refusals, the answer cache, retrieval,
+the answer written on a worker thread, and history. The answer allowance
+(allowance.py) decides and pays for answers. The routes in main.py are thin
+adapters over start()."""
 
 from __future__ import annotations
 
@@ -239,6 +240,8 @@ def start(request: QueryRequest, caller: Caller, deps: QueryDeps) -> AnswerStrea
         model=answer_model(s),
     )
 
+    # The answer cache's own rule (only answers people asked for, never eval
+    # runs), separate from the allowance's metering.
     key = (
         cache_key(request.query, s, deps.data_version)
         if request.generate and not s.eval_mode and s.answer_cache_enabled

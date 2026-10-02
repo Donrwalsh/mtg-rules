@@ -17,9 +17,10 @@ Policy:
 - The reservation fails open: if its row can't be written, the answer is
   still written and settle() inserts the row at the end. Only a database
   failing between a successful gate read and the insert reaches this.
-- The budget is exact within this process: start_answer re-checks the gate
-  and reserves under one lock. Across processes it would need a database
-  lock; the API runs as one process."""
+- Concurrent answers can no longer overshoot the budget: start_answer
+  re-checks the gate and reserves under one lock. Spend stays within the
+  budget plus at most one answer's worst case, within this process. Across
+  processes it would need a database lock; the API runs as one process."""
 
 from __future__ import annotations
 
@@ -244,6 +245,7 @@ class Admission:
             return Spend(self._a, self._s, self._asker, tracked=False)
         a, s, asker = self._a, self._s, self._asker
         if not a._lock.acquire(timeout=a._lock_timeout):
+            logger.warning("Answer allowance lock busy for %.1fs; answering 429", a._lock_timeout)
             raise GenerationsBusy
         try:
             remaining = None
@@ -272,7 +274,9 @@ class Admission:
 
 class Spend:
     """One answer being written: its slot and its reservation. End it with
-    settle() (written) or cancel() (never started), then close()."""
+    settle() (written) or cancel() (never started), then close(). A Spend has
+    one owner at a time (the request thread until the answer job starts,
+    then the job's worker), so it takes no lock."""
 
     def __init__(
         self,

@@ -14,7 +14,8 @@ that design. It records the decisions taken on doc 01's open questions, the
 ones that followed from them, and what changed since doc 01 was written.
 
 Unlike doc 02, this PR **changes behaviour** in two places: the daily budget
-becomes exact within the process, and the slot is taken after retrieval.
+becomes exact within the process (at most one worst-case answer over, never
+one per concurrent request), and the slot is taken after retrieval.
 Everything else is a reshaping.
 
 ## Since doc 01 was written
@@ -32,7 +33,7 @@ gone from the UI.
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Exact budget; when the slot is taken | **Exact.** `start_answer` re-checks the gate, takes the slot and reserves the worst case under one process-wide lock, **after retrieval**. A request that ends in 429 has paid for one retrieval. |
+| 1 | Exact budget; when the slot is taken | **Exact: at most one worst-case answer over, never one per concurrent request.** `start_answer` re-checks the gate, takes the slot and reserves the worst case under one process-wide lock, **after retrieval**. A request that ends in 429 has paid for one retrieval. |
 | 2 | Job never starts after reserving | **Settle it as `error` at zero cost.** It still counts as one answer toward the per-IP quota, as every `error` does, and as the stuck `pending` row does today. |
 | 3 | Reservation insert fails | **Fail open, as today**, stated in the module docstring. The gate read just succeeded, so the window is narrow. A real DB outage already fails closed at the gate. |
 | 4 | Name | **Answer allowance.** Classes `Allowances`, `Admission`, `Spend`, `GenerationsBusy`. "Ledger" stays the word for the usage rows in `usage.py`. |

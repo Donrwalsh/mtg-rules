@@ -11,8 +11,8 @@ usage row. Lives in `mtg-api/src/mtg_api/allowance.py`.
 served from the cache, retrieval-only, or an answer started.
 
 **Spend**: one answer being written. Holds its generation slot and its
-worst-case reservation until it is settled (real cost), cancelled (never
-started, no cost) and closed (slot freed).
+worst-case reservation until it is settled (real cost) or cancelled (never
+started, no cost), then closed (slot freed).
 
 **Generation slot**: one of the in-memory places for an answer being
 written right now. Capped in total (`max_concurrent_generations`) and per
