@@ -776,7 +776,7 @@ export const httpSource: AnswerSource = async function* (query, { fresh, signal 
     }
   } finally {
     // Closes the connection on `done`, on abort, or when the caller stops.
-    reader.cancel().catch(() => {});
+    await reader.cancel().catch(() => {});
   }
   throw new StreamEndedError('The answer stopped arriving before it finished.');
 };
