@@ -1,7 +1,7 @@
 // Helpers for showing an answer while it streams. The server validates
 // citations only when the answer is done; until then markers link to the
 // `sources` sent up front, and `done` replaces all of this.
-import type { Citation, QueryResult } from './api';
+import type { Citation, QueryResult } from '../api';
 
 // An opening bracket at the very end that hasn't closed yet: "[", "[1", "[1, ".
 const OPEN_MARKER = /\[[\d,\s]*$/;

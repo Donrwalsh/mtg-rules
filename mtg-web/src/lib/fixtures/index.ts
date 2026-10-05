@@ -13,7 +13,7 @@ import {
   type StreamHandlers,
   type StreamHead
 } from '../api';
-import { liveCitations, visibleDraft } from '../stream';
+import { liveCitations, visibleDraft } from '../answer-stream/live';
 
 export const FIXTURE_NAMES = [
   'answered',

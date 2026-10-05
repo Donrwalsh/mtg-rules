@@ -10,6 +10,7 @@ export const MAX_QUERY_CHARS = 500;
 export const ADMIN_HEADER = 'X-Admin-Request';
 
 export class RateLimitedError extends Error {}
+export const TOO_MANY_REQUESTS = 'Too many requests. Wait a few seconds and try again.';
 
 // A card's face for display (not its rules text, which is `text`). Filled in
 // by the API on card, oracle and ruling sources.
@@ -94,7 +95,7 @@ export async function submitQuery(
     body: JSON.stringify(fresh ? { query, fresh } : { query })
   });
   if (resp.status === 429) {
-    throw new RateLimitedError('Too many requests. Wait a few seconds and try again.');
+    throw new RateLimitedError(TOO_MANY_REQUESTS);
   }
   if (!resp.ok) {
     throw new Error(`query failed: ${resp.status}`);
@@ -102,21 +103,9 @@ export async function submitQuery(
   return resp.json();
 }
 
-// The first event of a streamed answer: everything but the answer.
-export interface StreamHead {
-  results: QueryResult[];
-  // A citation for every numbered source, so markers work while streaming.
-  sources: Citation[];
-  degraded: QueryResponse['degraded'];
-  answers_remaining: number | null;
-  cached_at: string | null;
-}
-
-// The last event: the validated answer. `results` again, with `cited` set.
-export type StreamDone = Omit<
-  QueryResponse,
-  'query' | 'degraded' | 'answers_remaining' | 'cached_at'
->;
+// Moved to answer-stream/protocol; re-exported until the page switches over.
+export type { StreamDone, StreamHead } from './answer-stream/protocol';
+import type { StreamDone, StreamHead } from './answer-stream/protocol';
 
 export interface StreamHandlers {
   results: (head: StreamHead) => void;
@@ -143,7 +132,7 @@ export async function streamQuery(
     signal
   });
   if (resp.status === 429) {
-    throw new RateLimitedError('Too many requests. Wait a few seconds and try again.');
+    throw new RateLimitedError(TOO_MANY_REQUESTS);
   }
   if (!resp.ok || !resp.body) {
     throw new Error(`query failed: ${resp.status}`);
