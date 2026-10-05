@@ -224,9 +224,22 @@ def setup_trample(answerer=None, engine=None, data_version="v1"):
     return engine, answerer
 
 
-def make_deps(*, hits=None, answerer=None, engine=None, cards=None, rules=None, data_version="v1"):
+def make_deps(
+    *,
+    hits=None,
+    answerer=None,
+    engine=None,
+    cards=None,
+    rules=None,
+    data_version="v1",
+    slots=None,
+):
     """QueryDeps built directly, with no FastAPI involved: one trample rule
-    hit unless `hits` says otherwise."""
+    hit unless `hits` says otherwise. Its own generation slots and lock, so
+    tests don't share the app's."""
+    import threading
+
+    from mtg_api.allowance import Allowances, GenerationSlots
     from mtg_api.card_matcher import CardMatcher
     from mtg_api.embedder import Embedder
     from mtg_api.keyword_matcher import KeywordMatcher
@@ -234,6 +247,7 @@ def make_deps(*, hits=None, answerer=None, engine=None, cards=None, rules=None, 
     from mtg_api.rules_index import RulesIndex
     from mtg_api.sparse_embedder import SparseEmbedder
 
+    engine = engine or memory_engine()
     return QueryDeps(
         matcher=CardMatcher(cards or []),
         keyword_matcher=KeywordMatcher(rules or []),
@@ -241,7 +255,8 @@ def make_deps(*, hits=None, answerer=None, engine=None, cards=None, rules=None, 
         sparse_embedder=SparseEmbedder(FakeSparseModel()),
         client=FakeQdrantClient(trample_hits() if hits is None else hits),
         answerer=answerer or CountingAnswerer(),
-        engine=engine or memory_engine(),
+        engine=engine,
         rules_index=RulesIndex(rules or []),
         data_version=data_version,
+        allowances=Allowances(engine, slots or GenerationSlots(), threading.Lock()),
     )

@@ -17,6 +17,7 @@ from sqlalchemy.engine import Engine
 from mtg_api import query_pipeline
 from mtg_api.admin_auth import has_admin_marker, is_admin, require_admin
 from mtg_api.admin_auth import router as auth_router
+from mtg_api.allowance import Allowances
 from mtg_api.answer_cache import (
     read_data_version,
 )
@@ -163,6 +164,7 @@ def get_query_deps(
         engine,
         rules_index,
         data_version,
+        Allowances(engine),
     )
 
 

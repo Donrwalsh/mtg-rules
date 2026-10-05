@@ -2,7 +2,6 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import memory_engine
-from sqlalchemy import select
 
 from mtg_api.config import Settings
 from mtg_api.llm import Generation, StreamAccumulator, StreamChunk
@@ -15,11 +14,8 @@ from mtg_api.usage import (
     day_start,
     estimate_generation,
     estimate_tokens,
-    finalize_usage,
     ip_bucket,
-    llm_usage,
     record_usage,
-    reserve_usage,
     spend_since,
     usage_summary,
     worst_case_cost,
@@ -184,12 +180,6 @@ def test_check_gating_config_requires_prices_when_enabled():
     check_gating_config(_settings(gating_enabled=True))
 
 
-def _reserve(engine, *, cost=0.5, bucket="203.0.113.7", at=NOW):
-    return reserve_usage(
-        engine, now=at, ip_bucket=bucket, is_admin=False, model="gemini-3.5-flash", cost=cost
-    )
-
-
 def test_estimate_tokens_rounds_up():
     assert estimate_tokens(0) == 0
     assert estimate_tokens(1) == 1
@@ -205,24 +195,6 @@ def test_worst_case_cost_is_prompt_plus_max_tokens():
 
 def test_worst_case_cost_assumes_2048_without_max_tokens():
     assert worst_case_cost(0, _settings()) == pytest.approx(2048 * 2.0 / 1_000_000)
-
-
-def test_pending_reservation_counts_against_quota_and_budget():
-    engine = memory_engine()
-    _reserve(engine, cost=0.6)
-    assert answers_since(engine, "203.0.113.7", day_start(NOW)) == 1
-    assert spend_since(engine, day_start(NOW)) == pytest.approx(0.6)
-
-
-def test_finalize_replaces_the_reservation_in_place():
-    engine = memory_engine()
-    row_id = _reserve(engine, cost=0.6)
-    g = Generation("x", input_tokens=10, output_tokens=2, thinking_tokens=3)
-    finalize_usage(engine, row_id, outcome="generated", generation=g, cost=0.01)
-    with engine.connect() as conn:
-        row = conn.execute(select(llm_usage)).mappings().one()
-    assert (row["outcome"], row["cost_usd"]) == ("generated", pytest.approx(0.01))
-    assert (row["input_tokens"], row["output_tokens"], row["thinking_tokens"]) == (10, 2, 3)
 
 
 def test_estimate_generation_uses_real_counts_once_the_stream_finished():
