@@ -1171,7 +1171,7 @@ describe('createAnswerStream', () => {
   it('a later load wins over an earlier one', async () => {
     const answer = createAnswerStream(scripted([]));
     let finish!: (r: QueryResponse) => void;
-    const first = answer.load(() => new Promise((resolve) => (finish = resolve)));
+    const first = answer.load(() => new Promise<QueryResponse>((resolve) => (finish = resolve)));
     const second = answer.load(async () => ({ query: 'b', answer: 'B' }) as QueryResponse);
     finish({ query: 'a', answer: 'A' } as QueryResponse);
     expect(await first).toBe('aborted');
