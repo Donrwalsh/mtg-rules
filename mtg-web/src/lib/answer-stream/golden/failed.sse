@@ -1,0 +1,12 @@
+event: results
+data: {"results": [{"source": "rule", "title": "702.19b", "text": "T.", "score": 0.5, "match_type": "vector_hit", "oracle_id": null, "rule_id": "702.19b", "card_name": null, "published_at": null, "scryfall_uri": null, "cited": false, "card": null, "heading": null, "source_type": "rule"}], "degraded": null, "answers_remaining": null, "cached_at": null, "sources": [{"number": 1, "source_type": "rule", "title": "Rule 702.19b", "rule_id": "702.19b", "card_name": null, "oracle_id": null, "text": "T.", "url": "/rules/702.19b", "published_at": null, "card": null, "heading": null}]}
+
+event: thinking
+data: {}
+
+event: error
+data: {"message": "Gemini 500"}
+
+event: done
+data: {"results": [{"source": "rule", "title": "702.19b", "text": "T.", "score": 0.5, "match_type": "vector_hit", "oracle_id": null, "rule_id": "702.19b", "card_name": null, "published_at": null, "scryfall_uri": null, "cited": false, "card": null, "heading": null, "source_type": "rule"}], "answer": null, "citations": [], "rule_references": [], "citation_stats": {"cited_count": 0, "invalid_count": 0, "uncited_answer": false}, "answer_complete": null, "context_hash": null, "prompt_version": null, "generator": null, "usage": null, "generation_error": null}
+
