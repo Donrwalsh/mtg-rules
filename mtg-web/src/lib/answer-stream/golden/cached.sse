@@ -1,0 +1,6 @@
+event: results
+data: {"results": [{"source": "rule", "title": "702.19b", "text": "T.", "score": 0.5, "match_type": "vector_hit", "oracle_id": null, "rule_id": "702.19b", "card_name": null, "published_at": null, "scryfall_uri": null, "cited": true, "card": null, "heading": null, "source_type": "rule"}], "degraded": null, "answers_remaining": null, "cached_at": "2026-01-01T00:00:00Z", "sources": []}
+
+event: done
+data: {"results": [{"source": "rule", "title": "702.19b", "text": "T.", "score": 0.5, "match_type": "vector_hit", "oracle_id": null, "rule_id": "702.19b", "card_name": null, "published_at": null, "scryfall_uri": null, "cited": true, "card": null, "heading": null, "source_type": "rule"}], "answer": "Yes [1].", "citations": [{"number": 1, "source_type": "rule", "title": "Rule 702.19b", "rule_id": "702.19b", "card_name": null, "oracle_id": null, "text": "T.", "url": "/rules/702.19b", "published_at": null, "card": null, "heading": null}], "rule_references": [], "citation_stats": {"cited_count": 1, "invalid_count": 0, "uncited_answer": false}, "answer_complete": true, "context_hash": null, "prompt_version": null, "generator": null, "usage": null, "generation_error": null}
+

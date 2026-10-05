@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Citation, QueryResult } from './api';
-import { liveCitations, liveResults, visibleDraft } from './stream';
+import type { Citation, QueryResult } from '../api';
+import { liveCitations, liveResults, visibleDraft } from './live';
 
 const source = (number: number): Citation => ({
   number,

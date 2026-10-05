@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RateLimitedError, type StreamDone, type StreamHandlers } from '../api';
-import { mockQuery, mockStream } from './index';
+import { RateLimitedError } from '../api';
+import type { StreamDone, StreamEvent } from '../answer-stream/protocol';
+import { fixtureSource, mockQuery } from './index';
 
 describe('fixtures', () => {
   it('answered cites five sources and retrieves six more', async () => {
@@ -47,37 +48,27 @@ describe('fixtures', () => {
   });
 });
 
-function record() {
-  const events: string[] = [];
-  let text = '';
-  let done: StreamDone | null = null;
-  const on: StreamHandlers = {
-    results: () => events.push('results'),
-    thinking: () => events.push('thinking'),
-    delta: (t) => {
-      if (events[events.length - 1] !== 'delta') events.push('delta');
-      text += t;
-    },
-    error: () => events.push('error'),
-    done: (d) => {
-      events.push('done');
-      done = d;
-    }
-  };
-  return { events, on, text: () => text, done: (): StreamDone | null => done };
-}
-
 async function play(name: string) {
   vi.useFakeTimers();
-  const r = record();
-  const run = mockStream(name, r.on);
+  const events: StreamEvent[] = [];
+  const run = (async () => {
+    const signal = new AbortController().signal;
+    for await (const e of fixtureSource(name)('q', { fresh: false, signal })) events.push(e);
+  })();
   await vi.runAllTimersAsync();
   await run;
   vi.useRealTimers();
-  return r;
+  // Consecutive deltas collapse to one name, as the old recorder did.
+  const names = events
+    .map((e) => e.type)
+    .filter((t, i, all) => t !== 'delta' || all[i - 1] !== 'delta');
+  const text = events.map((e) => (e.type === 'delta' ? e.text : '')).join('');
+  const last = events.at(-1);
+  const done: StreamDone | null = last?.type === 'done' ? last.done : null;
+  return { names, text, done };
 }
 
-describe('mockStream', () => {
+describe('fixtureSource', () => {
   it.each([
     ['streaming', ['results', 'thinking', 'delta', 'done'], true],
     ['cutoff', ['results', 'thinking', 'delta', 'done'], false],
@@ -86,21 +77,37 @@ describe('mockStream', () => {
     ['quota', ['results', 'done'], null]
   ])('%s sends %j', async (name, expected, complete) => {
     const r = await play(name);
-    expect(r.events).toEqual(expected);
-    expect(r.done()?.answer_complete).toBe(complete);
+    expect(r.names).toEqual(expected);
+    expect(r.done?.answer_complete).toBe(complete);
   });
 
   it('streaming deltas add up to the answer', async () => {
     const r = await play('streaming');
-    expect(r.text()).toBe(r.done()?.answer);
+    expect(r.text).toBe(r.done?.answer);
+  });
+
+  it('error and ratelimited throw before any event', async () => {
+    const signal = new AbortController().signal;
+    const first = (name: string) => fixtureSource(name)('q', { fresh: false, signal })
+      [Symbol.asyncIterator]()
+      .next();
+    await expect(first('error')).rejects.toThrow('query failed: 502');
+    await expect(first('ratelimited')).rejects.toBeInstanceOf(RateLimitedError);
   });
 
   it('stops when aborted', async () => {
     const controller = new AbortController();
-    const r = record();
-    const run = mockStream('streaming', r.on, controller.signal);
+    const events: StreamEvent[] = [];
+    const run = (async () => {
+      for await (const e of fixtureSource('streaming')('q', {
+        fresh: false,
+        signal: controller.signal
+      })) {
+        events.push(e);
+      }
+    })();
     controller.abort();
     await expect(run).rejects.toThrow();
-    expect(r.events).not.toContain('done');
+    expect(events.map((e) => e.type)).not.toContain('done');
   });
 });

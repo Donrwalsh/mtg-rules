@@ -10,6 +10,7 @@ export const MAX_QUERY_CHARS = 500;
 export const ADMIN_HEADER = 'X-Admin-Request';
 
 export class RateLimitedError extends Error {}
+export const TOO_MANY_REQUESTS = 'Too many requests. Wait a few seconds and try again.';
 
 // A card's face for display (not its rules text, which is `text`). Filled in
 // by the API on card, oracle and ruling sources.
@@ -94,76 +95,12 @@ export async function submitQuery(
     body: JSON.stringify(fresh ? { query, fresh } : { query })
   });
   if (resp.status === 429) {
-    throw new RateLimitedError('Too many requests. Wait a few seconds and try again.');
+    throw new RateLimitedError(TOO_MANY_REQUESTS);
   }
   if (!resp.ok) {
     throw new Error(`query failed: ${resp.status}`);
   }
   return resp.json();
-}
-
-// The first event of a streamed answer: everything but the answer.
-export interface StreamHead {
-  results: QueryResult[];
-  // A citation for every numbered source, so markers work while streaming.
-  sources: Citation[];
-  degraded: QueryResponse['degraded'];
-  answers_remaining: number | null;
-  cached_at: string | null;
-}
-
-// The last event: the validated answer. `results` again, with `cited` set.
-export type StreamDone = Omit<
-  QueryResponse,
-  'query' | 'degraded' | 'answers_remaining' | 'cached_at'
->;
-
-export interface StreamHandlers {
-  results: (head: StreamHead) => void;
-  thinking: () => void;
-  delta: (text: string) => void;
-  // Generation failed with no text; `done` still follows.
-  error: (message: string) => void;
-  done: (done: StreamDone) => void;
-}
-
-export class StreamEndedError extends Error {}
-
-export async function streamQuery(
-  query: string,
-  { fresh = false, signal }: { fresh?: boolean; signal?: AbortSignal },
-  on: StreamHandlers
-): Promise<void> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (fresh) headers[ADMIN_HEADER] = '1';
-  const resp = await fetch(`${API_URL}/api/v1/query/stream`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(fresh ? { query, fresh } : { query }),
-    signal
-  });
-  if (resp.status === 429) {
-    throw new RateLimitedError('Too many requests. Wait a few seconds and try again.');
-  }
-  if (!resp.ok || !resp.body) {
-    throw new Error(`query failed: ${resp.status}`);
-  }
-  const reader = resp.body.pipeThrough(new TextDecoderStream()).getReader();
-  const parser = new SseParser();
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    for (const e of parser.push(value)) {
-      if (signal?.aborted) return;
-      const data = JSON.parse(e.data);
-      if (e.event === 'results') on.results(data);
-      else if (e.event === 'thinking') on.thinking();
-      else if (e.event === 'delta') on.delta(data.text);
-      else if (e.event === 'error') on.error(data.message);
-      else if (e.event === 'done') return on.done(data);
-    }
-  }
-  throw new StreamEndedError('The answer stopped arriving before it finished.');
 }
 
 export async function fetchAdminStatus(): Promise<boolean> {
