@@ -3,6 +3,8 @@
 > Architecture review, 2026-09-30, branch `feature/streaming-answers`.
 > Strength: **Strong** · Dependency category: **ports & adapters** (fetch adapter + fixture adapter)
 > Companion docs: [02 query pipeline](02-query-pipeline.md) (the server end of the same protocol), [04 citations](04-citations.md) (the live-citation helpers this module calls).
+>
+> **Update 2026-10-05:** the bug below was fixed by PR #21 (2026-10-01), which stops a visitor asking while an answer loads or streams. The open questions are settled in [the spec](../../superpowers/specs/2026-10-05-web-answer-stream-design.md), which trims this plan to match.
 
 ## Summary
 
