@@ -1,5 +1,5 @@
-// Dev-only stand-ins for POST /api/v1/query, so every state of the search
-// page can be checked without spending quota: /?mock=<name> in `npm run dev`.
+// Dev-only stand-ins for the API, so every state of the search page can be
+// checked without spending quota: /?mock=<name> in `npm run dev`.
 // Content follows the design canvas's worked example (trample + deathtouch).
 // Card images are null so the placeholders show, except in `images`, which
 // uses real Scryfall URLs (and keeps Basilisk Collar as the placeholder).
@@ -9,8 +9,7 @@ import {
   type CardDetails,
   type Citation,
   type QueryResponse,
-  type QueryResult,
-  type StreamHandlers
+  type QueryResult
 } from '../api';
 import { splitResponse, type StreamEvent } from '../answer-stream/protocol';
 import { liveCitations, visibleDraft } from '../answer-stream/live';
@@ -276,7 +275,7 @@ export function mockQuery(name: string): Promise<QueryResponse> {
   return new Promise((resolve) => setTimeout(() => resolve(structuredClone(make())), 400));
 }
 
-// Streamed versions of the fixtures, for the stream the page really reads.
+// fixtureSource: the fixtures as an AnswerSource, the stream the page really reads.
 // `streaming`, `thinking`, `cutoff`, `streamerror` and `stalled` write the
 // worked example as it arrives; every other name answers at once, like a
 // cache hit or a degraded request.
@@ -387,20 +386,4 @@ export function fixtureSource(name: string): AnswerSource {
       ).done
     };
   };
-}
-
-/** The old handler interface over fixtureSource, until the page switches (Task 6). */
-export async function mockStream(
-  name: string,
-  on: StreamHandlers,
-  signal: AbortSignal = new AbortController().signal
-): Promise<void> {
-  for await (const e of fixtureSource(name)('', { fresh: false, signal })) {
-    if (signal.aborted) return;
-    if (e.type === 'results') on.results(e.head);
-    else if (e.type === 'thinking') on.thinking();
-    else if (e.type === 'delta') on.delta(e.text);
-    else if (e.type === 'error') on.error(e.message);
-    else on.done(e.done);
-  }
 }

@@ -814,8 +814,8 @@ In `fixtures.test.ts`, replace the imports and everything from `function record(
 
 ```ts
 import { describe, expect, it, vi } from 'vitest';
-import { RateLimitedError, type StreamDone } from '../api';
-import type { StreamEvent } from '../answer-stream/protocol';
+import { RateLimitedError } from '../api';
+import type { StreamDone, StreamEvent } from '../answer-stream/protocol';
 import { fixtureSource, mockQuery } from './index';
 ```
 

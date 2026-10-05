@@ -103,58 +103,6 @@ export async function submitQuery(
   return resp.json();
 }
 
-// Moved to answer-stream/protocol; re-exported until the page switches over.
-export type { StreamDone, StreamHead } from './answer-stream/protocol';
-import type { StreamDone, StreamHead } from './answer-stream/protocol';
-
-export interface StreamHandlers {
-  results: (head: StreamHead) => void;
-  thinking: () => void;
-  delta: (text: string) => void;
-  // Generation failed with no text; `done` still follows.
-  error: (message: string) => void;
-  done: (done: StreamDone) => void;
-}
-
-export class StreamEndedError extends Error {}
-
-export async function streamQuery(
-  query: string,
-  { fresh = false, signal }: { fresh?: boolean; signal?: AbortSignal },
-  on: StreamHandlers
-): Promise<void> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (fresh) headers[ADMIN_HEADER] = '1';
-  const resp = await fetch(`${API_URL}/api/v1/query/stream`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(fresh ? { query, fresh } : { query }),
-    signal
-  });
-  if (resp.status === 429) {
-    throw new RateLimitedError(TOO_MANY_REQUESTS);
-  }
-  if (!resp.ok || !resp.body) {
-    throw new Error(`query failed: ${resp.status}`);
-  }
-  const reader = resp.body.pipeThrough(new TextDecoderStream()).getReader();
-  const parser = new SseParser();
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    for (const e of parser.push(value)) {
-      if (signal?.aborted) return;
-      const data = JSON.parse(e.data);
-      if (e.event === 'results') on.results(data);
-      else if (e.event === 'thinking') on.thinking();
-      else if (e.event === 'delta') on.delta(data.text);
-      else if (e.event === 'error') on.error(data.message);
-      else if (e.event === 'done') return on.done(data);
-    }
-  }
-  throw new StreamEndedError('The answer stopped arriving before it finished.');
-}
-
 export async function fetchAdminStatus(): Promise<boolean> {
   try {
     const resp = await fetch(`${API_URL}/api/v1/auth/me`);

@@ -8,13 +8,11 @@
     AdminRequiredError,
     fetchReplay,
     NotFoundError,
-    RateLimitedError,
-    streamQuery,
-    type Citation,
-    type QueryResponse,
-    type ReplayResponse,
-    type StreamHandlers
+    TOO_MANY_REQUESTS,
+    type ReplayResponse
   } from '$lib/api';
+  import { createAnswerStream } from '$lib/answer-stream/answerStream.svelte';
+  import { httpSource, type AnswerSource } from '$lib/answer-stream/sources';
   import AppHeader from '$lib/AppHeader.svelte';
   import AnswerBody from '$lib/desk/AnswerBody.svelte';
   import EmptyState from '$lib/desk/EmptyState.svelte';
@@ -33,14 +31,8 @@
   import type { Selection } from '$lib/selection';
   import { closeSheet, openSheet as pushSheet } from '$lib/overlays';
   import { noticeFor } from '$lib/status';
-  import { liveCitations, liveResults, visibleDraft } from '$lib/stream';
-
-  type View = 'idle' | 'loading' | 'streaming' | 'result' | 'failed';
 
   let query = $state('');
-  let view = $state<View>('idle');
-  let response = $state<QueryResponse | null>(null);
-  let failure = $state('');
   let rateLimited = $state('');
   let selection = $state<Selection | null>(null);
   let sheetItems = $state<EvidenceItem[]>([]);
@@ -49,94 +41,34 @@
   // Admin: /?replay=<history id> re-renders a saved answer without asking again.
   let replay = $state<ReplayResponse | null>(null);
   let replayFailed = $state<{ id: string; kind: 'admin' | 'missing' | 'other' } | null>(null);
-  let replayLoads = 0;
-  // While an answer streams: the sources its markers may point to, the raw
-  // text so far, and a copy of it refreshed at most once per frame.
-  let sources = $state<Citation[]>([]);
-  let draft = '';
-  let shownDraft = $state('');
-  let frame = 0;
-  let controller: AbortController | null = null;
 
   const phone = new MediaQuery('max-width: 639px');
   const desk = new MediaQuery('min-width: 1100px');
   const hover = new MediaQuery('hover: hover');
 
-  const live = $derived(view === 'streaming');
+  // Dev only: ?mock=<fixture> answers from src/lib/fixtures (see the spec),
+  // imported on first use so the fixtures stay out of the production bundle.
+  const mock = import.meta.env.DEV ? page.url.searchParams.get('mock') : null;
+  const source: AnswerSource = mock
+    ? async function* (q, opts) {
+        yield* (await import('$lib/fixtures')).fixtureSource(mock)(q, opts);
+      }
+    : httpSource;
+  const answer = createAnswerStream(source);
+
+  const phase = $derived(answer.state.phase);
+  const live = $derived(phase === 'streaming');
   // What the page shows: the response, or while streaming, the draft with
   // live citations in place of the validated ones.
-  const shown = $derived.by((): QueryResponse | null => {
-    if (!response || !live) return response;
-    const citations = liveCitations(shownDraft, sources);
-    return {
-      ...response,
-      answer: visibleDraft(shownDraft),
-      citations,
-      results: liveResults(response.results, citations)
-    };
+  const shown = $derived(answer.shown);
+  const failure = $derived.by(() => {
+    const s = answer.state;
+    return s.phase === 'failed' ? s.message : '';
   });
   const notice = $derived(shown && !live ? noticeFor(shown) : null);
   const citedItems = $derived(shown ? shown.citations.map(fromCitation) : []);
 
   onMount(loadMeta);
-
-  // Dev only: ?mock=<fixture> answers from src/lib/fixtures (see the spec).
-  const mock = import.meta.env.DEV ? page.url.searchParams.get('mock') : null;
-
-  function showDraftNextFrame() {
-    if (frame) return;
-    frame = requestAnimationFrame(() => {
-      frame = 0;
-      shownDraft = draft;
-    });
-  }
-
-  function stopDraftFrames() {
-    cancelAnimationFrame(frame);
-    frame = 0;
-  }
-
-  async function run(
-    q: string,
-    fresh: boolean,
-    signal: AbortSignal,
-    progress: { results: boolean }
-  ): Promise<void> {
-    const on: StreamHandlers = {
-      results: ({ sources: s, ...head }) => {
-        progress.results = true;
-        response = {
-          query: q,
-          ...head,
-          answer: null,
-          citations: [],
-          rule_references: [],
-          citation_stats: { cited_count: 0, invalid_count: 0, uncited_answer: false },
-          answer_complete: null
-        };
-        sources = s;
-        draft = '';
-        shownDraft = '';
-        view = 'streaming';
-      },
-      thinking: () => {},
-      delta: (text) => {
-        draft += text;
-        showDraftNextFrame();
-      },
-      // `done` follows with no answer, which shows the "couldn't write" notice.
-      error: () => {},
-      done: (d) => {
-        stopDraftFrames();
-        if (response) response = { ...response, ...d };
-        view = 'result';
-      }
-    };
-    if (import.meta.env.DEV && mock) {
-      return (await import('$lib/fixtures')).mockStream(mock, on, signal);
-    }
-    return streamQuery(q, { fresh, signal }, on);
-  }
 
   const replayParam = $derived(page.url.searchParams.get('replay'));
 
@@ -149,44 +81,34 @@
   });
 
   function reset() {
+    answer.reset();
     replay = null;
     replayFailed = null;
-    response = null;
     selection = null;
     query = '';
-    view = 'idle';
   }
 
   async function loadReplay(id: string) {
-    controller?.abort();
-    stopDraftFrames();
-    const load = ++replayLoads;
     rateLimited = '';
     selection = null;
     replayFailed = null;
-    view = 'loading';
-    try {
-      const r = await fetchReplay(id);
-      if (load !== replayLoads) return;
-      replay = r;
-      response = r;
-      query = r.query;
-      view = 'result';
-    } catch (e) {
-      if (load !== replayLoads) return;
+    const r = await answer.load(() => fetchReplay(id));
+    if (r === 'aborted') return;
+    if (r instanceof Error) {
       replay = null;
       replayFailed = {
         id,
         kind:
-          e instanceof AdminRequiredError
+          r instanceof AdminRequiredError
             ? 'admin'
-            : e instanceof NotFoundError
+            : r instanceof NotFoundError
               ? 'missing'
               : 'other'
       };
-      failure = e instanceof Error ? e.message : String(e);
-      view = 'failed';
+      return;
     }
+    replay = r;
+    query = r.query;
   }
 
   const REPLAY_ERRORS = {
@@ -198,51 +120,19 @@
   async function ask(fresh = false) {
     // A fresh request must regenerate the question whose cached answer is
     // on screen, not whatever is currently sitting in the input box.
-    const q = fresh && response ? response.query : query.trim();
-    // The server keeps writing an abandoned answer and holds this visitor's
-    // one generation slot until it's done, so asking now would get a 429.
-    if (!q || live) return;
+    const q = fresh && shown ? shown.query : query.trim();
+    // While an answer loads or streams the server holds this visitor's one
+    // generation slot, so asking waits (the answer stream's busy rule).
+    if (!q || answer.busy) return;
     if (replayParam) {
       // Asking for real ends the replay.
       replay = null;
       replayFailed = null;
-      replayLoads++;
       goto('/', { keepFocus: true, noScroll: true });
     }
-    // End anything still in flight (a question still loading, or a replay).
-    controller?.abort();
-    stopDraftFrames();
-    const ctrl = (controller = new AbortController());
-    const progress = { results: false };
-    const previous: View = response ? 'result' : 'idle';
     rateLimited = '';
     selection = null;
-    view = 'loading';
-    try {
-      await run(q, fresh, ctrl.signal, progress);
-    } catch (e) {
-      if (ctrl.signal.aborted) return;
-      if (e instanceof RateLimitedError) {
-        rateLimited = e.message;
-        view = previous;
-      } else if (progress.results && response) {
-        // The stream broke after the evidence arrived: keep what was written.
-        stopDraftFrames();
-        const answer = visibleDraft(draft).trimEnd() || null;
-        const citations = answer ? liveCitations(answer, sources) : [];
-        response = {
-          ...response,
-          answer,
-          citations,
-          results: liveResults(response.results, citations),
-          answer_complete: answer ? false : null
-        };
-        view = 'result';
-      } else {
-        failure = e instanceof Error ? e.message : String(e);
-        view = 'failed';
-      }
-    }
+    if ((await answer.ask(q, fresh)) === 'rate-limited') rateLimited = TOO_MANY_REQUESTS;
   }
 
   function openSheet(items: EvidenceItem[], index: number) {
@@ -285,18 +175,18 @@
 {#snippet headerForm()}
   <SearchForm
     bind:value={query}
-    loading={view === 'loading'}
+    loading={phase === 'loading'}
     answering={live}
-    retrievalOnly={!!response?.degraded}
+    retrievalOnly={!!shown?.degraded}
     maxChars={meta.max_query_chars}
     error={rateLimited}
     onsubmit={() => ask()}
   />
 {/snippet}
 
-<AppHeader center={view === 'idle' ? undefined : headerForm} />
+<AppHeader center={phase === 'idle' ? undefined : headerForm} />
 
-{#if view === 'idle'}
+{#if phase === 'idle'}
   <EmptyState
     bind:query
     error={rateLimited}
@@ -306,9 +196,9 @@
       ask();
     }}
   />
-{:else if view === 'loading'}
+{:else if phase === 'loading'}
   <LoadingState />
-{:else if view === 'failed'}
+{:else if phase === 'failed'}
   {#if replayFailed}
     {@const { id, kind } = replayFailed}
     <ErrorState
