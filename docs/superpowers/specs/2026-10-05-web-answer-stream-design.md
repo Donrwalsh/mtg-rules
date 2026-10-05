@@ -1,6 +1,6 @@
 # Web answer stream
 
-Status: design agreed, awaiting implementation plan
+Status: implemented (plan: [2026-10-05-web-answer-stream](../plans/2026-10-05-web-answer-stream.md))
 Date: 2026-10-05
 Branch: `refactor/web-answer-stream` (cut from `main` at `a7940fe`, after doc 01 merged)
 
