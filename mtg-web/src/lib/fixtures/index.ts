@@ -5,15 +5,16 @@
 // uses real Scryfall URLs (and keeps Basilisk Collar as the placeholder).
 import {
   RateLimitedError,
+  TOO_MANY_REQUESTS,
   type CardDetails,
   type Citation,
   type QueryResponse,
   type QueryResult,
-  type StreamDone,
-  type StreamHandlers,
-  type StreamHead
+  type StreamHandlers
 } from '../api';
+import { splitResponse, type StreamEvent } from '../answer-stream/protocol';
 import { liveCitations, visibleDraft } from '../answer-stream/live';
+import type { AnswerSource } from '../answer-stream/sources';
 
 export const FIXTURE_NAMES = [
   'answered',
@@ -268,7 +269,7 @@ export function mockQuery(name: string): Promise<QueryResponse> {
   if (name === 'error') return Promise.reject(new Error('query failed: 502'));
   if (name === 'ratelimited')
     return Promise.reject(
-      new RateLimitedError('Too many requests. Wait a few seconds and try again.')
+      new RateLimitedError(TOO_MANY_REQUESTS)
     );
   const make = FIXTURES[name] ?? FIXTURES.answered;
   // A short delay so the loading state shows between states.
@@ -295,27 +296,6 @@ function wait(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-function headOf(r: QueryResponse, sources: Citation[]): StreamHead {
-  return {
-    results: r.results,
-    sources,
-    degraded: r.degraded,
-    answers_remaining: r.answers_remaining,
-    cached_at: r.cached_at
-  };
-}
-
-function doneOf(r: QueryResponse): StreamDone {
-  return {
-    results: r.results,
-    answer: r.answer,
-    citations: r.citations,
-    rule_references: r.rule_references,
-    citation_stats: r.citation_stats,
-    answer_complete: r.answer_complete
-  };
-}
-
 // Fixed-size pieces, the way Gemini's chunks break mid-marker and mid-word.
 function pieces(text: string, size = 14): string[] {
   const out: string[] = [];
@@ -333,60 +313,94 @@ const STREAMED: Record<string, { thinkMs: number; stopAt: number | null; stall?:
   streamerror: { thinkMs: 1200, stopAt: 0 }
 };
 
+/** Never yields; rejects when `signal` aborts (the `slow` and `stalled` hangs). */
+function never(signal: AbortSignal): Promise<never> {
+  return new Promise((_, reject) =>
+    signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {
+      once: true
+    })
+  );
+}
+
+export function fixtureSource(name: string): AnswerSource {
+  return async function* (_query, { signal }): AsyncGenerator<StreamEvent> {
+    if (name === 'slow') await never(signal);
+    if (name === 'error') throw new Error('query failed: 502');
+    if (name === 'ratelimited') throw new RateLimitedError(TOO_MANY_REQUESTS);
+    const plan = STREAMED[name];
+    if (!plan) {
+      const { head, done } = splitResponse(
+        structuredClone((FIXTURES[name] ?? FIXTURES.answered)()),
+        []
+      );
+      await wait(400, signal);
+      yield { type: 'results', head };
+      yield { type: 'done', done };
+      return;
+    }
+
+    const base = structuredClone({ ...BASE, cached_at: null });
+    await wait(300, signal);
+    yield {
+      type: 'results',
+      head: splitResponse({ ...base, results: uncitedResults }, base.citations).head
+    };
+    yield { type: 'thinking' };
+    await wait(plan.thinkMs, signal);
+
+    const full = base.answer!;
+    const text = plan.stopAt === null ? full : full.slice(0, Math.floor(full.length * plan.stopAt));
+    for (const piece of pieces(text)) {
+      yield { type: 'delta', text: piece };
+      await wait(40, signal);
+    }
+    if (plan.stall) await never(signal);
+
+    if (plan.stopAt === 0) {
+      yield { type: 'error', message: 'Gemini returned no answer: SAFETY' };
+      yield {
+        type: 'done',
+        done: splitResponse({ ...retrievalOnly, answer_complete: null }, []).done
+      };
+      return;
+    }
+    if (plan.stopAt === null) {
+      yield { type: 'done', done: splitResponse(base, []).done };
+      return;
+    }
+    const answer = visibleDraft(text).trimEnd();
+    const citations = liveCitations(answer, base.citations);
+    const cited = new Set(citations.map((c) => c.number));
+    yield {
+      type: 'done',
+      done: splitResponse(
+        {
+          ...base,
+          answer,
+          citations,
+          rule_references: base.rule_references.filter((id) => answer.includes(id)),
+          results: base.results.map((r, i) => ({ ...r, cited: cited.has(i + 1) })),
+          citation_stats: { cited_count: citations.length, invalid_count: 0, uncited_answer: false },
+          answer_complete: false
+        },
+        []
+      ).done
+    };
+  };
+}
+
+/** The old handler interface over fixtureSource, until the page switches (Task 6). */
 export async function mockStream(
   name: string,
   on: StreamHandlers,
-  signal?: AbortSignal
+  signal: AbortSignal = new AbortController().signal
 ): Promise<void> {
-  if (name === 'slow') return new Promise(() => {});
-  if (name === 'error') throw new Error('query failed: 502');
-  if (name === 'ratelimited') {
-    throw new RateLimitedError('Too many requests. Wait a few seconds and try again.');
+  for await (const e of fixtureSource(name)('', { fresh: false, signal })) {
+    if (signal.aborted) return;
+    if (e.type === 'results') on.results(e.head);
+    else if (e.type === 'thinking') on.thinking();
+    else if (e.type === 'delta') on.delta(e.text);
+    else if (e.type === 'error') on.error(e.message);
+    else on.done(e.done);
   }
-  const plan = STREAMED[name];
-  if (!plan) {
-    const r = structuredClone((FIXTURES[name] ?? FIXTURES.answered)());
-    await wait(400, signal);
-    on.results(headOf(r, []));
-    on.done(doneOf(r));
-    return;
-  }
-
-  const base = structuredClone({ ...BASE, cached_at: null });
-  await wait(300, signal);
-  on.results(headOf({ ...base, results: uncitedResults }, base.citations));
-  on.thinking();
-  await wait(plan.thinkMs, signal);
-
-  const full = base.answer!;
-  const text = plan.stopAt === null ? full : full.slice(0, Math.floor(full.length * plan.stopAt));
-  for (const piece of pieces(text)) {
-    on.delta(piece);
-    await wait(40, signal);
-  }
-  if (plan.stall) return new Promise(() => {});
-
-  if (plan.stopAt === 0) {
-    on.error('Gemini returned no answer: SAFETY');
-    on.done(doneOf({ ...retrievalOnly, answer_complete: null }));
-    return;
-  }
-  if (plan.stopAt === null) {
-    on.done(doneOf(base));
-    return;
-  }
-  const answer = visibleDraft(text).trimEnd();
-  const citations = liveCitations(answer, base.citations);
-  const cited = new Set(citations.map((c) => c.number));
-  on.done(
-    doneOf({
-      ...base,
-      answer,
-      citations,
-      rule_references: base.rule_references.filter((id) => answer.includes(id)),
-      results: base.results.map((r, i) => ({ ...r, cited: cited.has(i + 1) })),
-      citation_stats: { cited_count: citations.length, invalid_count: 0, uncited_answer: false },
-      answer_complete: false
-    })
-  );
 }
